@@ -421,7 +421,7 @@ class GenerateTypeObjects {
 		
 		$this->num_limit_generate = $limit;
 	}
-	
+
 	public function init() {
 
 		if (!$this->is_generating) {
@@ -430,7 +430,6 @@ class GenerateTypeObjects {
 			$this->generateTablesColumns();
 			
 			if ($this->view == static::VIEW_ID) {
-				
 				return $this->initQuick();
 			}
 			
@@ -455,6 +454,41 @@ class GenerateTypeObjects {
 		return $arr_objects;
 	}
 	
+	protected function initQuick() {
+		
+		$sql_query = $this->sqlQuery('object_ids');
+		
+		$this->initPre();
+		
+		$res_objects = DB::query($sql_query);
+		
+		$arr = [];
+		
+		$has_extra = ($this->arr_columns_object_extra ? true : false);
+		
+		while ($arr_row = $res_objects->fetchRow()) {
+		
+			$cur_object_id = $arr_row[0];
+			$arr[$cur_object_id]['object'] = [
+				'object_id' => $arr_row[0],
+			];
+			
+			if (!$has_extra) {
+				continue;
+			}
+			
+			$cur_row = 1;
+			
+			foreach ($this->arr_columns_object_extra as $sql_name => $sql_extra) {
+				
+				$arr[$cur_object_id][$sql_name] = $arr_row[$cur_row];
+				$cur_row = $cur_row++;
+			}
+		}
+		
+		return $arr;
+	}
+	
 	public function initGenerate() {
 				
 		$this->storeResultTemporarily();
@@ -468,6 +502,21 @@ class GenerateTypeObjects {
 			if ($arr_result['total_filtered'] > $arr_nodegoat_details['limit_view']) {
 				error(getLabel('msg_data_range_too_wide'));
 			}
+		}
+	}
+	
+	public function iterateObjectIDs($do_all = false) {
+		
+		$this->storeResultTemporarily();
+		
+		$str_sql_table_name = ($do_all && $this->num_limit_generate ? $this->table_name_all : $this->table_name_objects);
+		
+		$res = DB::query("SELECT DISTINCT id
+			FROM ".$str_sql_table_name
+		);
+		
+		while ($arr_row = $res->fetchRow()) {
+			yield $arr_row[0];
 		}
 	}
 	
@@ -1832,133 +1881,7 @@ class GenerateTypeObjects {
 				
 		return $arr;
 	}
-	
-	protected function initQuick() {
-		
-		$sql_query = $this->sqlQuery('object_ids');
-		
-		$this->initPre();
-		
-		$res_objects = DB::query($sql_query);
-		
-		$arr = [];
-		
-		$has_extra = ($this->arr_columns_object_extra ? true : false);
-		
-		while ($arr_row = $res_objects->fetchRow()) {
-		
-			$cur_object_id = $arr_row[0];
-			$arr[$cur_object_id]['object'] = [
-				'object_id' => $arr_row[0],
-			];
-			
-			if (!$has_extra) {
-				continue;
-			}
-			
-			$cur_row = 1;
-			
-			foreach ($this->arr_columns_object_extra as $sql_name => $sql_extra) {
-				
-				$arr[$cur_object_id][$sql_name] = $arr_row[$cur_row];
-				$cur_row = $cur_row++;
-			}
-		}
-		
-		return $arr;
-	}
-	
-	protected function reInitPre() {
-		
-		if (!$this->arr_sql_pre_settings) {
-			return;
-		}
-		
-		$nr_batch = 0;
-		$arr_batch_sql = [];
-		
-		$func_add_batch_sql = function($sql, $is_abortable = false) use (&$arr_batch_sql, &$nr_batch, &$func_run_batch_sql) {
-			
-			if ($this->is_user && $is_abortable) {
-				$nr_batch++;
-				$arr_batch_sql[$nr_batch] = $sql;
-				$nr_batch++;
-			} else if (is_callable($sql)) {
-				$nr_batch++;
-				$arr_batch_sql[$nr_batch] = $sql;
-				$func_run_batch_sql(); // Run the current queue because a function could contain its own logic and queue 
-			} else {
-				$arr_batch_sql[$nr_batch][] = rtrim($sql, ';');
-			}
-		};
-		
-		$func_run_batch_sql = function() use (&$arr_batch_sql) {
-			
-			foreach ($arr_batch_sql as $sql) {
-			
-				if (is_callable($sql)) {
-					
-					$sql = $sql();
-					
-					if ($sql) {
-						DB::queryMulti($sql);
-					}
-				} else if (is_array($sql)) {
-					
-					DB::queryMulti(implode(';', $sql));
-				} else { // Abortable
-					
-					DB::queryAsync($sql);
-				}
-			}
-			
-			$arr_batch_sql = [];
-		};
-		
-		foreach ($this->arr_sql_pre_settings as $identifier => $arr_sql_pre_setting) {
-			
-			if (!$arr_sql_pre_setting['dependent']) {
-				continue;
-			}
-			
-			if ($arr_sql_pre_setting['value']['table_name']) {
-								
-				$table_name = DB::getTableTemporary(DATABASE_NODEGOAT_TEMP.'.'.$arr_sql_pre_setting['value']['table_name']);
-				
-				$sql_clear = "TRUNCATE TABLE ".$table_name.";";
-				$sql_insert = '';
-				
-				if ($arr_sql_pre_setting['value']['query']) {
-					
-					$sql_insert = "INSERT INTO ".$table_name."
-						(".rtrim($arr_sql_pre_setting['value']['query'], ';').")
-					;";
-				}
-				
-				if ($sql_insert && $arr_sql_pre_setting['abortable']) {
-					
-					$func_add_batch_sql($sql_clear);
-					$func_add_batch_sql($sql_insert, true);
-				} else {
-					
-					$func_add_batch_sql($sql_clear.$sql_insert);
-				}
-								
-				if ($arr_sql_pre_setting['value']['function']) {
-					
-					$func_add_batch_sql($arr_sql_pre_setting['value']['function']);
-				}
-						
-				if ($arr_sql_pre_setting['value']['sql']) {
-					
-					$func_add_batch_sql($arr_sql_pre_setting['value']['sql'], $arr_sql_pre_setting['abortable']);
-				}
-			}
-		}
-		
-		$func_run_batch_sql();
-	}
-	
+
 	protected function initPre() {
 		
 		if (!$this->arr_sql_pre_settings) {
@@ -2160,6 +2083,97 @@ class GenerateTypeObjects {
 
 				$func_add_batch_sql($arr_sql_pre_setting['value']['query'], $arr_sql_pre_setting['abortable']);
 								
+				if ($arr_sql_pre_setting['value']['sql']) {
+					
+					$func_add_batch_sql($arr_sql_pre_setting['value']['sql'], $arr_sql_pre_setting['abortable']);
+				}
+			}
+		}
+		
+		$func_run_batch_sql();
+	}
+	
+	protected function reInitPre() {
+		
+		if (!$this->arr_sql_pre_settings) {
+			return;
+		}
+		
+		$nr_batch = 0;
+		$arr_batch_sql = [];
+		
+		$func_add_batch_sql = function($sql, $is_abortable = false) use (&$arr_batch_sql, &$nr_batch, &$func_run_batch_sql) {
+			
+			if ($this->is_user && $is_abortable) {
+				$nr_batch++;
+				$arr_batch_sql[$nr_batch] = $sql;
+				$nr_batch++;
+			} else if (is_callable($sql)) {
+				$nr_batch++;
+				$arr_batch_sql[$nr_batch] = $sql;
+				$func_run_batch_sql(); // Run the current queue because a function could contain its own logic and queue 
+			} else {
+				$arr_batch_sql[$nr_batch][] = rtrim($sql, ';');
+			}
+		};
+		
+		$func_run_batch_sql = function() use (&$arr_batch_sql) {
+			
+			foreach ($arr_batch_sql as $sql) {
+			
+				if (is_callable($sql)) {
+					
+					$sql = $sql();
+					
+					if ($sql) {
+						DB::queryMulti($sql);
+					}
+				} else if (is_array($sql)) {
+					
+					DB::queryMulti(implode(';', $sql));
+				} else { // Abortable
+					
+					DB::queryAsync($sql);
+				}
+			}
+			
+			$arr_batch_sql = [];
+		};
+		
+		foreach ($this->arr_sql_pre_settings as $identifier => $arr_sql_pre_setting) {
+			
+			if (!$arr_sql_pre_setting['dependent']) {
+				continue;
+			}
+			
+			if ($arr_sql_pre_setting['value']['table_name']) {
+								
+				$table_name = DB::getTableTemporary(DATABASE_NODEGOAT_TEMP.'.'.$arr_sql_pre_setting['value']['table_name']);
+				
+				$sql_clear = "TRUNCATE TABLE ".$table_name.";";
+				$sql_insert = '';
+				
+				if ($arr_sql_pre_setting['value']['query']) {
+					
+					$sql_insert = "INSERT INTO ".$table_name."
+						(".rtrim($arr_sql_pre_setting['value']['query'], ';').")
+					;";
+				}
+				
+				if ($sql_insert && $arr_sql_pre_setting['abortable']) {
+					
+					$func_add_batch_sql($sql_clear);
+					$func_add_batch_sql($sql_insert, true);
+				} else {
+					
+					$func_add_batch_sql($sql_clear.$sql_insert);
+				}
+								
+				if ($arr_sql_pre_setting['value']['function']) {
+					
+					$func_add_batch_sql($arr_sql_pre_setting['value']['function']);
+				}
+						
 				if ($arr_sql_pre_setting['value']['sql']) {
 					
 					$func_add_batch_sql($arr_sql_pre_setting['value']['sql'], $arr_sql_pre_setting['abortable']);
@@ -2530,14 +2544,29 @@ class GenerateTypeObjects {
 		
 		$sql_columns = implode(',', $arr_sql_columns).",
 			PRIMARY KEY (".implode(',', $arr_sql_key).")";
-						
-		foreach ($arr_sql_index as &$sql_index) {
 			
-			$sql_index = DBFunctions::createIndex($table_name, $sql_index);
+		$sql_indexes = '';
+		
+		$do_index_as_column = (DB::ENGINE_IS_MYSQL && DB::getTransaction()); // Let's try to refrain from using data definition language (DDL) statements that will cause and implicit commit in MySQL
+			
+		if ($do_index_as_column) {
+			
+			foreach ($arr_sql_index as $sql_index) {
+				$sql_columns .= ", KEY (".$sql_index.")";
+			}			
+		} else {
+			
+			if ($arr_sql_index) {
+					
+				foreach ($arr_sql_index as &$sql_index) {
+					
+					$sql_index = DBFunctions::createIndex($table_name, $sql_index);
+				}
+				unset($sql_index);
+					
+				$sql_indexes = implode(';', $arr_sql_index).";";
+			}
 		}
-		unset($sql_index);
-			
-		$sql_indexes = ($arr_sql_index ? implode(';', $arr_sql_index).";" : '');
 						
 		return ['columns' => $sql_columns, 'indexes' => $sql_indexes, 'select' => $arr_sql_select, 'has_filtering' => $has_filtering];
 	}
@@ -3801,7 +3830,7 @@ class GenerateTypeObjects {
 								$version_select_query = $this->generateVersion('record_search', $arr_table_info['table_name'], $arr_object_sub_description['object_sub_description_value_type']);
 								$arr_sql_filter = array_filter($arr_table_info['arr_sql_filter']);
 								$sql_filter = ($arr_sql_filter && !isset($arr_table_info['not']) ? "AND (".implode(' OR ', $arr_sql_filter).")" : "");
-																															
+								
 								if ($object_sub_description_use_object_description_id) {
 									$sql_table = "LEFT JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').StoreType::getValueTypeTable(StoreType::getTypeObjectDescriptionValueType($this->type_id, $object_sub_description_use_object_description_id), 'search')." ".$arr_table_info['table_name']." ON (".$arr_table_info['table_name'].".object_id = ".$table_name_query_object_sub.".object_id AND ".$arr_table_info['table_name'].".object_description_id = ".$object_sub_description_use_object_description_id." AND ".$version_select_query." ".$sql_filter.")";
 								} else {
@@ -4267,6 +4296,12 @@ class GenerateTypeObjects {
 					foreach ($arr_tables_info as $arr_table_info) {
 						
 						if ($arr_object_sub_description['object_sub_description_is_dynamic']) {
+							
+							// Not possible for sub-objects, would involve multi-references
+							 
+							if (empty($arr_table_info['arr_sql']['sql_filter']['objects'])) {
+								continue;
+							}
 							
 							$sql_column_name = $arr_table_info['table_name'].'_ref_object_id';
 							$arr_column_info = ['field' => $arr_table_info['table_name'].'_objects.ref_object_id', 'type' => 'INT', 'index' => ''];
@@ -5097,8 +5132,8 @@ class GenerateTypeObjects {
 	public function getResultInfo($arr_options = [], $str_identifier = false) {
 		
 		$arr_options = ($arr_options ?: []);
-		$include_objects = (bool)$arr_options['objects'];
-		$include_statistics = (bool)$arr_options['statistics'];
+		$do_include_objects = (bool)$arr_options['objects'];
+		$do_include_statistics = (bool)$arr_options['statistics'];
 		$version_select = $this->generateVersion('object', 'nodegoat_to');
 		
 		$str_identifier = 'type_filter_result_'.$this->type_id.($str_identifier ? '_'.$str_identifier : '');		
@@ -5111,7 +5146,7 @@ class GenerateTypeObjects {
 			
 			$sql_select = 'COUNT(nodegoat_to.id)';
 			
-			if ($include_statistics) {
+			if ($do_include_statistics) {
 				
 				$sql_select .= ",
 					COUNT(CASE WHEN nodegoat_to.active = TRUE THEN 1 ELSE NULL END) AS active,
@@ -5132,7 +5167,7 @@ class GenerateTypeObjects {
 			
 			$arr_cache['total'] = $arr_row[0];
 			
-			if ($include_statistics) {
+			if ($do_include_statistics) {
 				
 				$arr_cache['statistics'] = [
 					'active' => $arr_row[1],
@@ -5142,22 +5177,22 @@ class GenerateTypeObjects {
 			}
 		}
 		
-		if ($this->arr_combine_filters || $include_objects) {
+		if ($this->arr_combine_filters || $do_include_objects) {
 			
 			$str_filter = ($this->arr_combine_filters ? value2Hash($this->arr_combine_filters) : '');
 			$str_cache_filter = ($arr_cache['query']['value'] ?? '');
 			
-			if ($str_cache_filter != $str_filter || $include_objects) {
+			if ($str_cache_filter != $str_filter || $do_include_objects) {
 				
 				// Data set length after filtering
 				
 				if ($this->table_name && !$this->arr_limit) {
 					
-					$sql_select = ($include_objects ? 'nodegoat_to_to.id' : 'COUNT(nodegoat_to_to.id)');
+					$sql_select = ($do_include_objects ? 'nodegoat_to.id' : 'COUNT(nodegoat_to.id)');
 					
-					if ($include_statistics) {
+					if ($do_include_statistics) {
 						
-						if ($include_objects) {
+						if ($do_include_objects) {
 							
 							$sql_select .= ", CASE
 								WHEN nodegoat_to.active = TRUE THEN 'active'
@@ -5173,29 +5208,68 @@ class GenerateTypeObjects {
 							";
 						}
 					}
+										
+					if ($this->num_limit_generate) {
+						
+						// Need to make use of main table, could contain multiple rows per ID, group it first
+						
+						if ($do_include_statistics) {
+							
+							$str_sql_query = "(SELECT
+								nodegoat_to.id, nodegoat_to.active, nodegoat_to.status
+									FROM ".$this->table_name_all." AS nodegoat_to_to
+									JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." AS nodegoat_to ON (nodegoat_to.id = nodegoat_to_to.id AND ".$version_select.")
+								GROUP BY nodegoat_to.id, nodegoat_to.active, nodegoat_to.status
+							)";
+						} else {
+							
+							$str_sql_query = "(SELECT
+								nodegoat_to.id
+									FROM ".$this->table_name_all." AS nodegoat_to
+								GROUP BY nodegoat_to.id
+							)";
+						}
+						
+						$str_sql_query = "SELECT
+							".$sql_select."
+							FROM ".$str_sql_query." AS nodegoat_to
+						";
+					} else {
+						
+						if ($do_include_statistics) {
+							
+							$str_sql_query = "SELECT
+								".$sql_select."
+									FROM ".$this->table_name_objects." AS nodegoat_to_to
+									JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." AS nodegoat_to ON (nodegoat_to.id = nodegoat_to_to.id AND ".$version_select.")
+							";
+						} else {
+							
+							$str_sql_query = "SELECT
+								".$sql_select."
+									FROM ".$this->table_name_objects." AS nodegoat_to
+							";
+						}
+					}
 					
-					$res = DB::query("SELECT
-						".$sql_select."
-							FROM ".$this->table_name_objects." AS nodegoat_to_to
-							".($include_statistics ? "JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to ON (nodegoat_to.id = nodegoat_to_to.id AND ".$version_select.")" : "")."
-					");
+					$res = DB::query($str_sql_query);
 				} else {
 					
-					if ($include_objects) {
-						$sql_query = $this->sqlQuery(($include_statistics ? 'object_ids_all_statistics' : 'object_ids_all'));
+					if ($do_include_objects) {
+						$str_sql_query = $this->sqlQuery(($do_include_statistics ? 'object_ids_all_statistics' : 'object_ids_all'));
 					} else {
-						$sql_query = $this->sqlQuery(($include_statistics ? 'count_statistics' : 'count'));
+						$str_sql_query = $this->sqlQuery(($do_include_statistics ? 'count_statistics' : 'count'));
 					}
 					
 					$this->initPre();
 					
-					$res = DB::query($sql_query);
+					$res = DB::query($str_sql_query);
 				}
 				
 				$num_total = 0;
 				$num_active = $num_added = $num_deleted = 0;
 				
-				if ($include_objects) {
+				if ($do_include_objects) {
 
 					$arr_objects = [];
 					
@@ -5204,7 +5278,7 @@ class GenerateTypeObjects {
 						$arr_objects[] = $arr_row[0];
 						$num_total++;
 						
-						if ($include_statistics) {
+						if ($do_include_statistics) {
 							
 							switch ($arr_row[1]) {
 								case 'active':
@@ -5224,7 +5298,7 @@ class GenerateTypeObjects {
 					$arr_row = $res->fetchRow();
 					$num_total = $arr_row[0];
 					
-					if ($include_statistics) {
+					if ($do_include_statistics) {
 						
 						$num_active = $arr_row[1];
 						$num_added = $arr_row[2];
@@ -5235,7 +5309,7 @@ class GenerateTypeObjects {
 				$arr_cache['query']['total'] = $num_total;
 				$arr_cache['query']['value'] = $str_filter;
 				
-				if ($include_statistics) {
+				if ($do_include_statistics) {
 					
 					$arr_cache['query']['statistics'] = [
 						'active' => $num_active,
@@ -5249,7 +5323,7 @@ class GenerateTypeObjects {
 			$arr_cache['query']['total'] = $arr_cache['total'];
 			$arr_cache['query']['value'] = false;
 			
-			if ($include_statistics) {
+			if ($do_include_statistics) {
 				$arr_cache['query']['statistics'] = $arr_cache['statistics'];
 			}
 		}
@@ -5262,11 +5336,11 @@ class GenerateTypeObjects {
 			'total_filtered' => $arr_cache['query']['total']
 		];
 		
-		if ($include_statistics) {
+		if ($do_include_statistics) {
 			$arr_info['statistics'] = $arr_cache['statistics'];
 			$arr_info['statistics_filtered'] = $arr_cache['query']['statistics'];
 		}
-		if ($include_objects) {
+		if ($do_include_objects) {
 			$arr_info['objects'] = $arr_objects;
 		}
 		
@@ -5450,10 +5524,8 @@ class GenerateTypeObjects {
 		$arr_res = [];
 		
 		if (count($arr_sql) > 1) {
-			
 			$arr_res = DB::queryMulti(implode(';', $arr_sql).';');
 		} else {
-			
 			$arr_res[] = DB::query($arr_sql[0]);
 		}
 
@@ -5602,7 +5674,7 @@ class GenerateTypeObjects {
 			}
 			
 			// Run all
-				
+			
 			$this->initPre();
 			
 			DB::queryMulti($sql_query.($arr_sql_keys['indexes'] ? ';'.$arr_sql_keys['indexes'] : ''));
@@ -5632,12 +5704,12 @@ class GenerateTypeObjects {
 		DB::queryMulti($sql_query);
 		
 		$this->storeResultTemporarilyGenerate(); // Check for a needed reload of the table_name_objects table in case of filtering
-	}	
+	}
 	
 	protected function storeResultTemporarilyGenerate() {
 		
 		if ($this->table_name_objects != $this->table_name_all) {
-				
+			
 			DB::queryMulti("
 				DROP ".(DB::ENGINE_IS_MYSQL && self::$arr_storage_tables[$this->table_name_objects]['temporary'] ? 'TEMPORARY' : '')." TABLE IF EXISTS ".$this->table_name_objects.";
 				
@@ -5687,7 +5759,7 @@ class GenerateTypeObjects {
 			");
 		}
 	}
-	
+
 	public function setDepth(&$arr_depth) {
 		
 		$this->arr_depth =& $arr_depth;

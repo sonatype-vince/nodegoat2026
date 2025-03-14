@@ -518,7 +518,7 @@ class StoreCustomProject {
 		$arr = [];
 		
 		$arr_types = StoreType::getTypes();
-		
+				
 		$func_check_type = function($type_id) use ($arr_types) {
 			
 			return ($type_id && $arr_types[$type_id] !== null);

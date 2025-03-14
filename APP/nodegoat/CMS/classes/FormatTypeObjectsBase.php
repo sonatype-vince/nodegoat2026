@@ -1630,9 +1630,9 @@ abstract class FormatTypeObjectsBase {
 			case 'boolean':
 				$format = '';
 				if ($value !== '' && $value !== null) {
-					if ($value === 'no' || $value == 0) {
+					if ($value === 'no' || $value == 0) { // Quick check on false, before doing it elaborate on true
 						$format = 0;
-					} else if ($value === 'yes' || $value == 1 || $value === getLabel('lbl_yes', 'L', true)) {
+					} else if ($value === 'yes' || $value == 1 || $value === 'true' || $value === 'True' || $value === getLabel('lbl_yes', 'L', true)) {
 						$format = 1;
 					} else {
 						$format = 0;

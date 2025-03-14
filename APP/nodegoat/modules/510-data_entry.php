@@ -31,6 +31,8 @@ class data_entry extends base_module {
 	public static $arr_date_value_options = ['value' => ['id' => 'value', 'name' => 'Date'], 'object_sub' => ['id' => 'object_sub', 'name' => 'Reference'], 'path' => ['id' => 'path', 'name' => 'Path']];
 	public static $arr_location_options = ['reference' => ['id' => 'reference', 'name' => 'Reference'], 'geometry' => ['id' => 'geometry', 'name' => 'Geometry'], 'point' => ['id' => 'point', 'name' => 'Point']];
 	public $form_name = '';
+	
+	protected static $num_change_objects_buffer = 5000;
 		
 	public function contents() {
 		
@@ -3102,9 +3104,9 @@ class data_entry extends base_module {
 			
 			elm_scripter.on('command', '[id^=x\\\:data_entry\\\:type_id-] .popup_find_change, [id^=x\\\:data_entry\\\:type_id-] .popup_merge, [id^=x\\\:data_entry\\\:type_id-] .delete_bulk', function(e) {
 				
-				var cur = $(this);
-				var datatable = getElement(cur.closest('[id^=d\\\:data_entry\\\:data-]')).datatable;
-				
+				const cur = $(this);
+				const datatable = getElement(cur.closest('[id^=d\\\:data_entry\\\:data-]')).datatable;
+								
 				COMMANDS.setData(cur.parent(), {filter: datatable.getFilter(), search: datatable.getSearch()});
 			});
 
@@ -5442,7 +5444,11 @@ class data_entry extends base_module {
 				$type_id = $id;
 			}
 			
-			$arr_filter[] = data_filter::parseUserFilterInput($value['filter']);
+			$arr_filter_input = data_filter::parseUserFilterInput($value['filter']);
+			if ($arr_filter_input) {
+				$arr_filter[] = $arr_filter_input;
+			}
+			
 			if ($value['search']) {
 				$arr_filter[] = ['search' => $value['search']];
 			}
@@ -5620,7 +5626,7 @@ class data_entry extends base_module {
 			}
 			
 			$_SESSION['data_entry']['find_change'][$type_id]['selection'] = $arr_change['selection_user'];
-			$is_filtering = (!$value['filter'] || $_POST['find_change']['target_full'] ? false : true);
+			$is_filtering = (!$arr_filter_input || $_POST['find_change']['target_full'] ? false : true);
 			
 			$arr_ordering = toolbar::getOrder();
 			$arr_ordering = ($arr_ordering[$type_id] ?? []);
@@ -5634,6 +5640,7 @@ class data_entry extends base_module {
 			}
 			$filter->setFilter($arr_filter);
 			$filter->setOrder($arr_ordering);
+			$filter->setInitLimit(static::$num_change_objects_buffer);
 			
 			if (!$this->is_confirm) {
 				
@@ -5648,13 +5655,20 @@ class data_entry extends base_module {
 				return;
 			}
 			
-			$arr_objects = $filter->init();
+			GenerateTypeObjects::dropResults(); // Cleanup possible leftover tables: clean transaction
+						
+			$filter->storeResultTemporarily(false); // Set source table apart from being overwritten
+			$iterator_object_ids = $filter->iterateObjectIDs(true);
+			
+			if (!$iterator_object_ids->valid()) {
+				return;
+			}
 			
 			// Lock objects
 
 			$storage_lock = new StoreTypeObjects($type_id, false, $_SESSION['USER_ID'], 'lock');
 			
-			foreach ($arr_objects as $object_id => $arr_object) {
+			foreach ($iterator_object_ids as $object_id) {
 				$storage_lock->setObjectID($object_id);
 			}
 			
@@ -5669,8 +5683,9 @@ class data_entry extends base_module {
 			if ($arr_locked) {
 				
 				$storage_lock->removeLockObject();
-								
-				Labels::setVariable('total', count($arr_locked));
+				
+				$num_count_locked = count($arr_locked);
+				Labels::setVariable('total', num2String($num_count_locked));
 				
 				$str_locked = '<ul><li>'.implode('</li><li>', $arr_locked).'</li></ul>';
 				
@@ -5682,7 +5697,7 @@ class data_entry extends base_module {
 			$storage_lock->upgradeLockObject(); // Apply permanent lock
 			
 			$arr_result = $filter->getResultInfo();
-			Labels::setVariable('total', $arr_result['total_filtered']);
+			Labels::setVariable('total', num2String($arr_result['total_filtered']));
 			status(getLabel('msg_object_lock_success'));
 			
 			// Update objects
@@ -5698,21 +5713,24 @@ class data_entry extends base_module {
 
 			$change->setChange($arr_change['find_change'], fn($arr_input) => self::parseTypeObjectInput($type_id, false, $arr_input, true), $arr_change['selection'], $is_filtering, $_SESSION['custom_projects']['project_id'], $_SESSION['NODEGOAT_CLEARANCE']);
 			
-			GenerateTypeObjects::dropResults(); // Cleanup possible leftover tables: clean transaction
-			
-			DB::startTransaction('data_entry_find_change');
-			
 			try {
+				
+				while ($arr_objects = $filter->init()) {
+					
+					DB::startTransaction('data_entry_find_change');
 
-				foreach ($arr_objects as $object_id => $arr_object) {
+					foreach ($arr_objects as $object_id => $arr_object) {
 
-					$change->setObjectID($object_id);
-					$change->change($arr_object);
+						$change->setObjectID($object_id);
+						$change->change($arr_object);
+					}
+					
+					$change->save();
+					
+					$change->commit(true);
+					
+					DB::commitTransaction('data_entry_find_change');
 				}
-				
-				$change->save();
-				
-				$change->commit(true);
 			} catch (Exception $e) {
 
 				DB::rollbackTransaction('data_entry_find_change');
@@ -5722,8 +5740,6 @@ class data_entry extends base_module {
 				throw($e);
 			}
 
-			DB::commitTransaction('data_entry_find_change');
-			
 			$storage_lock->removeLockObject();
 			
 			$this->refresh_table = true;

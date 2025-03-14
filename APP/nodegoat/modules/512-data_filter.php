@@ -3176,13 +3176,17 @@ class data_filter extends base_module {
 		
 		$arr_filter = [];
 		
-		$arr_value = ($value ?: []);
-		if ($arr_value && !is_array($arr_value)) {
-			$arr_value = json_decode($arr_value, true);
-		}
-		
 		if (is_numeric($value)) { // Project filter id
+			
 			$arr_value = ['filter_id' => $value];
+		} else {
+			
+			$arr_value = ($value ?: []);
+			if ($arr_value && !is_array($arr_value)) {
+				$arr_value = json_decode($arr_value, true);
+			}
+			
+			unset($arr_value['active_filter']); // Not needed
 		}
 		
 		$arr_filter_set = false;

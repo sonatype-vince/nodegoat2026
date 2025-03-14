@@ -1755,7 +1755,7 @@ class FilterTypeObjects extends GenerateTypeObjects {
 								if (!$is_filter_instant) {
 									$this->arr_query_object_subs_details[$object_sub_details_id][$table_name_query_object_sub]['object_sub_descriptions'][$object_sub_description_id][$arr_object_filter['filter_code']] = ['table_name' => $table_name, 'filter_code' => $arr_object_filter['filter_code'], 'arr_source' => $arr_object_filter['source'], 'purpose' => $purpose, 'optional' => $is_filter_optional, 'filter_object_subs' => $filter_object_subs, 'arr_sql' => ['sql_filter' => $sql_filter_object_sub, 'sql_operator' => $sql_operator, 'sql_operator_sub' => $sql_operator_sub, 'sql_operator_not' => $sql_operator_not]];
 								}
-							} else if ($is_filter_instant) {
+							} else if ($is_filter_instant || $arr_sql_format['objects']) { // Not possible for sub-objects to apply multi-reference filtering, make it do instant
 								
 								$version_select_tos = $this->generateVersionFilter('object_sub', 'nodegoat_tos');
 								$version_select = $this->generateVersionFilter('record_search', $table_name, $arr_object_sub_description['object_sub_description_value_type']);
@@ -1770,9 +1770,25 @@ class FilterTypeObjects extends GenerateTypeObjects {
 									)";
 								} else {
 									
+									$do_include_main = (!$arr_sql_format['objects'] || $arr_sql_format['value']);
+									$sql_table = '';
+									
+									if ($do_include_main) {
+										$sql_table = "LEFT JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').StoreType::getValueTypeTable($arr_object_sub_description['object_sub_description_value_type'], 'search')." ".$table_name." ON (".$table_name.".object_sub_id = nodegoat_tos.id AND ".$table_name.".object_sub_description_id = ".$object_sub_description_id." AND ".$version_select.")";
+									}
+									if ($arr_sql_format['objects']) {
+										
+										$sql_connect = '';
+										if ($arr_object_sub_description['object_sub_description_has_multi'] && $do_include_main) { // Not possible for sub-objects, would involve multi-value/references. // Connect the two tables when they share the same identifier (i.e. multi)
+											$sql_connect = 'AND '.$table_name.'.identifier = '.$table_name.'_objects.identifier';
+										}
+										
+										$sql_table .= "LEFT JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITION_OBJECTS')." ".$table_name."_objects ON (".$table_name."_objects.object_sub_id = nodegoat_tos.id AND ".$table_name."_objects.object_sub_description_id = ".$object_sub_description_id." AND ".$table_name."_objects.state = 1 ".$sql_connect.")";
+									}
+									
 									$sql_filter = "EXISTS (SELECT TRUE
 											FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos
-											LEFT JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').StoreType::getValueTypeTable($arr_object_sub_description['object_sub_description_value_type'], 'search')." ".$table_name." ON (".$table_name.".object_sub_id = nodegoat_tos.id AND ".$table_name.".object_sub_description_id = ".$object_sub_description_id." AND ".$version_select.")
+											".$sql_table."
 										WHERE nodegoat_tos.object_id = nodegoat_to.id
 											AND nodegoat_tos.object_sub_details_id = ".$object_sub_details_id."
 											AND ".$version_select_tos."

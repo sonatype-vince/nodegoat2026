@@ -432,7 +432,7 @@ class ChangeTypeObjects extends StoreTypeObjects {
 					}
 				}
 				
-				$arr_selected['values']['object_definition_sources'] = JSON2Value($arr_selected['values']['object_definition_sources']);
+				$arr_selected['values']['object_definition_sources'] = (isset($arr_selected['values']['object_definition_sources']) ? JSON2Value($arr_selected['values']['object_definition_sources']) : null);
 				
 				$arr_find_change['object_descriptions'][$object_description_id] = $arr_selected;
 				$arr_selection_user[] = $arr_selected;
@@ -519,7 +519,7 @@ class ChangeTypeObjects extends StoreTypeObjects {
 						}
 					}
 					
-					$arr_selected['values']['object_sub_definition_sources'] = JSON2Value($arr_selected['values']['object_sub_definition_sources']);
+					$arr_selected['values']['object_sub_definition_sources'] = (isset($arr_selected['values']['object_sub_definition_sources']) ? JSON2Value($arr_selected['values']['object_sub_definition_sources']) : null);
 					
 					$arr_find_change['object_sub_details'][$object_sub_details_id]['object_sub_descriptions'][$object_sub_description_id] = $arr_selected;
 					$arr_selection_user[] = $arr_selected;

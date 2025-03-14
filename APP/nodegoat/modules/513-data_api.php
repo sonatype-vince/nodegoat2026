@@ -536,7 +536,7 @@ class data_api extends base_module {
 			
 			$arr_context = Settings::get('nodegoat_api', 'context');
 			
-			if ($arr_context) {				
+			if ($arr_context) {
 				$obj_response->{'@context'} += $arr_context;
 			}
 			
