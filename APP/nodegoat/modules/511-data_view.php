@@ -1259,7 +1259,7 @@ class data_view extends base_module {
 			}
 		}
 		if ($arr_options['filter']) {
-			$filter = true;
+			$do_filter = true;
 		}
 		
 		$arr_resource = StoreResourceExternal::getResources($resource_id);

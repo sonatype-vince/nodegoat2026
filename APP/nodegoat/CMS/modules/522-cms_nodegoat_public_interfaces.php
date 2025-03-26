@@ -123,7 +123,7 @@ class cms_nodegoat_public_interfaces extends base_module {
 					'".DBFunctions::strEscape($arr['information'])."',
 					'".DBFunctions::strEscape($arr['css'])."',
 					'".DBFunctions::strEscape($arr['script'])."',
-					".(int)$arr['is_default']."
+					".DBFunctions::escapeAs($arr['is_default'], DBFunctions::TYPE_BOOLEAN)."
 				)"
 			);
 			
@@ -140,7 +140,7 @@ class cms_nodegoat_public_interfaces extends base_module {
 					information = '".DBFunctions::strEscape($arr['information'])."',
 					css = '".DBFunctions::strEscape($arr['css'])."',
 					script = '".DBFunctions::strEscape($arr['script'])."',
-					is_default = ".(int)$arr['is_default']."
+					is_default = ".DBFunctions::escapeAs($arr['is_default'], DBFunctions::TYPE_BOOLEAN)."
 				WHERE id = ".(int)$public_interface_id."
 					"."
 			");

@@ -276,7 +276,6 @@ class IngestTypeObjects {
 					
 					status(count($arr_object_ids).' objects have been updated.', 'IMPORT', false, ['persist' => false]);
 				}
-		
 			} catch (Exception $e) {
 
 				DB::rollbackTransaction('ingest_store');
@@ -289,6 +288,16 @@ class IngestTypeObjects {
 					
 					$e_previous = $e->getPrevious(); // Get DBTrouble
 					$str_error = DB::getErrorMessage($e_previous->getCode());
+					
+					if ($str_error === false) {
+						
+						error('IngestTypeObjects ERROR: '.$e->getMessage(), TROUBLE_NOTICE, LOG_SYSTEM, false, $e);
+						$str_error = getLabel('msg_error_database_undisclosed');
+					}
+				} else {
+				
+					error('IngestTypeObjects ERROR: '.$e->getMessage(), TROUBLE_NOTICE, LOG_SYSTEM, false, $e);
+					$str_error = getLabel('msg_error_undisclosed');
 				}
 				
 				$arr_return['error'] = $num_row;
@@ -360,6 +369,16 @@ class IngestTypeObjects {
 					
 					$e_previous = $e->getPrevious(); // Get DBTrouble
 					$str_error = DB::getErrorMessage($e_previous->getCode());
+					
+					if ($str_error === false) {
+						
+						error('IngestTypeObjects ERROR: '.$e->getMessage(), TROUBLE_NOTICE, LOG_SYSTEM, false, $e);
+						$str_error = getLabel('msg_error_database_undisclosed');
+					}
+				} else {
+					
+					error('IngestTypeObjects ERROR: '.$e->getMessage(), TROUBLE_NOTICE, LOG_SYSTEM, false, $e);
+					$str_error = getLabel('msg_error_undisclosed');
 				}
 				
 				$arr_return['error'] = $num_row;
@@ -374,8 +393,7 @@ class IngestTypeObjects {
 		}
 		
 		if ($str_error !== false && $this->use_log) {
-			
-			$this->addSourcePointerLogError((int)$num_row, substr($str_error, 4, -1));
+			$this->addSourcePointerLogError((int)$num_row, substr($str_error, 4, -1)); // Unwrap [L][...]
 		}
 		
 		$arr_return['count'] = count($arr_object_ids);
@@ -394,14 +412,12 @@ class IngestTypeObjects {
 		$arr_unresolved_object_filters = $this->resolveObjectFilters();
 		
 		if (count($arr_unresolved_object_filters)) {
-			
 			return $arr_unresolved_object_filters;
 		}
 		
 		$arr_unresolved_element_filters = $this->resolveElementFilters();
 		
 		if (count($arr_unresolved_element_filters)) {
-			
 			return $arr_unresolved_element_filters;
 		}
 		
@@ -558,7 +574,6 @@ class IngestTypeObjects {
 		}
 	
 		if (count($arr_type_filters)) {
-			
 			$arr = $this->checkPatternsTypesObjects($arr_type_filters, $this->is_ignorable_pairs);
 		}
 		
@@ -659,10 +674,8 @@ class IngestTypeObjects {
 				} else {
 					
 					if (!$num_count_objects && $this->mode == self::MODE_OVERWRITE_IF_NOT_EXISTS) {
-						
 						// Is new
 					} else {
-						
 						$arr[$type_id][] = ['identifier' => $str_identifier, 'pattern_value' => $arr_pattern_value, 'object_ids' => ($num_count_objects ? array_slice(array_keys($arr_objects), 0, 25) : []), 'is_ignored' => isset($arr_pair_identifiers['ignorable'][$str_identifier])];
 					}
 				}
@@ -899,10 +912,8 @@ class IngestTypeObjects {
 								}
 								
 								if (!$value_index || $value_index === 'multiple') {
-
 									$arr_values = $value_pointer;
 								} else {
-									
 									$arr_values[] = $value_pointer[(int)$value_index-1];
 								}
 							} else {
@@ -968,15 +979,12 @@ class IngestTypeObjects {
 						if (isset($this->arr_objects[$object_id]['object_definitions'][$object_description_id])) {
 							
 							if ($arr_object_definitions['object_definition_ref_object_id'] && is_array($arr_object_definitions['object_definition_ref_object_id'])) {
-								
 								$this->arr_objects[$object_id]['object_definitions'][$object_description_id]['object_definition_ref_object_id'] = array_merge($this->arr_objects[$object_id]['object_definitions'][$object_description_id]['object_definition_ref_object_id'], $arr_object_definitions['object_definition_ref_object_id']);
 							}
 							
 							if ($arr_object_definitions['object_definition_value'] && is_array($arr_object_definitions['object_definition_value'])) {
-								
 								$this->arr_objects[$object_id]['object_definitions'][$object_description_id]['object_definition_value'] = array_merge($this->arr_objects[$object_id]['object_definitions'][$object_description_id]['object_definition_value'], $arr_object_definitions['object_definition_value']);
 							}
-							
 						} else {
 							
 							$this->arr_objects[$object_id]['object_definitions'][$object_description_id] = $arr_object['object_definitions'][$object_description_id];
@@ -1025,7 +1033,6 @@ class IngestTypeObjects {
 					}
 					
 					if (!$has_match_object_sub_id) {
-						
 						$this->arr_log['rows'][$i]['results']['filter_object_sub_identifier']['no_object_sub'] = true;
 					}
 				}
@@ -1135,13 +1142,13 @@ class IngestTypeObjects {
 				$arr_filter['objects'] = [GenerateTypeObjects::parseTypeObjectID($value)];
 			} else if ($arr_element[1] == 'name') {
 								
-				$arr_filter['object_name'][] = ['equality' => '=', 'value' => $value];
+				$arr_filter['object_name'][] = ['equality' => '=', 'value' => $value]; // Processed loose '=' to get relevant matches, but also handled strict in checkPatternsTypesObjects to get possible exact match
 			}
 		} else if ($arr_element[0] == 'object_description') {
 				
 			$object_description_id = $arr_element[1];
 			
-			$arr_filter['object_definitions'][$object_description_id][] = ['equality' => '=', 'value' => $value];
+			$arr_filter['object_definitions'][$object_description_id][] = ['equality' => '=', 'value' => $value]; // Processed loose '=' to get relevant matches, but also handled strict in checkPatternsTypesObjects to get possible exact match
 		} else if ($arr_element[0] == 'object_sub_details') {
 
 			$object_sub_details_id = $arr_element[1];
@@ -1241,7 +1248,6 @@ class IngestTypeObjects {
 			$this->arr_options[$type_id][$object_description_id] = $arr_options;
 
 			if (!$arr_options['overwrite']) {
-				
 				$this->arr_append['object_definitions'][$object_description_id] = true;
 			}
 			
@@ -1363,7 +1369,6 @@ class IngestTypeObjects {
 						if ($this->use_log && $num_row !== false && $pointer_heading) {
 							$this->arr_log['rows'][$num_row]['results'][$pointer_heading]['objects'][$ref_type_id][$object_id] = true;
 						}
-						
 					} else {
 						
 						if ($this->use_log && $str_value && $num_row !== false && $pointer_heading) {
@@ -1379,7 +1384,6 @@ class IngestTypeObjects {
 					$this->arr_options[$type_id][$object_sub_details_id][$object_sub_description_id] = $arr_options;
 					
 					if (!$arr_options['overwrite'] && $arr_type_set['object_sub_details'][$object_sub_details_id]['object_sub_details']['object_sub_details_is_single']) {
-						
 						$this->arr_append['object_subs'][$object_sub_details_id]['object_sub_definitions'][$object_sub_description_id] = true;
 					}
 					
@@ -1595,13 +1599,11 @@ class IngestTypeObjects {
 				if ($arr_object_sub_definitions['object_sub_definition_ref_object_id']) {
 
 					if ($arr_stored_object_sub_definition['object_sub_definition_ref_object_id'] == $arr_object_sub_definitions['object_sub_definition_ref_object_id']) {
-						
 						$is_identical = true;
 					}
 				} else if ($arr_object_sub_definitions['object_sub_definition_value']) {
 
 					if ($arr_stored_object_sub_definition['object_sub_definition_value'] == $arr_object_sub_definitions['object_sub_definition_value']) {
-	
 						$is_identical = true;
 					}
 				}

@@ -573,7 +573,7 @@ class ResourceExternal {
 		if ($this->arr_resource['response_uri']['value'] || $this->arr_resource['response_label']['value']) {
 			
 			try {
-				$traverse = new TraverseJSON($this->arr_resource['response_uri']['value']);
+				$traverse = new TraverseJSON($this->arr_resource['response_uri']['value'], null);
 				$traverse->set($arr_result);
 				$arr_uri = $traverse->get(true);
 			} catch (Exception $e) {

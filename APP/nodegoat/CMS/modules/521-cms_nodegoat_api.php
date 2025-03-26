@@ -39,14 +39,18 @@ class cms_nodegoat_api extends base_module {
 				"."
 		");
 		
-		while ($row = $res->fetchAssoc()) {
+		while ($arr_row = $res->fetchAssoc()) {
 			
 			if (!$arr) {
-				$arr = ['api' => $row, 'projects' => []];
+				$arr = ['api' => $arr_row, 'projects' => []];
 			}
 			
-			if ($row['project_id']) {
-				$arr['projects'][$row['project_id']] = $row;
+			if ($arr_row['project_id']) {
+				
+				$arr_row['is_default'] = DBFunctions::unescapeAs($arr_row['is_default'], DBFunctions::TYPE_BOOLEAN);
+				$arr_row['require_authentication'] = DBFunctions::unescapeAs($arr_row['require_authentication'], DBFunctions::TYPE_BOOLEAN);
+				
+				$arr['projects'][$arr_row['project_id']] = $arr_row;
 			}
 		}
 		
@@ -97,8 +101,8 @@ class cms_nodegoat_api extends base_module {
 				$arr_definition = $arr['projects_organise'][$project_id];
 				
 				$res = DB::query("UPDATE ".DB::getTable('DEF_NODEGOAT_API_CUSTOM_PROJECTS')." SET
-						is_default = ".((int)$arr['default_project'] == $project_id ? 1 : 0).",
-						require_authentication = ".(int)$arr_definition['require_authentication'].",
+						is_default = ".DBFunctions::escapeAs(((int)$arr['default_project'] == $project_id), DBFunctions::TYPE_BOOLEAN).",
+						require_authentication = ".DBFunctions::escapeAs($arr_definition['require_authentication'], DBFunctions::TYPE_BOOLEAN).",
 						identifier_url = '".DBFunctions::strEscape($arr_definition['identifier_url'])."'
 					WHERE api_id = ".(int)$api_id." AND project_id = ".(int)$project_id."
 				");

@@ -208,7 +208,6 @@ class StoreTypeObjects {
 					$object_sub_details_id = $arr_object_sub['object_sub']['object_sub_details_id'];
 					
 					if (!$object_sub_details_id && $arr_object_sub['object_sub']['object_sub_id']) {
-						
 						$object_sub_details_id = $this->getTypeObjectSubObjectSubDetailsID($arr_object_sub['object_sub']['object_sub_id']);
 					}
 					

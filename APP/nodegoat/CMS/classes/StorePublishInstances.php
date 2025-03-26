@@ -51,7 +51,7 @@ class StorePublishInstances {
 				$arr_definition = $arr['projects_organise'][$project_id];
 				
 				$res = DB::query("UPDATE ".DB::getTable('DEF_NODEGOAT_PUBLISH_CUSTOM_PROJECTS')." SET
-						is_default = ".((int)$arr['default_project'] == $project_id ? 1 : 0).",
+						is_default = ".DBFunctions::escapeAs(((int)$arr['default_project'] == $project_id), DBFunctions::TYPE_BOOLEAN).",
 						description = '".DBFunctions::strEscape($arr_definition['description'])."',
 						public_interface_id = ".(int)$arr_definition['public_interface_id']."
 					WHERE project_id = ".(int)$project_id."
@@ -252,6 +252,8 @@ class StorePublishInstances {
 		");
 		
 		while ($arr_row = $res->fetchAssoc()) {
+			
+			$arr_row['is_default'] = DBFunctions::unescapeAs($arr_row['is_default'], DBFunctions::TYPE_BOOLEAN);
 			
 			$arr['projects'][$arr_row['project_id']] = $arr_row;
 		}
