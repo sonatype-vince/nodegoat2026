@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -310,13 +310,17 @@ class custom_projects extends base_module {
 	}
 	
 	private $do_show_user_settings = false;
+	private $do_show_publish_settings = false;
 	
 	function __construct() {
 		
 		parent::__construct();
 		
-		$arr_users_link = pages::getClosestModule('register_by_user');
-		$this->do_show_user_settings = ($arr_users_link && pages::filterClearance([$arr_users_link], $_SESSION['USER_GROUP'], $_SESSION['CUR_USER'][DB::getTableName('TABLE_USER_PAGE_CLEARANCE')]));
+		$arr_link = pages::getClosestModule('register_by_user');
+		$this->do_show_user_settings = ($arr_link && pages::filterClearance([$arr_link], $_SESSION['USER_GROUP'], $_SESSION['CUR_USER'][DB::getTableName('TABLE_USER_PAGE_CLEARANCE')]));
+		
+		$arr_link = pages::getClosestModule('publish_instances');
+		$this->do_show_publish_settings = ($arr_link && pages::filterClearance([$arr_link], $_SESSION['USER_GROUP'], $_SESSION['CUR_USER'][DB::getTableName('TABLE_USER_PAGE_CLEARANCE')]));
 	}
 	
 	public function contents() {
@@ -577,7 +581,7 @@ class custom_projects extends base_module {
 									<div class="fieldsets"><div>
 									
 										<fieldset><legend>'.getLabel('lbl_configuration').'</legend><ul>'
-											.($this->do_show_user_settings ? '<li>
+											.($this->do_show_user_settings || $this->do_show_publish_settings ? '<li>
 												<label>'.getLabel('lbl_information').'</label>
 												<div>'
 													.'<input type="hidden" name="types_organise[type_id-'.$type_id.'][type_information]" value="'.($arr_project_type['type_information'] ? strEscapeHTML($arr_project_type['type_information']) : '').'" />'
@@ -591,7 +595,7 @@ class custom_projects extends base_module {
 										</ul></fieldset>
 										
 										<fieldset><legend>'.getLabel('lbl_appearance').'</legend><ul>
-											<li><label>'.getLabel('lbl_color').'</label><input name="types_organise[type_id-'.$type_id.'][color]" type="text" value="'.$arr_project_type['color'].'" class="colorpicker" title="'.getLabel('inf_project_type_color').'" /></li>
+											<li><label>'.getLabel('lbl_color').'</label>'.cms_general::createPickColor($arr_project_type['color'], 'types_organise[type_id-'.$type_id.'][color]', ['info' => getLabel('inf_project_type_color')]).'</li>
 										</ul></fieldset>
 										
 										<fieldset><legend>'.getLabel('lbl_apply').'</legend><ul>
@@ -638,7 +642,8 @@ class custom_projects extends base_module {
 																	$str_html_options = '<input type="checkbox" name="'.$str_name.'[edit]" value="1" title="'.getLabel('inf_project_object_description_edit').'"'.($arr_configuration['edit'] ? ' checked="checked"' : '').($is_not_editable ? ' disabled="disabled"' : '').' />'
 																		.'<input type="checkbox" name="'.$str_name.'[view]" value="1" title="'.getLabel('inf_project_object_description_view').'"'.($arr_configuration['view'] ? ' checked="checked"' : '').' />';
 																		
-																	if ($this->do_show_user_settings) {
+																	if ($this->do_show_user_settings || $this->do_show_publish_settings) {
+																		
 																		$str_html_options .= '<input type="hidden" name="'.$str_name.'[information]" value="'.($arr_configuration['information'] ? strEscapeHTML($arr_configuration['information']) : '').'" />'
 																			.'<button type="button" id="y:custom_projects:set_information-'.$type_id.'_'.$object_description_id.'" title="'.getLabel('inf_project_object_description_information').'" class="data neutral popup"><span>info</span></button>';
 																	}
@@ -674,7 +679,8 @@ class custom_projects extends base_module {
 																	$str_html_options = '<input type="checkbox" name="'.$str_name.'[edit]" value="1" title="'.getLabel('inf_project_object_sub_details_edit').'"'.($arr_configuration['edit'] ? ' checked="checked"' : '').' />'
 																		.'<input type="checkbox" name="'.$str_name.'[view]" value="1" title="'.getLabel('inf_project_object_sub_details_view').'"'.($arr_configuration['view'] ? ' checked="checked"' : '').' />';
 																	
-																	if ($this->do_show_user_settings) {
+																	if ($this->do_show_user_settings || $this->do_show_publish_settings) {
+																		
 																		$str_html_options .= '<input type="hidden" name="'.$str_name.'[information]" value="'.($arr_configuration['information'] ? strEscapeHTML($arr_configuration['information']) : '').'" />'
 																			.'<button type="button" id="y:custom_projects:set_information-'.$type_id.'_0_'.$object_sub_details_id.'" title="'.getLabel('inf_project_object_sub_details_information').'" class="data neutral popup"><span>info</span></button>';
 																	}
@@ -700,7 +706,8 @@ class custom_projects extends base_module {
 																				$str_html_options = '<input type="checkbox" name="'.$str_name.'[edit]" value="1" title="'.getLabel('inf_project_object_description_edit').'"'.($arr_configuration['edit'] ? ' checked="checked"' : '').($is_not_editable ? ' disabled="disabled"' : '').' />'
 																					.'<input type="checkbox" name="'.$str_name.'[view]" value="1" title="'.getLabel('inf_project_object_description_view').'"'.($arr_configuration['view'] ? ' checked="checked"' : '').' />';
 																				
-																				if ($this->do_show_user_settings) {
+																				if ($this->do_show_user_settings || $this->do_show_publish_settings) {
+																					
 																					$str_html_options .= '<input type="hidden" name="'.$str_name.'[information]" value="'.($arr_configuration['information'] ? strEscapeHTML($arr_configuration['information']) : '').'" />'
 																						.'<button type="button" id="y:custom_projects:set_information-'.$type_id.'_0_'.$object_sub_details_id.'_'.$object_sub_description_id.'" title="'.getLabel('inf_project_object_description_information').'" class="data neutral popup"><span>info</span></button>';
 																				}
@@ -773,6 +780,7 @@ class custom_projects extends base_module {
 																			.'<input type="checkbox" name="'.$str_name.'[view]" value="1" title="'.getLabel('inf_project_include_referenced_view').'"'.($arr_configuration['view'] ? ' checked="checked"' : '').' />';
 																		
 																		if ($this->do_show_user_settings) {
+																			
 																			$str_html_options .= '<input type="hidden" name="'.$str_name.'[information]" value="'.($arr_configuration['information'] ? strEscapeHTML($arr_configuration['information']) : '').'" />'
 																				.'<button type="button" id="y:custom_projects:set_information-'.$ref_type_id.'_'.$object_description_id.'" title="'.getLabel('inf_project_object_description_information').'" class="data neutral popup"><span>info</span></button>';
 																		}
@@ -817,6 +825,7 @@ class custom_projects extends base_module {
 																				.'<input type="checkbox" name="'.$str_name.'[view]" value="1" title="'.getLabel('inf_project_include_referenced_view').'"'.($arr_configuration['view'] ? ' checked="checked"' : '').' />';
 
 																			if ($this->do_show_user_settings) {
+																				
 																				$str_html_options .= '<input type="hidden" name="'.$str_name.'[information]" value="'.($arr_configuration['information'] ? strEscapeHTML($arr_configuration['information']) : '').'" />'
 																					.'<button type="button" id="y:custom_projects:set_information-'.$ref_type_id.'_0_'.$object_sub_details_id.'_'.$object_sub_description_id.'" title="'.getLabel('inf_project_object_description_information').'" class="data neutral popup"><span>info</span></button>';
 																			}
@@ -1377,7 +1386,10 @@ class custom_projects extends base_module {
 			
 			.popup > form.storage fieldset ul > li > div > small { display: inline-block; }
 			.popup > form.storage fieldset ul > li > div > small:empty { display: none; } 
-			.popup > form.storage fieldset > ul > li:has(> section:empty) { display: none; } 
+			.popup > form.storage fieldset > ul > li:has(> section:empty) { display: none; }
+			
+			.popup > form[data-method^="handle_"] fieldset ul > li input[name=name] { width: 52ch; }
+			.popup > form[data-method^="handle_"] fieldset ul > li textarea[name=description] { width: 52ch; height: 150px; }
 		';
 		
 		return $return;
@@ -1639,7 +1651,7 @@ class custom_projects extends base_module {
 				
 				<h1>'.getLabel('lbl_information').': '.$str_name.'</h1>
 				
-				<div class="options" >
+				<div class="options">
 					'.cms_general::editBody($value['information'], 'body').'
 				</div>
 			</form>';
@@ -1748,7 +1760,9 @@ class custom_projects extends base_module {
 			if (!$arr_type_filter) {
 				error(getLabel('msg_filter_store_empty'));
 			}
-			
+
+			$arr_description = ParseTypeFeatures::parseDescriptionTypeFilter($type_id, ['name' => $_POST['name'], 'description' => $_POST['description'], 'object' => $arr_type_filter]); // Test advanced description
+
 			$user_id = ($_POST['usage'] == 'personal' ? $_SESSION['USER_ID'] : false);
 			$is_domain = (($_POST['usage'] == 'admin' && $_SESSION['NODEGOAT_CLEARANCE'] == NODEGOAT_CLEARANCE_ADMIN) ? true : false);
 
@@ -1763,7 +1777,7 @@ class custom_projects extends base_module {
 			$arr_project = StoreCustomProject::getProjects($_SESSION['custom_projects']['project_id']);
 			$arr_use_project_ids = array_keys($arr_project['use_projects']);
 			
-			$this->msg = true;
+			$this->message = true;
 			$this->html = static::createStorageDropdown(cms_nodegoat_custom_projects::getProjectTypeFilters($_SESSION['custom_projects']['project_id'], $_SESSION['USER_ID'], $type_id, false, ($_SESSION['NODEGOAT_CLEARANCE'] == NODEGOAT_CLEARANCE_ADMIN ? true : false), $arr_use_project_ids), $filter_id);
 		}
 
@@ -1787,8 +1801,8 @@ class custom_projects extends base_module {
 			
 			$arr_visual_settings = $_POST['visual_settings'];
 
-			$arr_visual_settings['settings']['geo_advanced'] = ParseTypeFeatures::parseVisualSettingsInputAdvanced($arr_visual_settings['settings']['geo_advanced']);
-			$arr_visual_settings['social']['settings']['social_advanced'] = ParseTypeFeatures::parseVisualSettingsInputAdvanced($arr_visual_settings['social']['settings']['social_advanced']);
+			$arr_visual_settings['settings']['geo_advanced'] = ParseTypeFeatures::parseSettingAdvancedInput($arr_visual_settings['settings']['geo_advanced']);
+			$arr_visual_settings['social']['settings']['social_advanced'] = ParseTypeFeatures::parseSettingAdvancedInput($arr_visual_settings['social']['settings']['social_advanced']);
 						
 			$visual_settings_id = cms_nodegoat_custom_projects::handleProjectVisualSettings($_SESSION['custom_projects']['project_id'], ($_POST['usage'] == 'personal' ? $_SESSION['USER_ID'] : false), $_POST['visual_settings_id'], $_POST, $arr_visual_settings);
 		}
@@ -1801,7 +1815,7 @@ class custom_projects extends base_module {
 			$arr_project = StoreCustomProject::getProjects($_SESSION['custom_projects']['project_id']);
 			$arr_use_project_ids = array_keys($arr_project['use_projects']);
 			
-			$this->msg = true;
+			$this->message = true;
 			$this->html = static::createStorageDropdown(cms_nodegoat_custom_projects::getProjectVisualSettings($_SESSION['custom_projects']['project_id'], $_SESSION['USER_ID'], false, $arr_use_project_ids), $visual_settings_id);
 		}
 		
@@ -1870,7 +1884,7 @@ class custom_projects extends base_module {
 			}
 			unset($arr_scenario);
 			
-			$this->msg = true;
+			$this->message = true;
 			$this->html = static::createStorageDropdown($arr_scenarios, $_POST['scenario_id']);
 		}
 		
@@ -1885,7 +1899,7 @@ class custom_projects extends base_module {
 				
 				StoreCustomProject::delTypeScenarioHash($arr_scenario['project_id'], $_POST['scenario_id'], $_SESSION['custom_projects']['project_id']);
 				
-				$this->msg = true;
+				$this->message = true;
 			}
 		}
 		
@@ -1955,7 +1969,7 @@ class custom_projects extends base_module {
 			
 			if ($what == 'condition') {
 				
-				$arr_files = ($_FILES['condition'] ? arrRearrangeParams($_FILES['condition']) : []);
+				$arr_files = ($_FILES['condition'] ? arrRearrangeKeysValues($_FILES['condition']) : []);
 					
 				$arr_condition = data_model::parseTypeCondition($type_id, $arr_data, $arr_files);
 				$arr_model_conditions = ParseTypeFeatures::parseTypeModelConditions($type_id, $_POST['model_conditions']);
@@ -2015,7 +2029,7 @@ class custom_projects extends base_module {
 				$function = 'getProjectTypeAnalysesContexts';
 			}
 			
-			$this->msg = true;
+			$this->message = true;
 			
 			if ($what == 'condition') {
 				
@@ -2082,7 +2096,7 @@ class custom_projects extends base_module {
 						
 			$this->html = self::createAddProject();						
 			$this->refresh_table = true;
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "del" && (int)$id) {
@@ -2094,7 +2108,7 @@ class custom_projects extends base_module {
 			$custom_project = new StoreCustomProject($id);
 			$custom_project->delProject();
 								
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "set") {

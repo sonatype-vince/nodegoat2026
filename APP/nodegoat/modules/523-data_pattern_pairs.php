@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -422,7 +422,7 @@ class data_pattern_pairs extends base_module {
 			$this->html = $this->createAddPatternTypeObjectPair();
 			
 			$this->refresh_table = true;
-			$this->msg = true;
+			$this->message = true;
 		}
 
 		if ($method == "update" && $id) {
@@ -472,7 +472,7 @@ class data_pattern_pairs extends base_module {
 			$this->html = $this->createAddPatternTypeObjectPair();
 			
 			$this->refresh_table = true;
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "del" && $id) {
@@ -498,7 +498,7 @@ class data_pattern_pairs extends base_module {
 				$store_pair->commitPairs();
 			
 				$this->refresh_table = true;				
-				$this->msg = true;
+				$this->message = true;
 			}
 		}
 	}

@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -35,13 +35,13 @@ class IngestTypeObjectsFile extends IngestTypeObjects {
 		$stream->open($arr_output);
 
 		$count_rows = 0;
-		$arr_row = fgetcsv($file_source, 0, $str_delimiter, $str_enclosure, CSV_ESCAPE);
+		$arr_row = fgetcsv($file_source, null, $str_delimiter, $str_enclosure, CSV_ESCAPE);
 		
 		$num_columns = count($arr_row);
 		$arr_column_labels = $arr_row;
 		
 		$count_rows++;
-		$arr_row = fgetcsv($file_source, 0, $str_delimiter, $str_enclosure, CSV_ESCAPE);
+		$arr_row = fgetcsv($file_source, null, $str_delimiter, $str_enclosure, CSV_ESCAPE);
 		
 		while ($arr_row !== false) {
 
@@ -57,8 +57,8 @@ class IngestTypeObjectsFile extends IngestTypeObjects {
 					
 					$value = $arr_row[$count_columns];
 					
-					if (!mb_check_encoding($value, 'UTF-8')) {
-						$value = mb_convert_encoding($value, 'UTF-8');
+					if (!strIsValidEncoding($value)) {
+						$value = strFixEncoding($value);
 					}
 					
 					$str_label = $arr_column_labels[$count_columns];
@@ -70,7 +70,7 @@ class IngestTypeObjectsFile extends IngestTypeObjects {
 			}
 
 			$count_rows++;
-			$arr_row = fgetcsv($file_source, 0, $str_delimiter, $str_enclosure, CSV_ESCAPE);
+			$arr_row = fgetcsv($file_source, null, $str_delimiter, $str_enclosure, CSV_ESCAPE);
 		}
 				
 		fclose($file_source);
@@ -113,7 +113,7 @@ class IngestTypeObjectsFile extends IngestTypeObjects {
 					$i = 0;	
 					$num_pos_previous = 0;
 					
-					while (($arr_line = fgetcsv($file, 0, $str_test_delimiter, $str_test_enclosure, CSV_ESCAPE)) !== false && $i < $num_parse) {
+					while (($arr_line = fgetcsv($file, null, $str_test_delimiter, $str_test_enclosure, CSV_ESCAPE)) !== false && $i < $num_parse) {
 							
 						$i++;
 						
@@ -126,13 +126,11 @@ class IngestTypeObjectsFile extends IngestTypeObjects {
 						if (count($arr_line) == 1) {
 
 							if (strpos($str_line, $str_test_enclosure) === 0 && strpos($str_line, $str_test_enclosure.PHP_EOL) !== false) {
-							
 								$arr_delimiters_found[$str_test_delimiter]['enclosures_found'][$str_test_enclosure]['count'][$i] = 1;
 							}
 						} else {
 
 							if (strpos($str_line, $str_test_delimiter.$str_test_enclosure) !== false || strpos($str_line, $str_test_enclosure.$str_test_delimiter) !== false) {
-								
 								$arr_delimiters_found[$str_test_delimiter]['enclosures_found'][$str_test_enclosure]['count'][$i] = count($arr_line);
 							} 							
 						}

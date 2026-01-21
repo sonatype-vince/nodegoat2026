@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -234,7 +234,7 @@ class ChangeTypeObjects extends StoreTypeObjects {
 					if ($str_id == 'object_sub_id') {
 						
 						if ($arr_selected['action'] == static::ACTION_REMOVE) {
-							$arr_object_sub_store['object_sub']['object_sub_version'] = 'deleted';
+							$arr_object_sub_store['object_sub']['object_sub_state'] = StoreTypeObjects::OBJECT_STATE_DELETED;
 						}
 					}
 					

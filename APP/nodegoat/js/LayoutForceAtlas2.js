@@ -1,7 +1,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -13,7 +13,11 @@
  *   Jacomy M, Venturini T, Heymann S, Bastian M (2014) ForceAtlas2, a Continuous Graph Layout Algorithm for Handy Network Visualization Designed for the Gephi Software.
  *   PLoS ONE 9(6): e98679. https://doi.org/10.1371/journal.pone.0098679
  * 
- * Implementation Author:
+ * Gephi Implementation:
+ *   https://github.com/gephi/gephi/blob/master/modules/LayoutPlugin/src/main/java/org/gephi/layout/plugin/forceAtlas2/ForceAtlas2.java
+ *   https://github.com/gephi/gephi/blob/master/modules/LayoutPlugin/src/main/java/org/gephi/layout/plugin/forceAtlas2/ForceFactory.java
+ * 
+ * Javascript Implementation:
  *   Guillaume Plique (Yomguithereal)
  *   Sigma (https://github.com/jacomyal/sigma.js/blob/master/plugins/sigma.layout.forceAtlas2/worker.js)
  *   Graphology (https://github.com/graphology/graphology-layout-forceatlas2/blob/master/iterate.js)
@@ -143,8 +147,7 @@ function LayoutForceAtlas2() {
 				outboundAttCompensation += NodeMatrix[n + NODE_MASS];
 			}
 
-			//outboundAttCompensation /= (order / PPN);
-			outboundAttCompensation /= order;
+			outboundAttCompensation /= order / PPN;
 		}
 
 
@@ -169,12 +172,12 @@ function LayoutForceAtlas2() {
 			}
 
 			// squarify bounds, it's a quadtree
-			var dx = maxX - minX, dy = maxY - minY;
+			var dx = maxX - minX,
+				dy = maxY - minY;
 			if (dx > dy) {
 				minY -= (dx - dy) / 2;
 				maxY = minY + dx;
-			}
-			else {
+			} else {
 				minX -= (dy - dx) / 2;
 				maxX = minX + dy;
 			}
@@ -217,20 +220,17 @@ function LayoutForceAtlas2() {
 
 								// Top Left quarter
 								q = RegionMatrix[r + REGION_FIRST_CHILD];
-							}
-							else {
+							} else {
 
 								// Bottom Left quarter
 								q = RegionMatrix[r + REGION_FIRST_CHILD] + PPR;
 							}
-						}
-						else {
+						} else {
 							if (NodeMatrix[n + NODE_Y] < RegionMatrix[r + REGION_CENTER_Y]) {
 
 								// Top Right quarter
 								q = RegionMatrix[r + REGION_FIRST_CHILD] + PPR * 2;
-							}
-							else {
+							} else {
 
 								// Bottom Right quarter
 								q = RegionMatrix[r + REGION_FIRST_CHILD] + PPR * 3;
@@ -238,23 +238,24 @@ function LayoutForceAtlas2() {
 						}
 
 						// Update center of mass and mass (we only do it for non-leave regions)
-						RegionMatrix[r + REGION_MASS_CENTER_X] =
-							(RegionMatrix[r + REGION_MASS_CENTER_X] * RegionMatrix[r + REGION_MASS] +
-							 NodeMatrix[n + NODE_X] * NodeMatrix[n + NODE_MASS]) /
-							(RegionMatrix[r + REGION_MASS] + NodeMatrix[n + NODE_MASS]);
+						RegionMatrix[r + REGION_MASS_CENTER_X] = (
+							RegionMatrix[r + REGION_MASS_CENTER_X] *
+							RegionMatrix[r + REGION_MASS] +
+							NodeMatrix[n + NODE_X] * NodeMatrix[n + NODE_MASS]
+						) / (RegionMatrix[r + REGION_MASS] + NodeMatrix[n + NODE_MASS]);
 
-						RegionMatrix[r + REGION_MASS_CENTER_Y] =
-							(RegionMatrix[r + REGION_MASS_CENTER_Y] * RegionMatrix[r + REGION_MASS] +
-							 NodeMatrix[n + NODE_Y] * NodeMatrix[n + NODE_MASS]) /
-							(RegionMatrix[r + REGION_MASS] + NodeMatrix[n + NODE_MASS]);
+						RegionMatrix[r + REGION_MASS_CENTER_Y] = (
+							RegionMatrix[r + REGION_MASS_CENTER_Y] *
+							RegionMatrix[r + REGION_MASS] +
+							NodeMatrix[n + NODE_Y] * NodeMatrix[n + NODE_MASS]
+						) / (RegionMatrix[r + REGION_MASS] + NodeMatrix[n + NODE_MASS]);
 
 						RegionMatrix[r + REGION_MASS] += NodeMatrix[n + NODE_MASS];
 
 						// Iterate on the right quadrant
 						r = q;
 						continue;
-					}
-					else {
+					} else {
 
 						// There are no sub-regions: we are in a "leaf"
 
@@ -265,8 +266,7 @@ function LayoutForceAtlas2() {
 							// we record node n and go on
 							RegionMatrix[r + REGION_NODE] = n;
 							break;
-						}
-						else {
+						} else {
 
 							// There is a node in this region
 
@@ -343,20 +343,17 @@ function LayoutForceAtlas2() {
 
 									// Top Left quarter
 									q = RegionMatrix[r + REGION_FIRST_CHILD];
-								}
-								else {
+								} else {
 
 									// Bottom Left quarter
 									q = RegionMatrix[r + REGION_FIRST_CHILD] + PPR;
 								}
-							}
-							else {
+							} else {
 								if (NodeMatrix[RegionMatrix[r + REGION_NODE] + NODE_Y] < RegionMatrix[r + REGION_CENTER_Y]) {
 
 									// Top Right quarter
 									q = RegionMatrix[r + REGION_FIRST_CHILD] + PPR * 2;
-								}
-								else {
+								} else {
 
 									// Bottom Right quarter
 									q = RegionMatrix[r + REGION_FIRST_CHILD] + PPR * 3;
@@ -377,19 +374,16 @@ function LayoutForceAtlas2() {
 
 									// Top Left quarter
 									q2 = RegionMatrix[r + REGION_FIRST_CHILD];
-								}
-								else {
+								} else {
 									// Bottom Left quarter
 									q2 = RegionMatrix[r + REGION_FIRST_CHILD] + PPR;
 								}
-							}
-							else {
+							} else {
 								if (NodeMatrix[n + NODE_Y] < RegionMatrix[r + REGION_CENTER_Y]) {
 
 									// Top Right quarter
 									q2 = RegionMatrix[r + REGION_FIRST_CHILD] + PPR * 2;
-								}
-								else {
+								} else {
 
 									// Bottom Right quarter
 									q2 = RegionMatrix[r + REGION_FIRST_CHILD] + PPR * 3;
@@ -403,8 +397,7 @@ function LayoutForceAtlas2() {
 								if (subdivisionAttempts--) {
 									r = q;
 									continue; // while
-								}
-								else {
+								} else {
 									// we are out of precision here, and we cannot subdivide anymore
 									// but we have to break the loop anyway
 									subdivisionAttempts = SUBDIVISION_ATTEMPTS;
@@ -445,8 +438,8 @@ function LayoutForceAtlas2() {
 
 						// We run the Barnes Hut test to see if we are at the right distance
 						distance = (
-							(Math.pow(NodeMatrix[n + NODE_X] - RegionMatrix[r + REGION_MASS_CENTER_X], 2)) +
-							(Math.pow(NodeMatrix[n + NODE_Y] - RegionMatrix[r + REGION_MASS_CENTER_Y], 2))
+							Math.pow(NodeMatrix[n + NODE_X] - RegionMatrix[r + REGION_MASS_CENTER_X], 2) +
+							Math.pow(NodeMatrix[n + NODE_Y] - RegionMatrix[r + REGION_MASS_CENTER_Y], 2)
 						);
 
 						s = RegionMatrix[r + REGION_SIZE];
@@ -462,26 +455,21 @@ function LayoutForceAtlas2() {
 
 								//-- Linear Anti-collision Repulsion
 								if (distance > 0) {
-									factor = coefficient * NodeMatrix[n + NODE_MASS] *
-										RegionMatrix[r + REGION_MASS] / distance;
+									factor = (coefficient * NodeMatrix[n + NODE_MASS] * RegionMatrix[r + REGION_MASS]) / distance;
+
+									NodeMatrix[n + NODE_DX] += xDist * factor;
+									NodeMatrix[n + NODE_DY] += yDist * factor;
+								} else if (distance < 0) {
+									factor = (-coefficient * NodeMatrix[n + NODE_MASS] * RegionMatrix[r + REGION_MASS]) / Math.sqrt(distance);
 
 									NodeMatrix[n + NODE_DX] += xDist * factor;
 									NodeMatrix[n + NODE_DY] += yDist * factor;
 								}
-								else if (distance < 0) {
-									factor = -coefficient * NodeMatrix[n + NODE_MASS] *
-										RegionMatrix[r + REGION_MASS] / Math.sqrt(distance);
-
-									NodeMatrix[n + NODE_DX] += xDist * factor;
-									NodeMatrix[n + NODE_DY] += yDist * factor;
-								}
-							}
-							else {
+							} else {
 
 								//-- Linear Repulsion
 								if (distance > 0) {
-									factor = coefficient * NodeMatrix[n + NODE_MASS] *
-										RegionMatrix[r + REGION_MASS] / distance;
+									factor = (coefficient * NodeMatrix[n + NODE_MASS] * RegionMatrix[r + REGION_MASS]) / distance;
 
 									NodeMatrix[n + NODE_DX] += xDist * factor;
 									NodeMatrix[n + NODE_DY] += yDist * factor;
@@ -490,20 +478,18 @@ function LayoutForceAtlas2() {
 
 							// When this is done, we iterate. We have to look at the next sibling.
 							r = RegionMatrix[r + REGION_NEXT_SIBLING];
-							if (r < 0)
+							if (r < 0) {
 								break; // No next sibling: we have finished the tree
+							}
 
 							continue;
-						}
-						else {
+						} else {
 
 							// The region is too close and we have to look at sub-regions
 							r = RegionMatrix[r + REGION_FIRST_CHILD];
 							continue;
 						}
-
-					}
-					else {
+					} else {
 
 						// The region has no sub-region
 						// If there is a node r[0] and it is not n, then repulse
@@ -519,26 +505,21 @@ function LayoutForceAtlas2() {
 
 								//-- Linear Anti-collision Repulsion
 								if (distance > 0) {
-									factor = coefficient * NodeMatrix[n + NODE_MASS] *
-										NodeMatrix[rn + NODE_MASS] / distance;
+									factor = (coefficient * NodeMatrix[n + NODE_MASS] * NodeMatrix[rn + NODE_MASS]) / distance;
+
+									NodeMatrix[n + NODE_DX] += xDist * factor;
+									NodeMatrix[n + NODE_DY] += yDist * factor;
+								} else if (distance < 0) {
+									factor = (-coefficient * NodeMatrix[n + NODE_MASS] * NodeMatrix[rn + NODE_MASS]) / Math.sqrt(distance);
 
 									NodeMatrix[n + NODE_DX] += xDist * factor;
 									NodeMatrix[n + NODE_DY] += yDist * factor;
 								}
-								else if (distance < 0) {
-									factor = -coefficient * NodeMatrix[n + NODE_MASS] *
-										NodeMatrix[rn + NODE_MASS] / Math.sqrt(distance);
-
-									NodeMatrix[n + NODE_DX] += xDist * factor;
-									NodeMatrix[n + NODE_DY] += yDist * factor;
-								}
-							}
-							else {
+							} else {
 
 								//-- Linear Repulsion
 								if (distance > 0) {
-									factor = coefficient * NodeMatrix[n + NODE_MASS] *
-										NodeMatrix[rn + NODE_MASS] / distance;
+									factor = (coefficient * NodeMatrix[n + NODE_MASS] * NodeMatrix[rn + NODE_MASS]) / distance;
 
 									NodeMatrix[n + NODE_DX] += xDist * factor;
 									NodeMatrix[n + NODE_DY] += yDist * factor;
@@ -550,15 +531,15 @@ function LayoutForceAtlas2() {
 						// When this is done, we iterate. We have to look at the next sibling.
 						r = RegionMatrix[r + REGION_NEXT_SIBLING];
 
-						if (r < 0)
+						if (r < 0) {
 							break; // No next sibling: we have finished the tree
+						}
 
 						continue;
 					}
 				}
 			}
-		}
-		else {
+		} else {
 			coefficient = options.scalingRatio;
 
 			// Square iteration
@@ -572,27 +553,19 @@ function LayoutForceAtlas2() {
 					if (adjustSizes === true) {
 
 						//-- Anticollision Linear Repulsion
-						distance = Math.sqrt(xDist * xDist + yDist * yDist) -
-							NodeMatrix[n1 + NODE_SIZE] -
-							NodeMatrix[n2 + NODE_SIZE];
+						distance = Math.sqrt(xDist * xDist + yDist * yDist) - NodeMatrix[n1 + NODE_SIZE] - NodeMatrix[n2 + NODE_SIZE];
 
 						if (distance > 0) {
-							factor = coefficient *
-								NodeMatrix[n1 + NODE_MASS] *
-								NodeMatrix[n2 + NODE_MASS] /
-								distance / distance;
+							factor = (coefficient * NodeMatrix[n1 + NODE_MASS] * NodeMatrix[n2 + NODE_MASS]) / distance / distance;
 
 							// Updating nodes' dx and dy
 							NodeMatrix[n1 + NODE_DX] += xDist * factor;
 							NodeMatrix[n1 + NODE_DY] += yDist * factor;
 
-							NodeMatrix[n2 + NODE_DX] += xDist * factor;
-							NodeMatrix[n2 + NODE_DY] += yDist * factor;
-						}
-						else if (distance < 0) {
-							factor = 100 * coefficient *
-								NodeMatrix[n1 + NODE_MASS] *
-								NodeMatrix[n2 + NODE_MASS];
+							NodeMatrix[n2 + NODE_DX] -= xDist * factor;
+							NodeMatrix[n2 + NODE_DY] -= yDist * factor;
+						} else if (distance < 0) {
+							factor = 100 * coefficient * NodeMatrix[n1 + NODE_MASS] * NodeMatrix[n2 + NODE_MASS];
 
 							// Updating nodes' dx and dy
 							NodeMatrix[n1 + NODE_DX] += xDist * factor;
@@ -601,17 +574,13 @@ function LayoutForceAtlas2() {
 							NodeMatrix[n2 + NODE_DX] -= xDist * factor;
 							NodeMatrix[n2 + NODE_DY] -= yDist * factor;
 						}
-					}
-					else {
+					} else {
 
 						//-- Linear Repulsion
 						distance = Math.sqrt(xDist * xDist + yDist * yDist);
 
 						if (distance > 0) {
-							factor = coefficient *
-								NodeMatrix[n1 + NODE_MASS] *
-								NodeMatrix[n2 + NODE_MASS] /
-								distance / distance;
+							factor = (coefficient * NodeMatrix[n1 + NODE_MASS] * NodeMatrix[n2 + NODE_MASS]) / distance / distance;
 
 							// Updating nodes' dx and dy
 							NodeMatrix[n1 + NODE_DX] += xDist * factor;
@@ -628,29 +597,31 @@ function LayoutForceAtlas2() {
 
 		// 3) Gravity
 		//------------
+		
 		g = options.gravity / options.scalingRatio;
 		coefficient = options.scalingRatio;
+		
 		for (n = 0; n < order; n += PPN) {
+			
 			factor = 0;
 
 			// Common to both methods
 			xDist = NodeMatrix[n + NODE_X];
 			yDist = NodeMatrix[n + NODE_Y];
-			distance = Math.sqrt(
-				Math.pow(xDist, 2) + Math.pow(yDist, 2)
-			);
+			distance = Math.sqrt(xDist * xDist + yDist * yDist);
 
 			if (options.strongGravityMode) {
 
 				//-- Strong gravity
-				if (distance > 0)
+				if (distance > 0) {
 					factor = coefficient * NodeMatrix[n + NODE_MASS] * g;
-			}
-			else {
+				}
+			} else {
 
 				//-- Linear Anti-collision Repulsion n
-				if (distance > 0)
-					factor = coefficient * NodeMatrix[n + NODE_MASS] * g / distance;
+				if (distance > 0) {
+					factor = (coefficient * NodeMatrix[n + NODE_MASS] * g) / distance;
+				}
 			}
 
 			// Updating node's dx and dy
@@ -665,6 +636,7 @@ function LayoutForceAtlas2() {
 		// TODO: simplify distance
 		// TODO: coefficient is always used as -c --> optimize?
 		for (e = 0; e < size; e += PPE) {
+			
 			n1 = EdgeMatrix[e + EDGE_SOURCE];
 			n2 = EdgeMatrix[e + EDGE_TARGET];
 			w = EdgeMatrix[e + EDGE_WEIGHT];
@@ -679,39 +651,30 @@ function LayoutForceAtlas2() {
 			// Applying attraction to nodes
 			if (adjustSizes === true) {
 
-				distance = Math.sqrt(
-					(Math.pow(xDist, 2) + Math.pow(yDist, 2)) -
-					NodeMatrix[n1 + NODE_SIZE] -
-					NodeMatrix[n2 + NODE_SIZE]
-				);
+				distance = Math.sqrt(xDist * xDist + yDist * yDist) - NodeMatrix[n1 + NODE_SIZE] - NodeMatrix[n2 + NODE_SIZE];
 
 				if (options.linLogMode) {
 					if (options.outboundAttractionDistribution) {
 
 						//-- LinLog Degree Distributed Anti-collision Attraction
 						if (distance > 0) {
-							factor = -coefficient * ewc * Math.log(1 + distance) /
-							distance /
-							NodeMatrix[n1 + NODE_MASS];
+							factor = (-coefficient * ewc * Math.log(1 + distance)) / distance / NodeMatrix[n1 + NODE_MASS];
 						}
-					}
-					else {
+					} else {
 
 						//-- LinLog Anti-collision Attraction
 						if (distance > 0) {
-							factor = -coefficient * ewc * Math.log(1 + distance) / distance;
+							factor = (-coefficient * ewc * Math.log(1 + distance)) / distance;
 						}
 					}
-				}
-				else {
+				} else {
 					if (options.outboundAttractionDistribution) {
 
 						//-- Linear Degree Distributed Anti-collision Attraction
 						if (distance > 0) {
-							factor = -coefficient * ewc / NodeMatrix[n1 + NODE_MASS];
+							factor = (-coefficient * ewc) / NodeMatrix[n1 + NODE_MASS];
 						}
-					}
-					else {
+					} else {
 
 						//-- Linear Anti-collision Attraction
 						if (distance > 0) {
@@ -719,39 +682,32 @@ function LayoutForceAtlas2() {
 						}
 					}
 				}
-			}
-			else {
+			} else {
 
-				distance = Math.sqrt(
-					Math.pow(xDist, 2) + Math.pow(yDist, 2)
-				);
+				distance = Math.sqrt(xDist * xDist + yDist * yDist);
 
 				if (options.linLogMode) {
 					if (options.outboundAttractionDistribution) {
 
 						//-- LinLog Degree Distributed Attraction
 						if (distance > 0) {
-							factor = -coefficient * ewc * Math.log(1 + distance) /
-								distance /
-								NodeMatrix[n1 + NODE_MASS];
+							factor = (-coefficient * ewc * Math.log(1 + distance)) / distance / NodeMatrix[n1 + NODE_MASS];
 						}
-					}
-					else {
+					} else {
 
 						//-- LinLog Attraction
-						if (distance > 0)
-							factor = -coefficient * ewc * Math.log(1 + distance) / distance;
+						if (distance > 0) {
+							factor = (-coefficient * ewc * Math.log(1 + distance)) / distance;
+						}
 					}
-				}
-				else {
+				} else {
 					if (options.outboundAttractionDistribution) {
 
 						//-- Linear Attraction Mass Distributed
 						// NOTE: Distance is set to 1 to override next condition
 						distance = 1;
-						factor = -coefficient * ewc / NodeMatrix[n1 + NODE_MASS];
-					}
-					else {
+						factor = (-coefficient * ewc) / NodeMatrix[n1 + NODE_MASS];
+					} else {
 
 						//-- Linear Attraction
 						// NOTE: Distance is set to 1 to override next condition
@@ -788,17 +744,15 @@ function LayoutForceAtlas2() {
 		if (adjustSizes === true) {
 
 			for (n = 0; n < order; n += PPN) {
-				if (!NodeMatrix[n + NODE_FIXED]) {
+				if (NodeMatrix[n + NODE_FIXED] !== 1) {
 					force = Math.sqrt(
 						Math.pow(NodeMatrix[n + NODE_DX], 2) +
 						Math.pow(NodeMatrix[n + NODE_DY], 2)
 					);
 
 					if (force > MAX_FORCE) {
-						NodeMatrix[n + NODE_DX] =
-							NodeMatrix[n + NODE_DX] * MAX_FORCE / force;
-						NodeMatrix[n + NODE_DY] =
-							NodeMatrix[n + NODE_DY] * MAX_FORCE / force;
+						NodeMatrix[n + NODE_DX] = (NodeMatrix[n + NODE_DX] * MAX_FORCE) / force;
+						NodeMatrix[n + NODE_DY] = (NodeMatrix[n + NODE_DY] * MAX_FORCE) / force;
 					}
 
 					swinging = NodeMatrix[n + NODE_MASS] *
@@ -816,32 +770,27 @@ function LayoutForceAtlas2() {
 						(NodeMatrix[n + NODE_OLD_DY] + NodeMatrix[n + NODE_DY])
 					) / 2;
 
-					nodespeed =
-						0.1 * Math.log(1 + traction) / (1 + Math.sqrt(swinging));
+					nodespeed = (0.1 * Math.log(1 + traction)) / (1 + Math.sqrt(swinging));
 
 					// Updating node's positon
-					newX = NodeMatrix[n + NODE_X] + NodeMatrix[n + NODE_DX] *
-						(nodespeed / options.slowDown);
+					newX = NodeMatrix[n + NODE_X] + NodeMatrix[n + NODE_DX] * (nodespeed / options.slowDown);
 					NodeMatrix[n + NODE_X] = newX;
 
-					newY = NodeMatrix[n + NODE_Y] + NodeMatrix[n + NODE_DY] *
-						(nodespeed / options.slowDown);
+					newY = NodeMatrix[n + NODE_Y] + NodeMatrix[n + NODE_DY] * (nodespeed / options.slowDown);
 					NodeMatrix[n + NODE_Y] = newY;
 				}
 			}
-		}
-		else {
+		} else {
 
 			for (n = 0; n < order; n += PPN) {
-				if (!NodeMatrix[n + NODE_FIXED]) {
+				if (NodeMatrix[n + NODE_FIXED] !== 1) {
 
-					swinging = NodeMatrix[n + NODE_MASS] *
-						Math.sqrt(
-							(NodeMatrix[n + NODE_OLD_DX] - NodeMatrix[n + NODE_DX]) *
-							(NodeMatrix[n + NODE_OLD_DX] - NodeMatrix[n + NODE_DX]) +
-							(NodeMatrix[n + NODE_OLD_DY] - NodeMatrix[n + NODE_DY]) *
-							(NodeMatrix[n + NODE_OLD_DY] - NodeMatrix[n + NODE_DY])
-						);
+					swinging = NodeMatrix[n + NODE_MASS] * Math.sqrt(
+						(NodeMatrix[n + NODE_OLD_DX] - NodeMatrix[n + NODE_DX]) *
+						(NodeMatrix[n + NODE_OLD_DX] - NodeMatrix[n + NODE_DX]) +
+						(NodeMatrix[n + NODE_OLD_DY] - NodeMatrix[n + NODE_DY]) *
+						(NodeMatrix[n + NODE_OLD_DY] - NodeMatrix[n + NODE_DY])
+					);
 
 					traction = Math.sqrt(
 						(NodeMatrix[n + NODE_OLD_DX] + NodeMatrix[n + NODE_DX]) *
@@ -850,25 +799,21 @@ function LayoutForceAtlas2() {
 						(NodeMatrix[n + NODE_OLD_DY] + NodeMatrix[n + NODE_DY])
 					) / 2;
 
-					nodespeed = NodeMatrix[n + NODE_CONVERGENCE] *
-						Math.log(1 + traction) / (1 + Math.sqrt(swinging));
+					nodespeed = (NodeMatrix[n + NODE_CONVERGENCE] * Math.log(1 + traction)) / (1 + Math.sqrt(swinging));
 
 					// Updating node convergence
-					NodeMatrix[n + NODE_CONVERGENCE] =
-						Math.min(1, Math.sqrt(
-							nodespeed *
-							(Math.pow(NodeMatrix[n + NODE_DX], 2) +
-							 Math.pow(NodeMatrix[n + NODE_DY], 2)) /
-							(1 + Math.sqrt(swinging))
-						));
+					NodeMatrix[n + NODE_CONVERGENCE] = Math.min(1, Math.sqrt(
+						(nodespeed * (
+							Math.pow(NodeMatrix[n + NODE_DX], 2) +
+							Math.pow(NodeMatrix[n + NODE_DY], 2)
+						)) / (1 + Math.sqrt(swinging))
+					));
 
 					// Updating node's positon
-					newX = NodeMatrix[n + NODE_X] + NodeMatrix[n + NODE_DX] *
-						(nodespeed / options.slowDown);
+					newX = NodeMatrix[n + NODE_X] + NodeMatrix[n + NODE_DX] * (nodespeed / options.slowDown);
 					NodeMatrix[n + NODE_X] = newX;
 
-					newY = NodeMatrix[n + NODE_Y] + NodeMatrix[n + NODE_DY] *
-						(nodespeed / options.slowDown);
+					newY = NodeMatrix[n + NODE_Y] + NodeMatrix[n + NODE_DY] * (nodespeed / options.slowDown);
 					NodeMatrix[n + NODE_Y] = newY;
 				}
 			}

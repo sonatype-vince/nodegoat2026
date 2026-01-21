@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -530,9 +530,9 @@ class ExportTypesObjectsNetworkODT extends ExportTypesObjectsNetwork {
 		
 		$this->do_page_break = ($arr_options['flow'] == 'break');
 
-		while ($this->class_collect->init($this->arr_filters)) {
+		while ($this->class_collect->init()) {
 			
-			$arr_objects = $this->class_collect->getPathObjects('0');
+			$arr_objects = $this->class_collect->getPathObjects(CollectTypesObjects::PATH_START);
 			
 			GenerateTypeObjects::setClearSharedTypeObjectNames(false); // Disabled clearing name cache
 

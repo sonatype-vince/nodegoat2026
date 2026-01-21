@@ -1,7 +1,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -90,7 +90,7 @@ function MapGeo(elm_draw, PARENT, options) {
 	count_info_show_object_sub_dots_hover = 0,
 	key_move = false,
 	key_animate = false,
-	animating = false,
+	is_animating = false,
 	is_dragging = false,
 	elm_hover = false,
 	type_elm_hover = false,
@@ -99,7 +99,8 @@ function MapGeo(elm_draw, PARENT, options) {
 	elm_hover_check = null,
 	
 	display = DISPLAY_VECTOR,
-	font_family = 'pixel',
+	font_family = null,
+	length_text_max = 80,
 	show_dot = false,
 	dot_icon = 'circle',
 	color_dot = false,
@@ -169,6 +170,7 @@ function MapGeo(elm_draw, PARENT, options) {
 	location_position_manual = false,
 	offset_location = -5,
 	location_condition = false,
+	size_info = 8,
 	show_geo_info = false,
 	show_geometry = false,
 	color_geometry = false,
@@ -181,7 +183,8 @@ function MapGeo(elm_draw, PARENT, options) {
 	do_dot_icons_weight = false,
 	offset_dot_icons = 4,
 	svg_style = false,
-	use_best_quality = true,
+	use_best_quality = null,
+	use_beta_mode = false,
 	
 	calc_plot_point = 1,
 	pos_offset_x = 0,
@@ -196,21 +199,22 @@ function MapGeo(elm_draw, PARENT, options) {
 	do_show_info_line = false,
 	do_show_info_dot = false,
 	worker_labels = null,
+	arr_hint_pool = [],
 
 	arr_assets_colors_obj = {},
-	arr_assets_elm_line_dot_paths = {},
+	map_assets_elm_line_dot_paths = new Map,
 	arr_assets_texture_line_dots = {},
 	arr_assets_texture_info = {},
 	arr_assets_texture_icons = {},
 	is_weighted = false,
-	count_dot_weight_min = 0,
-	count_dot_weight_max = 0,
-	count_line_weight_max = 0,
+	num_dot_weight_min = 0,
+	num_dot_weight_max = 0,
+	num_line_weight_min = 0,
+	num_line_weight_max = 0,
+	num_lines_locate_weight_max = 0,
 	spacer_elm_info = 2,
 	spacer_elm_icons = 6,
-	size_info = 8,
 	offset_info_hover = 5,
-	size_max_elm_container = 15000,
 	num_percentage_hint_location_start = 0.5,
 	
 	settings_timeline = false,
@@ -219,10 +223,10 @@ function MapGeo(elm_draw, PARENT, options) {
 
 	this.init = function() {
 		
-		var parseBool = function(value, loose) {
-			if (value == 'true') {
+		const parseBool = function(value, loose) {
+			if (value === true || value === 'true') {
 				return true;
-			} else if (value == 'false') {
+			} else if (value === false || value === 'false') {
 				return false;
 			} else if (loose) {
 				return value;
@@ -234,107 +238,117 @@ function MapGeo(elm_draw, PARENT, options) {
 		display = options.arr_visual.settings.geo_display;
 		mode = options.arr_visual.settings.geo_mode;
 		
-		var use_capture = (options.arr_visual.capture.enable ? true : false);
-		if (typeof options.arr_visual.settings.geo_advanced.best_quality != 'undefined') {
-			use_best_quality = parseBool(options.arr_visual.settings.geo_advanced.best_quality);
+		GeoUtilities.parseColor = (display == DISPLAY_PIXEL ? GeoUtilities.parseColorToHex : GeoUtilities.parseColorToString);
+		
+		const arr_setting_advanced = options.arr_visual.settings.geo_advanced;
+
+		let use_capture = (options.arr_visual.capture.enable ? true : false);
+		if (typeof arr_setting_advanced.best_quality != 'undefined') {
+			use_best_quality = parseBool(arr_setting_advanced.best_quality);
+		}
+		use_best_quality = (use_best_quality != null ? use_best_quality : (use_capture ? true : false));
+		if (typeof arr_setting_advanced.beta_mode != 'undefined') {
+			use_beta_mode = parseBool(arr_setting_advanced.beta_mode);
 		}
 
-		if (typeof options.arr_visual.settings.geo_advanced.move_continuous != 'undefined') {
-			move_continuous = parseBool(options.arr_visual.settings.geo_advanced.move_continuous);
+		if (typeof arr_setting_advanced.move_continuous != 'undefined') {
+			move_continuous = parseBool(arr_setting_advanced.move_continuous);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.move_retain != 'undefined') {
-			move_retain = parseBool(options.arr_visual.settings.geo_advanced.move_retain, true);
+		if (typeof arr_setting_advanced.move_retain != 'undefined') {
+			move_retain = parseBool(arr_setting_advanced.move_retain, true);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.move_unit != 'undefined') {
-			move_unit = options.arr_visual.settings.geo_advanced.move_unit;
+		if (typeof arr_setting_advanced.move_unit != 'undefined') {
+			move_unit = arr_setting_advanced.move_unit;
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.move_chronological != 'undefined') {
-			move_chronological = parseBool(options.arr_visual.settings.geo_advanced.move_chronological);
+		if (typeof arr_setting_advanced.move_chronological != 'undefined') {
+			move_chronological = parseBool(arr_setting_advanced.move_chronological);
 		}
 		if (move_chronological) {
 			move_continuous = false;
 			move_retain = false;
 			move_unit = 'day';
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.move_speed != 'undefined' && parseBool(options.arr_visual.settings.geo_advanced.move_speed, true)) {
-			speed_move = parseFloat(options.arr_visual.settings.geo_advanced.move_speed);
+		if (typeof arr_setting_advanced.move_speed != 'undefined' && parseBool(arr_setting_advanced.move_speed, true)) {
+			speed_move = parseFloat(arr_setting_advanced.move_speed);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.move_duration_min != 'undefined' && parseBool(options.arr_visual.settings.geo_advanced.move_duration_min, true)) {
-			duration_move_min = parseFloat(options.arr_visual.settings.geo_advanced.move_duration_min);
+		if (typeof arr_setting_advanced.move_duration_min != 'undefined' && parseBool(arr_setting_advanced.move_duration_min, true)) {
+			duration_move_min = parseFloat(arr_setting_advanced.move_duration_min);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.move_duration_max != 'undefined' && parseBool(options.arr_visual.settings.geo_advanced.move_duration_max, true)) {
-			duration_move_max = parseFloat(options.arr_visual.settings.geo_advanced.move_duration_max);
+		if (typeof arr_setting_advanced.move_duration_max != 'undefined' && parseBool(arr_setting_advanced.move_duration_max, true)) {
+			duration_move_max = parseFloat(arr_setting_advanced.move_duration_max);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.move_duration_info_min != 'undefined' && parseBool(options.arr_visual.settings.geo_advanced.move_duration_info_min, true)) {
-			duration_move_info_min = parseFloat(options.arr_visual.settings.geo_advanced.move_duration_info_min);
+		if (typeof arr_setting_advanced.move_duration_info_min != 'undefined' && parseBool(arr_setting_advanced.move_duration_info_min, true)) {
+			duration_move_info_min = parseFloat(arr_setting_advanced.move_duration_info_min);
 			duration_move_info_min = (duration_move_info_min ? duration_move_info_min * 1000 : duration_move_info_min);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.move_duration_info_max != 'undefined' && parseBool(options.arr_visual.settings.geo_advanced.move_duration_info_max, true)) {
-			duration_move_info_max = parseFloat(options.arr_visual.settings.geo_advanced.move_duration_info_max);
+		if (typeof arr_setting_advanced.move_duration_info_max != 'undefined' && parseBool(arr_setting_advanced.move_duration_info_max, true)) {
+			duration_move_info_max = parseFloat(arr_setting_advanced.move_duration_info_max);
 			duration_move_info_max = (duration_move_info_max ? duration_move_info_max * 1000 : duration_move_info_max);
 		}
 		duration_move_info_fade = duration_move_info_fade * 1000;
 		duration_info_dot_min = duration_info_dot_min * 1000;
 		duration_info_dot_fade = duration_info_dot_fade * 1000;
-		if (typeof options.arr_visual.settings.geo_advanced.move_glow != 'undefined') {
-			move_glow = parseBool(options.arr_visual.settings.geo_advanced.move_glow);
+		if (typeof arr_setting_advanced.move_glow != 'undefined') {
+			move_glow = parseBool(arr_setting_advanced.move_glow);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.connection_line_color != 'undefined') {
-			color_connection_line = options.arr_visual.settings.geo_advanced.connection_line_color;
+		if (typeof arr_setting_advanced.connection_line_color != 'undefined') {
+			color_connection_line = arr_setting_advanced.connection_line_color;
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.connection_line_opacity != 'undefined') {
-			opacity_connection_line = parseFloat(options.arr_visual.settings.geo_advanced.connection_line_opacity);
+		if (typeof arr_setting_advanced.connection_line_opacity != 'undefined') {
+			opacity_connection_line = parseFloat(arr_setting_advanced.connection_line_opacity);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.connection_line_opacity_range_min != 'undefined') {
-			opacity_connection_line_range_min = parseFloat(options.arr_visual.settings.geo_advanced.connection_line_opacity_range_min);
+		if (typeof arr_setting_advanced.connection_line_opacity_range_min != 'undefined') {
+			opacity_connection_line_range_min = parseFloat(arr_setting_advanced.connection_line_opacity_range_min);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.connection_line_opacity_range_max != 'undefined') {
-			opacity_connection_line_range_max = parseFloat(options.arr_visual.settings.geo_advanced.connection_line_opacity_range_max);
+		if (typeof arr_setting_advanced.connection_line_opacity_range_max != 'undefined') {
+			opacity_connection_line_range_max = parseFloat(arr_setting_advanced.connection_line_opacity_range_max);
 		}
 		opacity_connection_line_range = (opacity_connection_line_range_max - opacity_connection_line_range_min);
 		if (move_continuous) {
 			move_apply_opacity_connection_line = 'move';
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.move_connection_line_apply_opacity != 'undefined') {
-			move_apply_opacity_connection_line = options.arr_visual.settings.geo_advanced.move_connection_line_apply_opacity;
+		if (typeof arr_setting_advanced.move_connection_line_apply_opacity != 'undefined') {
+			move_apply_opacity_connection_line = arr_setting_advanced.move_connection_line_apply_opacity;
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.connection_line_width != 'undefined') {
-			width_connection_line = parseFloat(options.arr_visual.settings.geo_advanced.connection_line_width);
+		if (typeof arr_setting_advanced.connection_line_width != 'undefined') {
+			width_connection_line = parseFloat(arr_setting_advanced.connection_line_width);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.move_warp_length != 'undefined') {
-			length_move_warp = parseInt(options.arr_visual.settings.geo_advanced.move_warp_length);
+		if (typeof arr_setting_advanced.move_warp_length != 'undefined') {
+			length_move_warp = parseInt(arr_setting_advanced.move_warp_length);
 		}
-		size_max_elm_container = size_max_elm_container * (1+length_move_warp);
-		if (typeof options.arr_visual.settings.geo_advanced.hint_dot != 'undefined') {
-			hint_dot = parseBool(options.arr_visual.settings.geo_advanced.hint_dot, true);
+		if (typeof arr_setting_advanced.hint_dot != 'undefined') {
+			hint_dot = parseBool(arr_setting_advanced.hint_dot, true);
+			hint_dot = (hint_dot == 'pulse' || hint_dot == 'location' ? hint_dot : (hint_dot ? 'pulse' : false));
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.move_hint_dot != 'undefined') {
-			move_hint_dot = parseBool(options.arr_visual.settings.geo_advanced.move_hint_dot);
+		if (typeof arr_setting_advanced.move_hint_dot != 'undefined') {
+			move_hint_dot = parseBool(arr_setting_advanced.move_hint_dot);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.moved_hint_dot != 'undefined') {
-			moved_hint_dot = parseBool(options.arr_visual.settings.geo_advanced.moved_hint_dot);
+		if (typeof arr_setting_advanced.moved_hint_dot != 'undefined') {
+			moved_hint_dot = parseBool(arr_setting_advanced.moved_hint_dot);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.hint_line != 'undefined') {
-			hint_line = parseBool(options.arr_visual.settings.geo_advanced.hint_line);
+		if (typeof arr_setting_advanced.hint_line != 'undefined') {
+			hint_line = parseBool(arr_setting_advanced.hint_line);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.moved_hint_line != 'undefined') {
-			moved_hint_line = parseBool(options.arr_visual.settings.geo_advanced.moved_hint_line);
+		if (typeof arr_setting_advanced.moved_hint_line != 'undefined') {
+			moved_hint_line = parseBool(arr_setting_advanced.moved_hint_line);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.max_hint_dots != 'undefined') {
-			max_hint_dots = parseInt(options.arr_visual.settings.geo_advanced.max_hint_dots);
+		if (typeof arr_setting_advanced.max_hint_dots != 'undefined') {
+			max_hint_dots = parseInt(arr_setting_advanced.max_hint_dots);
+		} else if (display == DISPLAY_PIXEL) {
+			max_hint_dots = max_hint_dots * 2;
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.dot_icon != 'undefined') {
-			dot_icon = options.arr_visual.settings.geo_advanced.dot_icon;
+		if (typeof arr_setting_advanced.dot_icon != 'undefined') {
+			dot_icon = arr_setting_advanced.dot_icon;
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.dot_icons_size != 'undefined') {
-			if (options.arr_visual.settings.geo_advanced.dot_icons_size === 'weight') {
+		if (typeof arr_setting_advanced.dot_icons_size != 'undefined') {
+			if (arr_setting_advanced.dot_icons_size === 'weight') {
 				do_dot_icons_weight = true;
 			} else {
-				size_dot_icons = parseInt(options.arr_visual.settings.geo_advanced.dot_icons_size);
+				size_dot_icons = parseInt(arr_setting_advanced.dot_icons_size);
 			}
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.dot_icons_offset != 'undefined') {
-			offset_dot_icons = parseInt(options.arr_visual.settings.geo_advanced.dot_icons_offset);
+		if (typeof arr_setting_advanced.dot_icons_offset != 'undefined') {
+			offset_dot_icons = parseInt(arr_setting_advanced.dot_icons_offset);
 		}
 		if (options.arr_visual.line.width.min) {
 			width_line_min = options.arr_visual.line.width.min;
@@ -350,43 +364,48 @@ function MapGeo(elm_draw, PARENT, options) {
 		}
 
 		if (display == DISPLAY_PIXEL && mode == MODE_MOVE) {
-			show_info_dot = true;
 			show_info_line = true;
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.info_show != 'undefined') {
-			show_info_dot = parseBool(options.arr_visual.settings.geo_advanced.info_show, true);
+		if (typeof arr_setting_advanced.info_show != 'undefined') {
+			show_info_dot = parseBool(arr_setting_advanced.info_show, true);
 			show_info_line = show_info_dot;
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.info_show_dot != 'undefined') {
-			show_info_dot = parseBool(options.arr_visual.settings.geo_advanced.info_show_dot, true);
+		if (typeof arr_setting_advanced.info_show_dot != 'undefined') {
+			show_info_dot = parseBool(arr_setting_advanced.info_show_dot, true);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.info_show_line != 'undefined') {
-			show_info_line = parseBool(options.arr_visual.settings.geo_advanced.info_show_line, true);
+		if (typeof arr_setting_advanced.info_show_line != 'undefined') {
+			show_info_line = parseBool(arr_setting_advanced.info_show_line, true);
 		}
 		
 		if (options.arr_visual.location.color) {
 			color_info = options.arr_visual.location.color;
 		} 
-		if (typeof options.arr_visual.settings.geo_advanced.info_color != 'undefined') {
-			color_info = options.arr_visual.settings.geo_advanced.info_color;
+		if (typeof arr_setting_advanced.info_color != 'undefined') {
+			color_info = arr_setting_advanced.info_color;
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.info_mode != 'undefined') {
-			info_mode = options.arr_visual.settings.geo_advanced.info_mode;
+		if (typeof arr_setting_advanced.info_size != 'undefined') {
+			size_info = parseFloat(arr_setting_advanced.info_size);
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.info_condition != 'undefined') {
-			info_condition = options.arr_visual.settings.geo_advanced.info_condition;
+		if (typeof arr_setting_advanced.info_mode != 'undefined') {
+			info_mode = arr_setting_advanced.info_mode;
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.info_content != 'undefined') {
-			info_content = options.arr_visual.settings.geo_advanced.info_content;
+		if (typeof arr_setting_advanced.info_condition != 'undefined') {
+			info_condition = arr_setting_advanced.info_condition;
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.highlight_color != 'undefined') {
-			color_highlight = parseBool(options.arr_visual.settings.geo_advanced.highlight_color, true);
+		if (typeof arr_setting_advanced.info_content != 'undefined') {
+			info_content = arr_setting_advanced.info_content;
+		}
+		if (typeof arr_setting_advanced.text_font != 'undefined') {
+			font_family = arr_setting_advanced.text_font;
+		}
+		if (typeof arr_setting_advanced.highlight_color != 'undefined') {
+			color_highlight = parseBool(arr_setting_advanced.highlight_color, true);
 			if (color_highlight === true) {
 				color_highlight = '#d92b2b';
 			}
 		}
-		if (typeof options.arr_visual.settings.geo_advanced.svg_style != 'undefined') {
-			svg_style = parseBool(options.arr_visual.settings.geo_advanced.svg_style, true);
+		if (typeof arr_setting_advanced.svg_style != 'undefined') {
+			svg_style = parseBool(arr_setting_advanced.svg_style, true);
 			svg_style = (svg_style ? svg_style : false);
 		}
 		show_line = options.arr_visual.line.show;
@@ -459,15 +478,17 @@ function MapGeo(elm_draw, PARENT, options) {
 		
 		let arr_scripts = ['/CMS/js/support/Bezier.js'];
 		if (display == DISPLAY_PIXEL) {
-			arr_scripts.push('/CMS/js/support/pixi.min.js', '/CMS/js/support/pixi.ExtraFilters.js');
+			arr_scripts.push('/CMS/js/support/pixi8.min.js', '/CMS/js/support/pixi.ExtraFilters.js');
 		}
 		if (show_location) {
 			arr_scripts.push('/js/support/d3-force.pack.js');
 		}
+		
+		arr_labels = ['lbl_scope', 'lbl_conditions', 'lbl_location', 'lbl_date_start', 'lbl_date_end'];
 
 		ASSETS.fetch(elm_host, {
-			script: arr_scripts, font: ['pixel'], labels: ['lbl_scope', 'lbl_location', 'lbl_date_start', 'lbl_date_end']
-		}, function() {
+			script: arr_scripts, font: ['pixel'], labels: arr_labels
+		}, async function() {
 				
 			has_init = true;
 			
@@ -517,13 +538,15 @@ function MapGeo(elm_draw, PARENT, options) {
 							
 							for (let i = 0, len = arr_media.length; i < len; i++) {
 							
-								const resource = arr_media[i];
-								const arr_medium = ASSETS.getMedia(resource);
+								const str_resource = arr_media[i];
+								const arr_medium = ASSETS.getMedia(str_resource);
 								const elm_image = arr_medium.image.cloneNode(false);
 								
-								const texture = PIXI.Texture.from(elm_image);
+								const source = new PIXI.ImageSource({resource: elm_image, width: arr_medium.width, height: arr_medium.height});
+								const texture = new PIXI.Texture(source);
+								//texture = await PIXI.Assets.load(str_resource);
 								
-								arr_assets_texture_icons[resource] = {texture: texture, width: arr_medium.width, height: arr_medium.height};
+								arr_assets_texture_icons[str_resource] = {texture: texture, width: arr_medium.width, height: arr_medium.height};
 							}
 						}
 						
@@ -534,17 +557,45 @@ function MapGeo(elm_draw, PARENT, options) {
 				}
 			}
 						
-			ASSETS.getLabels(elm_host, ['lbl_scope', 'lbl_location', 'lbl_date_start', 'lbl_date_end'], (data) => {arr_labels = data});
-
+			ASSETS.getLabels(elm_host, arr_labels, (data) => {arr_labels = data});
+			
+			font_family = (font_family ? font_family : 'pixel');
+			
 			if (display == DISPLAY_PIXEL) {
 
 				size_renderer = {width: pos_map.view.width, height: pos_map.view.height, resolution: pos_map.render.resolution};
 
-				var num_resolution = size_renderer.resolution;
+				PIXI.GraphicsContextSystem.defaultOptions.bezierSmoothness = 0.5;
+				if (use_capture || use_best_quality) {
+					PIXI.GraphicsContextSystem.defaultOptions.bezierSmoothness = 1;
+				}
 				
-				PIXI.GRAPHICS_CURVES.adaptive = true;
-				PIXI.GRAPHICS_CURVES.maxLength = (use_capture ? 2 : 10); // Use higher segment resolution (shorter curve lengths) when capturing
-				PIXI.settings.SPRITE_MAX_TEXTURES = Math.min(PIXI.settings.SPRITE_MAX_TEXTURES, 16);
+				const func_renderer_settings = function(renderer_check) {
+					
+					renderer_check.events.autoPreventDefault = false;
+					renderer_check.canvas.style.removeProperty('touch-action');
+					
+					return renderer_check;
+				};
+				
+				const func_stage_settings = function(stage_check) {
+					
+					stage_check.isRenderGroup = false;
+					stage_check.cullableChildren = false;
+					stage_check.interactiveChildren = false;
+					stage_check.eventMode = 'none';
+					
+					return stage_check;
+				};
+				
+				const arr_renderer_settings = {width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: size_renderer.resolution, autoDensity: true, premultipliedAlpha: true, preference: (use_beta_mode ? 'webgpu' : 'webgl')};
+
+				stage_geometry = func_stage_settings(new PIXI.Container());
+				stage_connection_lines = func_stage_settings(new PIXI.Container());
+				stage_locations = func_stage_settings(new PIXI.Container());
+				stage_lines = func_stage_settings(new PIXI.Container());
+				stage_activity = func_stage_settings(new PIXI.Container());
+				stage_dots = func_stage_settings(new PIXI.Container());
 				
 				elm_plot_geometry = new PIXI.Container();
 				elm_plot_connection_lines = new PIXI.Container();
@@ -553,20 +604,13 @@ function MapGeo(elm_draw, PARENT, options) {
 				elm_plot_between = new PIXI.Container();
 				elm_plot_dots = new PIXI.Container();
 				
-				stage_geometry = new PIXI.Container();
-				stage_connection_lines = new PIXI.Container();
-				stage_locations = new PIXI.Container();
-				stage_lines = new PIXI.Container();
-				stage_activity = new PIXI.Container();
-				stage_dots = new PIXI.Container();
-				
 				if (mode == MODE_MOVE) {
 					
-					renderer_geometry = PIXI.autoDetectRenderer({width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: num_resolution, autoDensity: true});
-					renderer_connection_lines = PIXI.autoDetectRenderer({width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: num_resolution, autoDensity: true, forceCanvas: (use_best_quality ? true : false)});
-					renderer_locations = PIXI.autoDetectRenderer({width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: num_resolution, autoDensity: true});
-					renderer_activity = PIXI.autoDetectRenderer({width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: num_resolution, autoDensity: true});
-					renderer_dots = PIXI.autoDetectRenderer({width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: num_resolution, autoDensity: true, forceCanvas: (use_best_quality ? true : false)});
+					renderer_geometry = func_renderer_settings(await PIXI.autoDetectRenderer(arr_renderer_settings));
+					renderer_connection_lines = func_renderer_settings(await PIXI.autoDetectRenderer(arr_renderer_settings));
+					renderer_locations = func_renderer_settings(await PIXI.autoDetectRenderer(arr_renderer_settings));
+					renderer_activity = func_renderer_settings(await PIXI.autoDetectRenderer(arr_renderer_settings));
+					renderer_dots = func_renderer_settings(await PIXI.autoDetectRenderer(arr_renderer_settings));
 
 					stage_geometry.addChild(elm_plot_geometry);
 					stage_connection_lines.addChild(elm_plot_connection_lines);
@@ -575,34 +619,23 @@ function MapGeo(elm_draw, PARENT, options) {
 					stage_activity.addChild(elm_plot_between);
 					stage_dots.addChild(elm_plot_dots);
 					
-					drawer = renderer_geometry.view;
+					drawer = renderer_geometry.canvas;
 					elm[0].appendChild(drawer);
-					drawer_2 = renderer_connection_lines.view;
+					drawer_2 = renderer_connection_lines.canvas;
 					elm[0].appendChild(drawer_2);
-					drawer_3 = renderer_locations.view;
+					drawer_3 = renderer_locations.canvas;
 					elm[0].appendChild(drawer_3);
-					drawer_4 = renderer_activity.view;
+					drawer_4 = renderer_activity.canvas;
 					elm[0].appendChild(drawer_4);
-					drawer_5 = renderer_dots.view;
+					drawer_5 = renderer_dots.canvas;
 					elm[0].appendChild(drawer_5);
-					
-					renderer_geometry.events.autoPreventDefault = false;
-					renderer_connection_lines.events.autoPreventDefault = false;
-					renderer_locations.events.autoPreventDefault = false;
-					renderer_activity.events.autoPreventDefault = false;
-					renderer_dots.events.autoPreventDefault = false;
-					drawer.style.removeProperty('touch-action');
-					drawer_2.style.removeProperty('touch-action');
-					drawer_3.style.removeProperty('touch-action');
-					drawer_4.style.removeProperty('touch-action');
-					drawer_5.style.removeProperty('touch-action');
 				} else {
 					
-					renderer_geometry = PIXI.autoDetectRenderer({width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: num_resolution, autoDensity: true});
-					renderer_locations = PIXI.autoDetectRenderer({width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: num_resolution, autoDensity: true});
-					renderer_lines = PIXI.autoDetectRenderer({width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: num_resolution, autoDensity: true, forceCanvas: (use_best_quality ? true : false)});
-					renderer_activity = PIXI.autoDetectRenderer({width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: num_resolution, autoDensity: true});
-					renderer_dots = PIXI.autoDetectRenderer({width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: num_resolution, autoDensity: true, forceCanvas: (use_best_quality ? true : false)});
+					renderer_geometry = func_renderer_settings(await PIXI.autoDetectRenderer(arr_renderer_settings));
+					renderer_locations = func_renderer_settings(await PIXI.autoDetectRenderer(arr_renderer_settings));
+					renderer_lines = func_renderer_settings(await PIXI.autoDetectRenderer(arr_renderer_settings));
+					renderer_activity = func_renderer_settings(await PIXI.autoDetectRenderer(arr_renderer_settings));
+					renderer_dots = func_renderer_settings(await PIXI.autoDetectRenderer(arr_renderer_settings));
 
 					stage_geometry.addChild(elm_plot_geometry);
 					stage_locations.addChild(elm_plot_locations);
@@ -610,27 +643,16 @@ function MapGeo(elm_draw, PARENT, options) {
 					stage_activity.addChild(elm_plot_between);
 					stage_dots.addChild(elm_plot_dots);
 					
-					drawer = renderer_geometry.view;
+					drawer = renderer_geometry.canvas;
 					elm[0].appendChild(drawer);
-					drawer_2 = renderer_locations.view;
+					drawer_2 = renderer_locations.canvas;
 					elm[0].appendChild(drawer_2);
-					drawer_3 = renderer_lines.view;
+					drawer_3 = renderer_lines.canvas;
 					elm[0].appendChild(drawer_3);
-					drawer_4 = renderer_activity.view;
+					drawer_4 = renderer_activity.canvas;
 					elm[0].appendChild(drawer_4);
-					drawer_5 = renderer_dots.view;
+					drawer_5 = renderer_dots.canvas;
 					elm[0].appendChild(drawer_5);
-					
-					renderer_geometry.events.autoPreventDefault = false;
-					renderer_locations.events.autoPreventDefault = false;
-					renderer_lines.events.autoPreventDefault = false;
-					renderer_activity.events.autoPreventDefault = false;
-					renderer_dots.events.autoPreventDefault = false;
-					drawer.style.removeProperty('touch-action');
-					drawer_2.style.removeProperty('touch-action');
-					drawer_3.style.removeProperty('touch-action');
-					drawer_4.style.removeProperty('touch-action');
-					drawer_5.style.removeProperty('touch-action');
 				}
 			} else {
 				
@@ -712,19 +734,14 @@ function MapGeo(elm_draw, PARENT, options) {
 			
 			if (display == DISPLAY_PIXEL) {
 				
-				var elm_pointer = new PIXI.Graphics();
-				elm_pointer.beginFill(GeoUtilities.parseColor(color_info), 1);
+				const elm_pointer = new PIXI.Graphics();
 				elm_pointer.moveTo(0,0);
 				elm_pointer.lineTo(3,0);
 				elm_pointer.lineTo(0,3);
 				elm_pointer.lineTo(0,0);
-				elm_pointer.endFill();
+				elm_pointer.fill(GeoUtilities.parseColor(color_info, 1));
 				
-				if (use_best_quality) {
-					arr_assets_texture_info.pointer = elm_pointer.generateCanvasTexture();
-				} else {
-					arr_assets_texture_info.pointer = renderer_activity.generateTexture(elm_pointer);
-				}
+				arr_assets_texture_info.pointer = renderer_activity.generateTexture({target: elm_pointer, resolution: renderer_activity.resolution, antialias: true, textureSourceOptions: {scaleMode: 'linear'}});
 			}
 			
 			count_start--; // Main loaded
@@ -739,7 +756,7 @@ function MapGeo(elm_draw, PARENT, options) {
 			return;
 		}
 		
-		animating = false;
+		is_animating = false;
 		ANIMATOR.animate(null, key_animate);
 		PARENT.obj_map.move(null, key_move);
 		
@@ -755,8 +772,8 @@ function MapGeo(elm_draw, PARENT, options) {
 			stage_lines.destroy(true);
 			stage_activity.destroy(true);
 			stage_dots.destroy(true);
-			
-			for (var texture in arr_assets_texture_line_dots) {
+
+			for (const texture in arr_assets_texture_line_dots) {
 				
 				if (arr_assets_texture_line_dots[texture]) {
 					
@@ -768,30 +785,30 @@ function MapGeo(elm_draw, PARENT, options) {
 				}
 			}
 			if (arr_assets_texture_info.pointer) {
-				
 				arr_assets_texture_info.pointer.destroy(true);
 			}
-			for (var resource in arr_assets_texture_icons) {
+			for (const resource in arr_assets_texture_icons) {
 				
 				if (arr_assets_texture_icons[resource].texture) {
-					
 					arr_assets_texture_icons[resource].texture.destroy(true);
 				}
 			}
 			
 			if (mode == MODE_MOVE) {
 					
+				renderer_activity.destroy(true); // Need to destory renderer holding PIXI.Text textures first 
+				
 				renderer_geometry.destroy(true);
 				renderer_connection_lines.destroy(true);
 				renderer_locations.destroy(true);
-				renderer_activity.destroy(true);
 				renderer_dots.destroy(true);
 			} else {
+				
+				renderer_activity.destroy(true); // Need to destory renderer holding PIXI.Text textures first 
 				
 				renderer_geometry.destroy(true);
 				renderer_locations.destroy(true);
 				renderer_lines.destroy(true);
-				renderer_activity.destroy(true);
 				renderer_dots.destroy(true);
 			}
 		}
@@ -975,7 +992,6 @@ function MapGeo(elm_draw, PARENT, options) {
 		}
 		
 		if (move_chronological) {
-			
 			PARENT.setTimeline({time: 0}); // Prepare tschuifje
 		}
 
@@ -984,7 +1000,7 @@ function MapGeo(elm_draw, PARENT, options) {
 			default_zoom: arr_window
 		};
 	};
-			
+	
 	var getObjectSubsLineDetails = function(arr_object_sub_line) {
 		
 		const arr_view = {};
@@ -1109,7 +1125,7 @@ function MapGeo(elm_draw, PARENT, options) {
 	
 	var getObjectSubsDotDetails = function(arr_object_sub_dot) {
 		
-		const arr_view = {types: {}, scope: false};
+		const arr_view = {types: {}, scope: null, conditions: null};
 		const arr_object_sub_ids = [];
 		const arr_object_ids = [];
 		
@@ -1137,31 +1153,31 @@ function MapGeo(elm_draw, PARENT, options) {
 			
 			if (info_content == 'default') {
 				
-				var type_id = arr_data.objects[arr_object_sub.object_id].type_id;
+				const type_id = arr_data.objects[arr_object_sub.object_id].type_id;
 				
-				var arr_view_type = arr_view.types[type_id];
-				if (!arr_view_type) {
+				let arr_view_type = arr_view.types[type_id];
+				if (arr_view_type === undefined) {
 					arr_view_type = arr_view.types[type_id] = {};
 				}
 				
-				var arr_view_type_object_sub = arr_view_type[arr_object_sub.object_sub_details_id];
-				if (!arr_view_type_object_sub) {
+				let arr_view_type_object_sub = arr_view_type[arr_object_sub.object_sub_details_id];
+				if (arr_view_type_object_sub === undefined) {
 					arr_view_type_object_sub = arr_view_type[arr_object_sub.object_sub_details_id] = {};
 				}
 	
-				var has_identifier_definition = false;
+				let has_identifier_definition = false;
 				
-				for (var key in arr_object_sub.object_sub_definitions) {
+				for (const key in arr_object_sub.object_sub_definitions) {
 					
-					var arr_object_sub_definition = arr_object_sub.object_sub_definitions[key];
+					const arr_object_sub_definition = arr_object_sub.object_sub_definitions[key];
 					
-					var arr_view_type_object_sub_definitions = arr_view_type_object_sub.object_sub_definitions;
-					if (!arr_view_type_object_sub_definitions) {
+					let arr_view_type_object_sub_definitions = arr_view_type_object_sub.object_sub_definitions;
+					if (arr_view_type_object_sub_definitions === undefined) {
 						arr_view_type_object_sub_definitions = arr_view_type_object_sub.object_sub_definitions = {};
 					}
 					
-					var arr_view_type_object_sub_definition = arr_view_type_object_sub_definitions[arr_object_sub_definition.description_id];
-					if (!arr_view_type_object_sub_definition) {
+					let arr_view_type_object_sub_definition = arr_view_type_object_sub_definitions[arr_object_sub_definition.description_id];
+					if (arr_view_type_object_sub_definition === undefined) {
 						arr_view_type_object_sub_definition = arr_view_type_object_sub_definitions[arr_object_sub_definition.description_id] = {};
 					}
 					
@@ -1169,11 +1185,11 @@ function MapGeo(elm_draw, PARENT, options) {
 
 						has_identifier_definition = true;
 							
-						for (var j = 0, len_j = arr_object_sub_definition.ref_object_id.length; j < len_j; j++) {
+						for (let j = 0, len_j = arr_object_sub_definition.ref_object_id.length; j < len_j; j++) {
 							
-							var ref_object_id = arr_object_sub_definition.ref_object_id[j];
-							var arr_object = arr_view_type_object_sub_definition[ref_object_id];
-							if (!arr_object) {
+							const ref_object_id = arr_object_sub_definition.ref_object_id[j];
+							let arr_object = arr_view_type_object_sub_definition[ref_object_id];
+							if (arr_object === undefined) {
 								arr_object = {value: arr_object_sub_definition.value[j], count: 1};
 								arr_view_type_object_sub_definition[ref_object_id] = arr_object;
 							} else {
@@ -1182,12 +1198,12 @@ function MapGeo(elm_draw, PARENT, options) {
 						}
 					} else if (arr_object_sub_definition.value) {
 						
-						for (var j = 0, len_j = arr_object_sub_definition.value.length; j < len_j; j++) {
+						for (let j = 0, len_j = arr_object_sub_definition.value.length; j < len_j; j++) {
 							
-							var value = arr_object_sub_definition.value[j];
-							var hash = value.hashCode();
-							var arr_object = arr_view_type_object_sub_definition[hash];
-							if (!arr_object) {
+							const value = arr_object_sub_definition.value[j];
+							const hash = value.hashCode();
+							let arr_object = arr_view_type_object_sub_definition[hash];
+							if (arr_object === undefined) {
 								arr_object = {value: value, count: 1};
 								arr_view_type_object_sub_definition[hash] = arr_object;
 							} else {
@@ -1202,13 +1218,13 @@ function MapGeo(elm_draw, PARENT, options) {
 					
 					if (arr_data.objects[arr_object_sub.object_id].name) {
 						
-						var arr_view_type_object_sub_objects = arr_view_type_object_sub.objects;
-						if (!arr_view_type_object_sub_objects) {
+						let arr_view_type_object_sub_objects = arr_view_type_object_sub.objects;
+						if (arr_view_type_object_sub_objects === undefined) {
 							arr_view_type_object_sub_objects = arr_view_type_object_sub.objects = {};
 						}
 						
-						var arr_object = arr_view_type_object_sub_objects[arr_object_sub.object_id];
-						if (!arr_object) {
+						let arr_object = arr_view_type_object_sub_objects[arr_object_sub.object_id];
+						if (arr_object === undefined) {
 							arr_object = {value: arr_data.objects[arr_object_sub.object_id].name, count: 1};
 							arr_view_type_object_sub_objects[arr_object_sub.object_id] = arr_object;
 						} else {
@@ -1217,12 +1233,32 @@ function MapGeo(elm_draw, PARENT, options) {
 					}
 				}
 			}
+			
+			if (info_content == 'default' || info_content == 'condition') {
 				
+				if (arr_object_sub.conditions.list !== null) {
+					
+					if (arr_view.conditions === null) {
+						arr_view.conditions = {};
+					}
+					
+					for (let j = 0, len_j = arr_object_sub.conditions.list.length; j < len_j; j++) {
+						
+						const arr_condition_check = arr_object_sub.conditions.list[j];
+						
+						if (arr_view.conditions[arr_condition_check.identifier] === undefined) {
+							arr_view.conditions[arr_condition_check.identifier] = 0;
+						}
+						arr_view.conditions[arr_condition_check.identifier] += arr_condition_check.weight;
+					}
+				}
+			}
+			
 			// Full objects and possible partake in scopes
-			for (var j = 0, len_j = arr_object_sub.connected_object_ids.length; j < len_j; j++) {
+			for (let j = 0, len_j = arr_object_sub.connected_object_ids.length; j < len_j; j++) {
 				
-				var object_id = arr_object_sub.connected_object_ids[j];
-				var in_scope = (object_id != arr_object_sub.object_id);
+				const object_id = arr_object_sub.connected_object_ids[j];
+				const in_scope = (object_id != arr_object_sub.object_id);
 				
 				if (in_scope) {
 					arr_object_ids.push(object_id);
@@ -1230,20 +1266,20 @@ function MapGeo(elm_draw, PARENT, options) {
 
 				if (in_scope || info_content == 'scope') { // Sub-object is part of a scope or include the object scope as content
 					
-					var type_id = arr_data.objects[object_id].type_id;
+					const type_id = arr_data.objects[object_id].type_id;
 					
-					var arr_view_scope = arr_view.scope;
-					if (!arr_view_scope) {
+					let arr_view_scope = arr_view.scope;
+					if (arr_view_scope === null) {
 						arr_view_scope = arr_view.scope = {};
 					}
 										
-					var arr_view_scope_type = arr_view_scope[type_id];
-					if (!arr_view_scope_type) {
+					let arr_view_scope_type = arr_view_scope[type_id];
+					if (arr_view_scope_type === undefined) {
 						arr_view_scope_type = arr_view_scope[type_id] = {};
 					}
 					
-					var arr_object = arr_view_scope_type[object_id];
-					if (!arr_object) {
+					let arr_object = arr_view_scope_type[object_id];
+					if (arr_object === undefined) {
 						arr_object = {value: arr_data.objects[object_id].name, count: 1};
 						arr_view_scope_type[object_id] = arr_object;
 					} else {
@@ -1272,7 +1308,7 @@ function MapGeo(elm_draw, PARENT, options) {
 		type_elm_hover = false;
 		
 		let is_dragging_node = false;
-		let func_interact_stop = false;
+		let func_interact_stop = null;
 		
 		interactListener = function(e) {
 			
@@ -1288,7 +1324,7 @@ function MapGeo(elm_draw, PARENT, options) {
 					
 					if (func_interact_stop) {
 						func_interact_stop();
-						func_interact_stop = false;
+						func_interact_stop = null;
 					}
 				
 					elm_host.classList.remove('hovering');
@@ -1333,7 +1369,7 @@ function MapGeo(elm_draw, PARENT, options) {
 			
 			if (func_interact_stop) {
 				func_interact_stop();
-				func_interact_stop = false;
+				func_interact_stop = null;
 			}
 			
 			if (type_elm_hover === 'dot') {
@@ -1424,7 +1460,7 @@ function MapGeo(elm_draw, PARENT, options) {
 						elm[0].removeEventListener('mouseup', func_interact_stop);
 						
 						is_dragging_node = false;
-						func_interact_stop = false;
+						func_interact_stop = null;
 					};
 					
 					if (e && e.type == 'touchstart') {
@@ -1521,7 +1557,7 @@ function MapGeo(elm_draw, PARENT, options) {
 			
 			const arr_view_type = arr_view_types[type_id];
 			
-			str_title = str_title+'<hr />\
+			str_title += '<hr />\
 			<li>\
 				<label>'+arr_data.info.types[type_id].name+'</label>\
 				<ul>';
@@ -1530,7 +1566,7 @@ function MapGeo(elm_draw, PARENT, options) {
 					
 					const arr_view_type_object_sub = arr_view_type[object_sub_details_id];
 					
-					str_title = str_title+'<li>\
+					str_title += '<li>\
 						<label class="sub-name">'+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+'</label>\
 						<ul>';
 						
@@ -1542,7 +1578,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							has_identifier_definition = true;
 							const object_sub_description_name = arr_data.info.object_sub_descriptions[object_sub_description_id].object_sub_description_name; // Could be collapsed
 							
-							str_title = str_title+'<li>\
+							str_title += '<li>\
 								<label>'+(object_sub_description_name ? object_sub_description_name : 'Object')+'</label>\
 								<ul>';
 								
@@ -1556,29 +1592,23 @@ function MapGeo(elm_draw, PARENT, options) {
 									return b[1] - a[1];
 								});
 								
-								let num_count = 0;
-								for (let i = 0, len = arr_sort.length; i < len; i++) {
-									
-									if (num_count > 10) {
-										break;
-									}
-									
+								for (let i = 0, len = arr_sort.length; i < len && i < 10; i++) {
+																		
 									const arr_ref_object = arr_ref_objects[arr_sort[i][0]];
 									
-									str_title = str_title+'<li>'+arr_ref_object.value+' '+(arr_ref_object.count > 1 ? '('+arr_ref_object.count+'x)' : '')+'</li>';
-									num_count++;
+									str_title += '<li>'+arr_ref_object.value+' '+(arr_ref_object.count > 1 ? '('+arr_ref_object.count+'x)' : '')+'</li>';
 								}
 								
 								if (arr_sort.length > 10) {
-									str_title = str_title+'<li>... '+(arr_sort.length-10)+'x</li>';
+									str_title += '<li>... '+(arr_sort.length-10)+'x</li>';
 								}
 								
-								str_title = str_title+'</ul>\
+								str_title += '</ul>\
 							</li>';
 						}
 						if (arr_view_type_object_sub.objects) {
 							
-							str_title = str_title+'<li>\
+							str_title += '<li>\
 								<label>'+(has_identifier_definition ? 'Object' : '')+'</label>\
 								<ul>';
 																
@@ -1592,32 +1622,26 @@ function MapGeo(elm_draw, PARENT, options) {
 									return b[1] - a[1];
 								});
 								
-								let num_count = 0;
-								for (let i = 0, len = arr_sort.length; i < len; i++) {
-									
-									if (num_count > 10) {
-										break;
-									}
+								for (let i = 0, len = arr_sort.length; i < len && i < 10; i++) {
 									
 									const arr_object = arr_objects[arr_sort[i][0]];
 									
-									str_title = str_title+'<li>'+arr_object.value+' '+ (arr_object.count > 1 ? '('+arr_object.count+'x)' : '')+'</li>';
-									num_count++;
+									str_title += '<li>'+arr_object.value+' '+(arr_object.count > 1 ? '('+arr_object.count+'x)' : '')+'</li>';
 								}
 								
 								if (arr_sort.length > 10) {
-									str_title = str_title+'<li>... '+(arr_sort.length-10)+'x</li>';
+									str_title += '<li>... '+(arr_sort.length-10)+'x</li>';
 								}
 								
-								str_title = str_title+'</ul>\
+								str_title += '</ul>\
 							</li>';
 						}
 						
-						str_title = str_title+'</ul>\
+						str_title += '</ul>\
 					</li>';
 				}
 				
-				str_title = str_title+'</ul>\
+				str_title += '</ul>\
 			</li>';
 		}
 		
@@ -1625,16 +1649,16 @@ function MapGeo(elm_draw, PARENT, options) {
 		
 		if (arr_view_scope) {
 			
-			str_title = (info_content == 'default' ? str_title+'<hr />\
+			str_title += (info_content == 'default' ? '<hr />\
 			<li>\
 				<label>'+arr_labels.lbl_scope+'</label>\
-				<ul>' : str_title);
+				<ul>' : '');
 			
 				for (const type_id in arr_view_scope) {
 					
 					const arr_view_scope_type = arr_view_scope[type_id];
 					
-					str_title = str_title+'<li>\
+					str_title += '<li>\
 						<label>'+arr_data.info.types[type_id].name+'</label>\
 						<ul>';
 						
@@ -1648,32 +1672,75 @@ function MapGeo(elm_draw, PARENT, options) {
 								return b[1] - a[1];
 							});
 							
-							let num_count = 0;
-							for (let i = 0, len = arr_sort.length; i < len; i++) {
-								
-								if (num_count > 10) {
-									break;
-								}
-								
+							for (let i = 0, len = arr_sort.length; i < len && i < 10; i++) {
+																
 								const arr_object = arr_objects[arr_sort[i][0]];
 								
-								str_title = str_title+'<li>'+arr_object.value+' '+ (arr_object.count > 1 ? '('+arr_object.count+'x)' : '')+'</li>';
-								num_count++;
+								str_title += '<li>'+arr_object.value+' '+ (arr_object.count > 1 ? '('+arr_object.count+'x)' : '')+'</li>';
 							}
 							
 							if (arr_sort.length > 10) {
-								str_title = str_title+'<li>... '+(arr_sort.length-10)+'x</li>';
+								str_title += '<li>... '+(arr_sort.length-10)+'x</li>';
 							}
 					
-						str_title = str_title+'</ul>\
+						str_title += '</ul>\
 					</li>';
 				}
 				
-				str_title = (info_content == 'default' ? str_title+'</ul>\
-			</li>' : str_title);
+				str_title += (info_content == 'default' ? '</ul>\
+			</li>' : '');
 		}
 		
-		str_title = str_title+'</ul>';
+		const arr_view_conditions = arr_object_subs_dot_details.arr_view.conditions;
+		
+		if (arr_view_conditions) {
+			
+			let has_conditions = false;
+			
+			let str_tooltip_conditions = (info_content == 'default' ? '<hr />\
+			<li>\
+				<label>'+arr_labels.lbl_conditions+'</label>\
+				<ul>' : '');
+				
+				const arr_sort = [];
+				for (const str_identifier in arr_view_conditions) {
+					arr_sort.push([str_identifier, arr_view_conditions[str_identifier]]);
+				}
+				arr_sort.sort(function(a, b) {
+					return b[1] - a[1];
+				});
+			
+				for (let i = 0, len = arr_sort.length; i < len; i++) {
+					
+					const arr_condition = arr_data.legend.conditions[arr_sort[i][0]];
+					
+					if (!arr_condition.label) {
+						continue;
+					}
+					
+					has_conditions = true;
+						
+					const num_amount = arr_sort[i][1];
+					
+					str_tooltip_conditions += '<li>\
+						<label>'+arr_condition.label+'</label>\
+						<ul>';
+						
+							str_tooltip_conditions += '<li>'+num_amount+'</li>';
+					
+						str_tooltip_conditions += '</ul>\
+					</li>';
+				}
+				
+				str_tooltip_conditions += (info_content == 'default' ? '</ul>\
+			</li>' : '');
+			
+			if (has_conditions) {
+				str_title += str_tooltip_conditions;
+			}
+		}
+		
+		str_title += '</ul>';
 
 		elm_host.setAttribute('title', str_title);
 		TOOLTIP.update();
@@ -1841,17 +1908,12 @@ function MapGeo(elm_draw, PARENT, options) {
 							arr_sort.sort(function(a, b) {
 								return b[1] - a[1];
 							});
-							
-							let num_count = 0;
-							for (let i = 0, len = arr_sort.length; i < len; i++) {
-								
-								if (num_count > 10) {
-									break;
-								}
+
+							for (let i = 0, len = arr_sort.length; i < len && i < 10; i++) {
+
 								const arr_object = arr_objects[arr_sort[i][0]];
 								
 								str_info_scope = str_info_scope+'<li>'+arr_object.value+' '+ (arr_object.count > 1 ? '('+arr_object.count+'x)' : '')+'</li>';
-								num_count++;
 							}
 							
 							if (arr_sort.length > 10) {
@@ -1866,20 +1928,23 @@ function MapGeo(elm_draw, PARENT, options) {
 			</li>';
 		}
 		
-		var date_range_sub_min = DATEPARSER.int2Date(DATEPARSER.dateIntAbsolute2DateInt(dateinta_range_sub.min));
-		var date_range_sub_max = DATEPARSER.int2Date(DATEPARSER.dateIntAbsolute2DateInt(dateinta_range_sub.max));
+		let str_date_start = '';
+		let str_date_end = '';
+		
+		const date_range_sub_min = DATEPARSER.int2Date(DATEPARSER.dateIntAbsolute2DateInt(dateinta_range_sub.min));
+		const date_range_sub_max = DATEPARSER.int2Date(DATEPARSER.dateIntAbsolute2DateInt(dateinta_range_sub.max));
 		if (date_range_sub_min.getFullYear() == -90000000000) {
-			var str_date_start = '-∞';
+			str_date_start = '-∞';
 		} else {
-			var str_date_start = DATEPARSER.date2StrDate(date_range_sub_min, settings_timeline.dating.show_ce);
+			str_date_start = DATEPARSER.date2StrDate(date_range_sub_min, settings_timeline.dating.show_ce);
 		}
 		if (date_range_sub_max.getFullYear() == 90000000000) {
-			var str_date_end = '∞';
+			str_date_end = '∞';
 		} else {
-			var str_date_end = DATEPARSER.date2StrDate(date_range_sub_max, settings_timeline.dating.show_ce);
+			str_date_end = DATEPARSER.date2StrDate(date_range_sub_max, settings_timeline.dating.show_ce);
 		}
 
-		var str_title = '<ul>\
+		const str_title = '<ul>\
 			'+str_info_object_subs+'\
 			'+str_info_scope+'\
 			<hr />\
@@ -1896,19 +1961,19 @@ function MapGeo(elm_draw, PARENT, options) {
 		elm_host.setAttribute('title', str_title);
 		TOOLTIP.update();
 		
-		var pos = elm_host.getBoundingClientRect();
+		const arr_pos = elm_host.getBoundingClientRect();
 		
-		var locate_identifier = arr_object_sub_lines_locate.location_geometry;
-		var arr_object_sub_dot = arr_object_sub_dots[locate_identifier];
-		var pos_loc = arr_object_sub_dot.xy_geometry_center;
-		var radius = arr_object_sub_dot.arr_settings.size / 2;
+		const locate_identifier = arr_object_sub_lines_locate.location_geometry;
+		const arr_object_sub_dot = arr_object_sub_dots[locate_identifier];
+		const arr_pos_loc = arr_object_sub_dot.xy_geometry_center;
+		const num_radius = arr_object_sub_dot.arr_settings.size / 2;
 		
-		var connect_locate_identifier = arr_object_sub_lines_locate.connect_location_geometry;
-		var arr_object_sub_dot = arr_object_sub_dots[connect_locate_identifier];
-		var pos_loc_connect = arr_object_sub_dot.xy_geometry_center;
-		var radius_connect = arr_object_sub_dot.arr_settings.size / 2;
+		const connect_locate_identifier = arr_object_sub_lines_locate.connect_location_geometry;
+		const arr_object_sub_dot_connect = arr_object_sub_dots[connect_locate_identifier];
+		const arr_pos_loc_connect = arr_object_sub_dot_connect.xy_geometry_center;
+		const num_radius_connect = arr_object_sub_dot_connect.arr_settings.size / 2;
 
-		var tooltip = $('<div class="tooltip label"><ul>\
+		const elm_tooltip_static = $('<div class="tooltip label"><ul>\
 			<li>\
 				<label>'+arr_data.info.types[arr_data.objects[arr_first_object_sub.object_id].type_id].name+'</label>\
 				<ul>\
@@ -1923,17 +1988,21 @@ function MapGeo(elm_draw, PARENT, options) {
 			</li>\
 		</ul></div>').appendTo(elm);
 		
-		if (pos_loc.y > pos_loc_connect.y) {
-			var top = (pos_loc.y - pos_offset_y +radius);
-			var left = (pos_loc.x - pos_offset_x -tooltip.outerWidth()-radius);
+		let num_top = null;
+		let num_left = null;
+		
+		if (arr_pos_loc.y > arr_pos_loc_connect.y) {
+			num_top = (arr_pos_loc.y - pos_offset_y +num_radius);
+			num_left = (arr_pos_loc.x - pos_offset_x -elm_tooltip_static.outerWidth()-num_radius);
 		} else {
-			var top = (pos_loc.y - pos_offset_y -tooltip.outerHeight()-radius);
-			var left = (pos_loc.x - pos_offset_x +radius);
+			num_top = (arr_pos_loc.y - pos_offset_y -elm_tooltip_static.outerHeight()-num_radius);
+			num_left = (arr_pos_loc.x - pos_offset_x +num_radius);
 		}
 
-		tooltip.css({'left': left, 'top': top});
+		elm_tooltip_static[0].style.left = num_left+'px';
+		elm_tooltip_static[0].style.top = num_top+'px';
 		
-		var tooltip2 = $('<div class="tooltip label"><ul>\
+		const elm_tooltip2_static = $('<div class="tooltip label"><ul>\
 			<li>\
 				<label>'+arr_data.info.types[arr_data.objects[arr_first_connect_object_sub.object_id].type_id].name+'</label>\
 				<ul>\
@@ -1948,17 +2017,18 @@ function MapGeo(elm_draw, PARENT, options) {
 			</li>\
 		</ul></div>').appendTo(elm);
 
-		if (pos_loc_connect.y > pos_loc.y) {
-			var top = (pos_loc_connect.y - pos_offset_y +radius_connect);
-			var left = (pos_loc_connect.x - pos_offset_x -tooltip2.outerWidth()-radius_connect);
+		if (arr_pos_loc_connect.y > arr_pos_loc.y) {
+			num_top = (arr_pos_loc_connect.y - pos_offset_y +num_radius_connect);
+			num_left = (arr_pos_loc_connect.x - pos_offset_x -elm_tooltip2_static.outerWidth()-num_radius_connect);
 		} else {
-			var top = (pos_loc_connect.y - pos_offset_y -tooltip2.outerHeight()-radius_connect);
-			var left = (pos_loc_connect.x - pos_offset_x +radius_connect);
+			num_top = (arr_pos_loc_connect.y - pos_offset_y -elm_tooltip2_static.outerHeight()-num_radius_connect);
+			num_left = (arr_pos_loc_connect.x - pos_offset_x +num_radius_connect);
 		}
 
-		tooltip2.css({'left': left, 'top': top});
+		elm_tooltip2_static[0].style.left = num_left+'px';
+		elm_tooltip2_static[0].style.top = num_top+'px';
 		
-		return [tooltip[0], tooltip2[0]];
+		return [elm_tooltip_static[0], elm_tooltip2_static[0]];
 	}
 	
 	// Draw
@@ -2173,14 +2243,17 @@ function MapGeo(elm_draw, PARENT, options) {
 					elm_plot_dots.removeChildren();
 					
 					// Clear cached geometries, which are irrelevant on new zoom level
-					renderer_geometry.geometry.disposeAll();
+					//renderer_geometry.geometry.disposeAll();
 				} else if (redraw === REDRAW_RESET) {
+					
 					if (mode == MODE_MOVE && move_retain === 'all') {
+						
 						for (const key in arr_elm_plot_line_particles_temp) {
+							
 							const elm_container = arr_elm_plot_line_particles_temp[key];
-							elm_container[0].removeChildren();
+							elm_container[0].removeParticles();
 							if (move_glow) {
-								elm_container[1].removeChildren();
+								elm_container[1].removeParticles();
 							}
 						}
 					}
@@ -2286,9 +2359,13 @@ function MapGeo(elm_draw, PARENT, options) {
 			
 			if (!in_predraw) {
 					
-				if (!animating && !is_dragging) {
+				if (!is_animating) {
 					
-					animate(true);
+					if (!is_dragging) {
+						animate(true);
+					} else if (redraw === REDRAW_SCALE) {
+						animate(true); // Could optionally make it stop after one render
+					}
 				}
 				
 				if (show_geo_info) {
@@ -2356,13 +2433,13 @@ function MapGeo(elm_draw, PARENT, options) {
 	
 	var animate = function(state) {
 		
-		if (state == animating) {
+		if (state == is_animating) {
 			return;
 		}
 		
-		animating = state;
+		is_animating = state;
 		
-		if (!animating) {
+		if (!is_animating) {
 			return;
 		}
 		
@@ -2370,9 +2447,9 @@ function MapGeo(elm_draw, PARENT, options) {
 		
 		key_animate = ANIMATOR.animate(function(time) {
 			
-			if (!animating) {
+			if (!is_animating) {
 				
-				animating = false;
+				is_animating = false;
 				ANIMATOR.animate(false, key_animate);
 			}
 
@@ -2427,13 +2504,13 @@ function MapGeo(elm_draw, PARENT, options) {
 				time_animate = time;
 			}
 			
-			return animating;
+			return is_animating;
 		}, key_animate);
 	};
 
 	var animateMapPixel = function(time) {
 		
-		if (!animating) {
+		if (!is_animating) {
 			return;
 		}
 
@@ -2445,7 +2522,7 @@ function MapGeo(elm_draw, PARENT, options) {
 			if (move_chronological) {
 			
 				const obj_settings = PARENT.setTimeline({time: time_diff});
-				var date_move = obj_settings.time;
+				var num_time_move = obj_settings.time;
 			}
 			
 			for (let i = 0, len = arr_animate_move.length; i < len; i++) {
@@ -2467,15 +2544,15 @@ function MapGeo(elm_draw, PARENT, options) {
 								
 				if (!do_remove) {
 				
-					const duration = (do_show_info_line && is_self && is_active && arr_object_sub_line.arr_info.is_added && arr_object_sub_line.arr_info.duration ? arr_object_sub_line.arr_info.duration : arr_move.duration);
+					const num_duration = (do_show_info_line && is_self && is_active && arr_object_sub_line.arr_info.is_added && arr_object_sub_line.arr_info.duration ? arr_object_sub_line.arr_info.duration : arr_move.duration);
 					let num_percentage = 0;
 					
 					if (move_chronological) {
 						
-						const date_start = arr_move.start + ((arr_move.delay / 1000) * (speed_move * DATEPARSER.time_day));
-						const date_end = date_start + ((duration / 1000) * (speed_move * DATEPARSER.time_day));
+						const num_time_start = arr_move.start + ((arr_move.delay / 1000) * (speed_move * DATEPARSER.time_day));
+						const num_time_end = num_time_start + ((num_duration / 1000) * (speed_move * DATEPARSER.time_day));
 						
-						num_percentage = (date_move - date_start) / (date_end - date_start);
+						num_percentage = (num_time_move - num_time_start) / (num_time_end - num_time_start);
 						
 						if (num_percentage < 0 || num_percentage > 1) {
 							
@@ -2504,10 +2581,10 @@ function MapGeo(elm_draw, PARENT, options) {
 							}
 						}
 						
-						if (duration == 0) {
+						if (num_duration == 0) {
 							num_percentage = -1;
 						} else {
-							num_percentage = arr_move.percentage + (time_diff / duration);
+							num_percentage = arr_move.percentage + (time_diff / num_duration);
 						}
 					}
 
@@ -2560,10 +2637,9 @@ function MapGeo(elm_draw, PARENT, options) {
 						if (do_moved && move_apply_opacity_connection_line == 'moved' && opacity_connection_line_range && (!move_continuous || arr_move.status == 2)) {
 							
 							const elm_connection_line = arr_object_sub_lines_locate.arr_connection_line.elm;
-							const num_opacity = (opacity_connection_line_range / count_line_weight_max) * arr_object_sub_line.weight;
+							const num_opacity = (opacity_connection_line_range / num_lines_locate_weight_max) * arr_object_sub_line.weight;
 							
 							if (elm_connection_line.alpha < opacity_connection_line_range_min) {
-								
 								elm_connection_line.alpha += (opacity_connection_line_range_min - opacity_connection_line);
 							}
 						
@@ -2575,8 +2651,7 @@ function MapGeo(elm_draw, PARENT, options) {
 						
 						if (do_moved && (moved_hint_dot || moved_hint_line)) {
 							
-							if (moved_hint_dot) { 
-								
+							if (moved_hint_dot) {
 								setObjectSubDotHint(false, arr_object_sub_lines_locate.location_geometry);
 							}
 							if (moved_hint_line) {
@@ -2611,19 +2686,19 @@ function MapGeo(elm_draw, PARENT, options) {
 						//elm.visible = true;
 						elm.alpha = 1;
 						
-						const p = computeObjectSubLinePosition(arr_object_sub_lines_locate, num_percentage);
+						const arr_point = computeObjectSubLinePosition(arr_object_sub_lines_locate, num_percentage);
 						
-						elm.position.x = (p.x - pos_offset_x);
-						elm.position.y = (p.y - pos_offset_y);
+						elm.x = (arr_point.x - pos_offset_x); // Particle
+						elm.y = (arr_point.y - pos_offset_y);
 					} else {
 						
 						//elm.visible = false;
 						elm.alpha = 0;
 					}
 					
-					if (arr_object_sub_lines_locate.arr_move_path.length > 1) { // Only show warp when the path actually has length
+					if (arr_object_sub_lines_locate.arr_move_path.distance > 1) { // Only show warp when the path actually has length
 							
-						const num_percentage_one = (1/arr_object_sub_lines_locate.arr_move_path.length);
+						const num_percentage_one = (1/arr_object_sub_lines_locate.arr_move_path.distance);
 						
 						for (let j = 0; j < length_move_warp; j++) {
 							
@@ -2661,20 +2736,16 @@ function MapGeo(elm_draw, PARENT, options) {
 								is_finished = false;
 							}
 							
-							const p2 = computeObjectSubLinePosition(arr_object_sub_lines_locate, num_percentage_warp);
+							const arr_point2 = computeObjectSubLinePosition(arr_object_sub_lines_locate, num_percentage_warp);
 						
-							elm_warp.position.x = (p2.x - pos_offset_x);
-							elm_warp.position.y = (p2.y - pos_offset_y);
+							elm_warp.x = (arr_point2.x - pos_offset_x); // Particle
+							elm_warp.y = (arr_point2.y - pos_offset_y);
 						}
-					} else {
-						
-						/*
-						// Cleanup possible warp when the path is redrawn (zoomed), currently not needed as everything is rebuild
-						for (var j = 0; j < length_move_warp; j++) {
-							
-							var elm_warp = arr_move.arr_elm_warp[j];
-							elm_warp.alpha = 0;
-						}*/
+					} else { // Cleanup possible warp when the path is redrawn (zoomed) and the distance is now irrelevant
+
+						for (let j = 0; j < length_move_warp; j++) {
+							arr_move.arr_elm_warp[j].alpha = 0;
+						}
 					}
 								
 					if (do_show_info_line && is_self && is_active && arr_move.status) {
@@ -2685,12 +2756,12 @@ function MapGeo(elm_draw, PARENT, options) {
 							
 							const elm_info = arr_info.elm;
 							
-							const time_position = duration * num_percentage;
+							const time_position = num_duration * num_percentage;
 							let num_alpha = 0;
 							
-							if (duration > duration_move_info_fade + 1000) {
+							if (num_duration > duration_move_info_fade + 1000) {
 								
-								num_alpha = (time_position < duration_move_info_fade ? time_position / duration_move_info_fade : (duration - time_position < duration_move_info_fade ? (duration - time_position) / duration_move_info_fade : 1));
+								num_alpha = (time_position < duration_move_info_fade ? time_position / duration_move_info_fade : (num_duration - time_position < duration_move_info_fade ? (num_duration - time_position) / duration_move_info_fade : 1));
 							} else if (num_percentage > 0.05 && num_percentage < 0.95) {
 								
 								num_alpha = (num_percentage <= 0.45 ? num_percentage * 2 : 0.95 + ((0.45 - num_percentage)*2));
@@ -2702,10 +2773,9 @@ function MapGeo(elm_draw, PARENT, options) {
 							if (num_alpha) {
 								
 								elm_info.alpha = num_alpha;
-								elm_info.position.x = Math.floor(elm.position.x) + arr_info.x;
-								elm_info.position.y = Math.floor(elm.position.y) + arr_info.y;
-								arr_info.x_base = Math.floor(elm.position.x + pos_offset_x);
-								arr_info.y_base = Math.floor(elm.position.y + pos_offset_y);
+								elm_info.position.set(Math.floor(elm.x + arr_info.x), Math.floor(elm.y + arr_info.y)); // Particle use
+								arr_info.x_base = (elm.x + pos_offset_x);
+								arr_info.y_base = (elm.y + pos_offset_y);
 								
 								arr_info.update = true;
 							}
@@ -2756,23 +2826,23 @@ function MapGeo(elm_draw, PARENT, options) {
 
 						if (time_elapsed <= 1) {
 							
-							const calc = TWEEN.Easing.Sinusoidal.Out(time_elapsed);
+							const num_calc = TWEEN.Easing.Sinusoidal.Out(time_elapsed);
 							
-							let calc_opacity = 0.1 + (0.4 - 0.1) * calc;
+							let num_calc_opacity = 0.1 + (0.4 - 0.1) * num_calc;
 							
 							elm_connection_line.alpha -= arr_animate[1];
 							
-							if (calc_opacity > 0.2) {
-								calc_opacity = 0.4 - calc_opacity;
+							if (num_calc_opacity > 0.2) {
+								num_calc_opacity = 0.4 - num_calc_opacity;
 							}
 							
-							if (elm_connection_line.alpha + calc_opacity > 1) {
-								calc_opacity = 1 - elm_connection_line.alpha;
+							if (elm_connection_line.alpha + num_calc_opacity > 1) {
+								num_calc_opacity = 1 - elm_connection_line.alpha;
 							}
 							
-							elm_connection_line.alpha += calc_opacity;
+							elm_connection_line.alpha += num_calc_opacity;
 
-							arr_animate[1] = calc_opacity;
+							arr_animate[1] = num_calc_opacity;
 						} else {
 							
 							count_animate_connection_lines--;
@@ -2800,9 +2870,9 @@ function MapGeo(elm_draw, PARENT, options) {
 							
 							if (elm_info.alpha && arr_info.update) {
 						
-								const x_info = arr_info.x_base + arr_info.x;
-								const y_info = arr_info.y_base + arr_info.y;
-								let cur_height = arr_info.height + spacer_elm_info;
+								const num_x_info = arr_info.x_base + arr_info.x;
+								const num_y_info = arr_info.y_base + arr_info.y;
+								let num_cur_height = arr_info.height + spacer_elm_info;
 											
 								// Check and set top down
 								for (let k = j+1; k < len_j; k++) {
@@ -2810,24 +2880,24 @@ function MapGeo(elm_draw, PARENT, options) {
 									const arr_info_check = arr_infos[k];
 									const elm_info_check = arr_info_check.elm;
 									
-									const x_info_check = arr_info_check.x_base + arr_info_check.x;
-									const y_info_check = arr_info_check.y_base + arr_info_check.y;
+									const num_x_info_check = arr_info_check.x_base + arr_info_check.x;
+									const num_y_info_check = arr_info_check.y_base + arr_info_check.y;
 									
 									// Insersect check
-									if (!(x_info_check > (x_info + arr_info.width) || (x_info_check + arr_info_check.width) < x_info || y_info_check > (y_info + cur_height) || (y_info_check + arr_info_check.height) < y_info)) {
+									if (!(num_x_info_check > (num_x_info + arr_info.width) || (num_x_info_check + arr_info_check.width) < num_x_info || num_y_info_check > (num_y_info + num_cur_height) || (num_y_info_check + arr_info_check.height) < num_y_info)) {
 										
 										if (num_angle > 270) {
-											elm_info_check.position.y -= cur_height + (arr_info_check.y_base - arr_info.y_base);
-											cur_height += arr_info_check.height + spacer_elm_info;
+											elm_info_check.position.y -= Math.floor(num_cur_height + (arr_info_check.y_base - arr_info.y_base));
+											num_cur_height += arr_info_check.height + spacer_elm_info;
 										} else if (num_angle > 180) {
-											elm_info_check.position.y -= cur_height + (arr_info_check.y_base - arr_info.y_base);
-											cur_height += arr_info_check.height + spacer_elm_info;
+											elm_info_check.position.y -= Math.floor(num_cur_height + (arr_info_check.y_base - arr_info.y_base));
+											num_cur_height += arr_info_check.height + spacer_elm_info;
 										} else if (num_angle > 90) {
-											elm_info_check.position.y += cur_height - (arr_info_check.y_base - arr_info.y_base);
-											cur_height += arr_info_check.height + spacer_elm_info;
+											elm_info_check.position.y += Math.floor(num_cur_height - (arr_info_check.y_base - arr_info.y_base));
+											num_cur_height += arr_info_check.height + spacer_elm_info;
 										} else {
-											elm_info_check.position.y += cur_height - (arr_info_check.y_base - arr_info.y_base);
-											cur_height += arr_info_check.height + spacer_elm_info;
+											elm_info_check.position.y += Math.floor(num_cur_height - (arr_info_check.y_base - arr_info.y_base));
+											num_cur_height += arr_info_check.height + spacer_elm_info;
 										}
 										
 										arr_info_check.update = false;
@@ -2845,13 +2915,18 @@ function MapGeo(elm_draw, PARENT, options) {
 
 		if (hint_dot || do_show_info_dot) {
 			
+			let hex_color = null;
+			let hex_color_stroke = null;
+			let arr_color_location = null;
+			let arr_color_hint = null;
+			
 			if (hint_dot === 'pulse') {
-				var color = GeoUtilities.parseColor(color_hint);
-				var stroke_color = GeoUtilities.parseColor(color_hint_stroke);
+				hex_color = GeoUtilities.parseColor(color_hint);
+				hex_color_stroke = GeoUtilities.parseColor(color_hint_stroke);
 			}
 			if (hint_dot === 'location') {
-				var arr_color_location = arr_assets_colors_obj.location;
-				var arr_color_hint = arr_assets_colors_obj.hint;
+				arr_color_location = arr_assets_colors_obj.location;
+				arr_color_hint = arr_assets_colors_obj.hint;
 			}
 
 			for (let i = 0, len = arr_loop_object_sub_dots.length; i < len; i++) {
@@ -2869,7 +2944,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							const arr_hint = arr_object_sub_dot.arr_hint_queue[j];
 							let time_elapsed = 0;
 							
-							if (arr_hint[0] === false) {
+							if (arr_hint[0] === null) {
 								arr_hint[0] = 0;
 							} else {
 								arr_hint[0] += time_diff;
@@ -2881,21 +2956,18 @@ function MapGeo(elm_draw, PARENT, options) {
 								const arr_location = arr_object_sub_dot.arr_location;
 								const elm_location = arr_location.elm;
 
-								const matrix = arr_location.matrix;
-
 								if (time_elapsed <= 1) {
 									
-									const calc = TWEEN.Easing.Sinusoidal.Out(time_elapsed);
+									const num_calc = TWEEN.Easing.Sinusoidal.Out(time_elapsed);
 								
-									let calc_bright = num_percentage_hint_location_start + (2 - num_percentage_hint_location_start) * calc;
+									let num_calc_bright = num_percentage_hint_location_start + (2 - num_percentage_hint_location_start) * num_calc;
 									
-									if (calc_bright > 1) {
-										calc_bright = 2 - calc_bright;
+									if (num_calc_bright > 1) {
+										num_calc_bright = 2 - num_calc_bright;
 									}
-
-									matrix[4] = (((arr_color_hint.r - arr_color_location.r) * calc_bright) / 255);
-									matrix[9] = (((arr_color_hint.g - arr_color_location.g) * calc_bright) / 255);
-									matrix[14] = (((arr_color_hint.b - arr_color_location.b) * calc_bright) / 255);
+									
+									const arr_color_new = GeoUtilities.lerpColorsArray(arr_color_location, arr_color_hint, num_calc_bright);
+									elm_location.tint = ((arr_color_new.r << 16) | (arr_color_new.g << 8) | arr_color_new.b);
 								} else {
 										
 									count_animate_locations--;
@@ -2903,7 +2975,7 @@ function MapGeo(elm_draw, PARENT, options) {
 									if (!arr_location.visible && !(info_mode == 'hover' && arr_object_sub_dot.info_hover)) {
 										
 										elm_location.visible = false;
-										if (arr_location.elm_line !== false) {
+										if (arr_location.elm_line !== null) {
 											arr_location.elm_line.visible = false;
 										}
 										do_render_locations = true;
@@ -2917,29 +2989,25 @@ function MapGeo(elm_draw, PARENT, options) {
 
 								if (time_elapsed <= 1) {
 									
-									const x = Math.floor(arr_object_sub_dot.xy_geometry_center.x - pos_offset_x);
-									const y = Math.floor(arr_object_sub_dot.xy_geometry_center.y - pos_offset_y);
+									const num_x = Math.floor(arr_object_sub_dot.xy_geometry_center.x - pos_offset_x);
+									const num_y = Math.floor(arr_object_sub_dot.xy_geometry_center.y - pos_offset_y);
 									const num_size_radius = arr_hint[2];
 									
-									const calc = TWEEN.Easing.Sinusoidal.In(time_elapsed);
+									const num_calc = TWEEN.Easing.Sinusoidal.In(time_elapsed);
 									
-									const calc_scale = 1 + (((num_size_radius + size_hint) / num_size_radius) - 1) * calc;
-									const calc_opacity = opacity_hint + (0 - opacity_hint) * calc;
-									const calc_opacity_stroke = opacity_hint_stroke + (0 - opacity_hint_stroke) * calc;
+									const num_calc_scale = 1 + (((num_size_radius + size_hint) / num_size_radius) - 1) * num_calc;
+									const num_calc_opacity = opacity_hint + (0 - opacity_hint) * num_calc;
+									const num_calc_opacity_stroke = opacity_hint_stroke + (0 - opacity_hint_stroke) * num_calc;
 									
-									elm.clear();
-									if (opacity_hint) {
-										elm.beginFill(color, calc_opacity);
-									}
-									if (width_hint_stroke) {
-										elm.lineStyle(width_hint_stroke, stroke_color, calc_opacity_stroke);
-									}
-									elm.drawCircle(x, y, num_size_radius * calc_scale);
-									elm.endFill();
+									getGraphicsElementHint(elm, num_size_radius * num_calc_scale, hex_color, num_calc_opacity, width_hint_stroke, hex_color_stroke, num_calc_opacity_stroke);
+									
+									elm.position.set(num_x, num_y);
 								} else {
 									
 									elm_plot_between.removeChild(elm);
 									count_animate_between--;
+									
+									arr_hint_pool.push(elm); // Return elm to pool
 
 									arr_object_sub_dot.arr_hint_queue.shift();
 									len_j--;
@@ -2986,21 +3054,26 @@ function MapGeo(elm_draw, PARENT, options) {
 	
 	var animateMapVector = function(time) {
 		
-		if (!animating) {
+		if (!is_animating) {
 			return;
 		}
 
 		const time_diff = time - time_animate;
 		
 		if (hint_dot) {
+			
+			let color = null;
+			let stroke_color = null;
+			let arr_color_location = null;
+			let arr_color_hint = null;
 				
 			if (hint_dot === 'pulse') {
-				var color = GeoUtilities.parseColor(color_hint);
-				var stroke_color = GeoUtilities.parseColor(color_hint_stroke);
+				color = GeoUtilities.parseColor(color_hint);
+				stroke_color = GeoUtilities.parseColor(color_hint_stroke);
 			}
 			if (hint_dot === 'location') {
-				var arr_color_location = arr_assets_colors_obj.location;
-				var arr_color_hint = arr_assets_colors_obj.hint;
+				arr_color_location = arr_assets_colors_obj.location;
+				arr_color_hint = arr_assets_colors_obj.hint;
 			}
 			
 			for (let i = 0, len = arr_loop_object_sub_dots.length; i < len; i++) {
@@ -3018,7 +3091,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							const arr_hint = arr_object_sub_dot.arr_hint_queue[j];
 							let time_elapsed = 0;
 							
-							if (arr_hint[0] === false) {
+							if (arr_hint[0] === null) {
 								arr_hint[0] = 0;
 							} else {
 								arr_hint[0] += time_diff;
@@ -3029,25 +3102,28 @@ function MapGeo(elm_draw, PARENT, options) {
 
 								const arr_location = arr_object_sub_dot.arr_location;
 								const elm_location = arr_location.elm;
-								
-								const arr_filter = arr_location.arr_filter;
-								const matrix = arr_filter.matrix;
 
 								if (time_elapsed <= 1) {
-									
-									const calc = TWEEN.Easing.Sinusoidal.Out(time_elapsed);
-								
-									let calc_bright = num_percentage_hint_location_start + (2 - num_percentage_hint_location_start) * calc;
-									
-									if (calc_bright > 1) {
-										calc_bright = 2 - calc_bright;
-									}
 
-									matrix[4] = (((arr_color_hint.r - arr_color_location.r) * calc_bright) / 255);
-									matrix[9] = (((arr_color_hint.g - arr_color_location.g) * calc_bright) / 255);
-									matrix[14] = (((arr_color_hint.b - arr_color_location.b) * calc_bright) / 255);
+									const num_calc = TWEEN.Easing.Sinusoidal.Out(time_elapsed);
+								
+									let num_calc_bright = num_percentage_hint_location_start + (2 - num_percentage_hint_location_start) * num_calc;
 									
-									arr_filter.func_update();
+									if (num_calc_bright > 1) {
+										num_calc_bright = 2 - num_calc_bright;
+									}
+									
+									/*const arr_filter = arr_location.arr_filter;
+									const matrix = arr_filter.matrix;
+
+									matrix[4] = (((arr_color_hint.r - arr_color_location.r) * num_calc_bright) / 255);
+									matrix[9] = (((arr_color_hint.g - arr_color_location.g) * num_calc_bright) / 255);
+									matrix[14] = (((arr_color_hint.b - arr_color_location.b) * num_calc_bright) / 255);
+									
+									arr_filter.func_update();*/
+									
+									const arr_color_new = GeoUtilities.lerpColorsArray(arr_color_location, arr_color_hint, num_calc_bright);
+									elm_location.style.fill = 'rgb('+arr_color_new.r+','+arr_color_new.g+','+arr_color_new.b+')';
 								} else {
 
 									count_animate_locations--;
@@ -3055,7 +3131,7 @@ function MapGeo(elm_draw, PARENT, options) {
 									if (!arr_location.visible) {
 									
 										elm_location.dataset.visible = 0;
-										if (arr_location.elm_line !== false) {
+										if (arr_location.elm_line !== null) {
 											arr_location.elm_line.dataset.visible = 0;
 										}
 										do_render_locations = true;
@@ -3069,24 +3145,24 @@ function MapGeo(elm_draw, PARENT, options) {
 
 								if (time_elapsed <= 1) {
 									
-									const x = Math.floor(arr_object_sub_dot.xy_geometry_center.x - pos_offset_x);
-									const y = Math.floor(arr_object_sub_dot.xy_geometry_center.y - pos_offset_y);
+									const num_x = Math.floor(arr_object_sub_dot.xy_geometry_center.x - pos_offset_x);
+									const num_y = Math.floor(arr_object_sub_dot.xy_geometry_center.y - pos_offset_y);
 									const num_size_radius = arr_hint[2];
 									
-									const calc = TWEEN.Easing.Sinusoidal.In(time_elapsed);
+									const num_calc = TWEEN.Easing.Sinusoidal.In(time_elapsed);
 									
-									const calc_scale = 1 + (((num_size_radius + size_hint) / num_size_radius) - 1) * calc;
-									const calc_opacity = opacity_hint + (0 - opacity_hint) * calc;
-									const calc_opacity_stroke = opacity_hint_stroke + (0 - opacity_hint_stroke) * calc;
+									const num_calc_scale = 1 + (((num_size_radius + size_hint) / num_size_radius) - 1) * num_calc;
+									const num_calc_opacity = opacity_hint + (0 - opacity_hint) * num_calc;
+									const num_calc_opacity_stroke = opacity_hint_stroke + (0 - opacity_hint_stroke) * num_calc;
 									
-									elm.setAttribute('cx', x);
-									elm.setAttribute('cy', y);
-									elm.setAttribute('r', num_size_radius * calc_scale);								
+									elm.setAttribute('cx', num_x);
+									elm.setAttribute('cy', num_y);
+									elm.setAttribute('r', num_size_radius * num_calc_scale);								
 									if (opacity_hint) {
-										elm.style.fillOpacity = calc_opacity;
+										elm.style.fillOpacity = num_calc_opacity;
 									}
 									if (width_hint_stroke) {
-										elm.style.strokeOpacity = calc_opacity_stroke;
+										elm.style.strokeOpacity = num_calc_opacity_stroke;
 									}
 								} else {
 
@@ -3616,15 +3692,17 @@ function MapGeo(elm_draw, PARENT, options) {
 			
 			const arr_legend_condition = arr_legend_conditions[str_identifier_condition];
 			
-			let num_weight = arr_style.conditions[str_identifier_condition];
+			const arr_condition_value = arr_style.conditions[str_identifier_condition];
 			
-			if (num_weight === null) {
+			if (arr_condition_value === null) {
 				continue;
 			}
 			
+			const num_weight = arr_condition_value.weight;
+			
 			num_weight_conditions += num_weight;
-			let color = null;
-			let icon = null;
+			let str_color_style = null;
+			let str_icon_style = null;
 
 			if (arr_legend_condition.color) {
 				
@@ -3636,12 +3714,12 @@ function MapGeo(elm_draw, PARENT, options) {
 							continue;
 						}
 							
-						color = arr_style.color[i];
+						str_color_style = arr_style.color[i];
 						break;
 					}
 				} else if (arr_legend_condition.color === arr_style.color) {
 					
-					color = arr_style.color;
+					str_color_style = arr_style.color;
 				}
 			}
 			
@@ -3655,20 +3733,22 @@ function MapGeo(elm_draw, PARENT, options) {
 							continue;
 						}
 						
-						icon = arr_style.icon[i];
+						str_icon_style = arr_style.icon[i];
 						break;
 					}
 				} else if (arr_legend_condition.icon === arr_style.icon) {
 					
-					icon = arr_style.icon;
+					str_icon_style = arr_style.icon;
 				}
 			}
 			
-			if (color === null && icon === null && num_weight_style === null) {
+			if (str_color_style === null && str_icon_style === null && num_weight_style === null) {
 				continue;
 			}
 			
-			arr_conditions.push({identifier: str_identifier_condition, weight: num_weight, color: color, icon: icon});
+			const str_color = (str_color_style !== null && arr_condition_value.color != null ? arr_condition_value.color : str_color_style); // Calculated color only when style color is applied
+			
+			arr_conditions.push({identifier: str_identifier_condition, weight: num_weight, color: str_color, icon: str_icon_style});
 		}
 		
 		// Adjust the individual condition weights to scale within the overall calculated weight
@@ -3681,9 +3761,18 @@ function MapGeo(elm_draw, PARENT, options) {
 			arr_object_sub.conditions.weight = 0;
 			
 			for (let i = 0, len = arr_conditions.length; i < len; i++) {
-				
+
 				const arr_condition = arr_conditions[i];
-				arr_condition.weight = arr_condition.weight * num_scale;
+				
+				if (arr_condition.weight == 0) {
+					continue;
+				}
+				
+				if (num_scale < 1) {
+					arr_condition.weight = Math.ceil(arr_condition.weight * num_scale); // Make sure to keep integer
+				} else {
+					arr_condition.weight = Math.round(arr_condition.weight * num_scale); // Make sure to keep integer
+				}
 				
 				arr_object_sub.conditions.weight += arr_condition.weight;
 			}
@@ -3694,11 +3783,11 @@ function MapGeo(elm_draw, PARENT, options) {
 	
 	var addObjectSubDot = function(arr_object_sub, object_sub_id, locate_identifier) {
 		
-		var arr_object_sub_dot = arr_object_sub_dots[locate_identifier];
+		let arr_object_sub_dot = arr_object_sub_dots[locate_identifier];
 		
-		if (!arr_object_sub_dot) {
+		if (arr_object_sub_dot === undefined) {
 			
-			arr_object_sub_dots[locate_identifier] = {locate_identifier: locate_identifier, object_sub_ids: [], count: 0, count_unweighted: 0, weight: 0, updated: false, is_added: false, identifier: '', identifier_geometry: '', arr_settings: {size: 0, assets: {}}, elm: false, elm_geometry: false, arr_info: false, info_show: false, info_hover: false, arr_location: false, num_zoom: false, arr_geometry_plotable: false, xy_geometry_center: false, hint: false, arr_hint_queue: [], highlight_color: false, highlight_class: false};
+			arr_object_sub_dots[locate_identifier] = {locate_identifier: locate_identifier, object_sub_ids: [], count: 0, count_unweighted: 0, weight: 0, updated: false, is_added: false, identifier: false, identifier_geometry: false, arr_settings: {size: 0, assets: {}}, elm: false, elm_geometry: false, arr_info: false, info_show: false, info_hover: false, arr_location: false, num_zoom: false, arr_geometry_plotable: false, xy_geometry_center: false, hint: false, arr_hint_queue: [], highlight_color: false, highlight_class: false};
 			
 			arr_object_sub_dot = arr_object_sub_dots[locate_identifier];
 			
@@ -3706,10 +3795,10 @@ function MapGeo(elm_draw, PARENT, options) {
 				arr_object_sub_dot.arr_info = {identifier: '', elm: false, elm_text: false, elm_pointer: false, width: false, height: false, duration: false, is_added: false};
 			}
 
-			var arr_geometry_package = arr_object_sub.arr_geometry_package;
-			var arr_geometry_path = arr_object_sub.arr_geometry_path;
+			const arr_geometry_package = arr_object_sub.arr_geometry_package;
+			const arr_geometry_path = arr_object_sub.arr_geometry_path;
 			
-			var arr_geometry_plotable = [];
+			const arr_geometry_plotable = [];
 			
 			if ((!arr_object_sub.has_geometry_path || arr_object_sub.has_geometry_path && !show_line) || arr_object_sub.connect_object_sub_ids === false) { // No geometry is used as line path
 					
@@ -3724,6 +3813,7 @@ function MapGeo(elm_draw, PARENT, options) {
 		arr_object_sub_dot.count++;
 		
 		if (is_weighted) {
+			
 			if (arr_object_sub.style_inherit.weight !== null) {
 				arr_object_sub_dot.weight += (arr_object_sub.connected_object_ids.length * arr_object_sub.conditions.weight);
 			} else {
@@ -3733,6 +3823,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				}
 			}
 		} else {
+			
 			if (arr_object_sub.style_inherit.weight !== 0) {
 				arr_object_sub_dot.weight += (arr_object_sub.connected_object_ids.length * 1);
 			} else {
@@ -3973,6 +4064,7 @@ function MapGeo(elm_draw, PARENT, options) {
 		const pos = arr_object_sub.dot_locate_identifier_pos;
 
 		if (do_remove) {
+			
 			if (arr_object_sub_dot.object_sub_ids[pos]) {
 				
 				arr_object_sub_dot.object_sub_ids[pos] = 0;
@@ -3981,7 +4073,7 @@ function MapGeo(elm_draw, PARENT, options) {
 					if (arr_object_sub.style_inherit.weight !== null) {
 						arr_object_sub_dot.weight -= (arr_object_sub.connected_object_ids.length * arr_object_sub.conditions.weight);
 					} else {
-						arr_object_sub_dot.count_unweighted++;
+						arr_object_sub_dot.count_unweighted--;
 						if (arr_object_sub_dot.count_unweighted == 0) {
 							arr_object_sub_dot.weight -= 1;
 						}
@@ -3994,6 +4086,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				arr_object_sub_dot.updated = count_loop;
 			}
 		} else {
+			
 			if (!arr_object_sub_dot.object_sub_ids[pos]) {
 				
 				arr_object_sub_dot.object_sub_ids[pos] = object_sub_id;
@@ -4051,7 +4144,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				
 		let arr_object_sub_lines_locate = arr_object_sub_lines[locate_identifier];
 
-		if (!arr_object_sub_lines_locate) {
+		if (arr_object_sub_lines_locate === undefined) {
 			
 			arr_object_sub_lines[locate_identifier] = {locate_identifier: locate_identifier, arr_con: [], updated: false, num_zoom: false, count: 0, elm_connection_line: false, opacity_connection_line: false, arr_connection_line: false, arr_move_path: false, arr_infos: false, count_info_show: 0, info_hover: false,
 				location_geometry: arr_object_sub.location_geometry,
@@ -4062,7 +4155,6 @@ function MapGeo(elm_draw, PARENT, options) {
 			arr_object_sub_lines_locate = arr_object_sub_lines[locate_identifier];
 			
 			if (mode == MODE_MOVE) {
-				
 				arr_object_sub_lines_locate.arr_connection_line = {elm: false, x: false, y: false, visible: false, arr_animate: []};
 			}
 			
@@ -4071,9 +4163,9 @@ function MapGeo(elm_draw, PARENT, options) {
 		
 		let arr_object_sub_line = arr_object_sub_lines_locate[connect_identifier];
 		
-		if (!arr_object_sub_line) {
+		if (arr_object_sub_line === undefined) {
 			
-			arr_object_sub_lines_locate[connect_identifier] = {connect_identifier: connect_identifier, connect_object_sub_ids: [], object_sub_ids: [], count: 0, count_connect: 0, count_unweighted: 0, weight: 0, updated: false, is_added: false, identifier: '', arr_settings: {size: 0}, elm: false, elm_container: false, info_show: false, arr_info: false, arr_elm_warp: false, is_active: false, arr_move: false, arr_move_queue: false,
+			arr_object_sub_lines_locate[connect_identifier] = {connect_identifier: connect_identifier, connect_object_sub_ids: [], object_sub_ids: [], count: 0, count_connect: 0, count_unweighted: 0, weight: 0, updated: false, is_added: false, identifier: false, arr_settings: {size: 0}, elm: false, info_show: false, arr_info: false, is_active: false, arr_move: false, arr_move_queue: false,
 				object_sub_details_id: arr_object_sub.object_sub_details_id,
 				connect_object_sub_details_id: arr_connect_object_sub.object_sub_details_id,
 				has_connection_line: false
@@ -4082,7 +4174,7 @@ function MapGeo(elm_draw, PARENT, options) {
 			arr_object_sub_line = arr_object_sub_lines_locate[connect_identifier];
 			
 			if (show_info_line) {
-				arr_object_sub_line.arr_info = {identifier: '', elm: false, elm_text: false, elm_pointer: false, x: false, y: false, width: false, height: false, percentage: false, delay: false, duration: false, x_base: false, y_base: false, update: false, is_added: false};
+				arr_object_sub_line.arr_info = {identifier: false, elm: false, elm_text: false, elm_pointer: false, x: false, y: false, width: false, height: false, percentage: false, delay: false, duration: false, x_base: false, y_base: false, update: false, is_added: false};
 			}
 			
 			arr_object_sub_lines_locate.arr_con.push(arr_object_sub_line);
@@ -4092,6 +4184,7 @@ function MapGeo(elm_draw, PARENT, options) {
 		arr_object_sub_line.count++;
 		
 		if (is_weighted) {
+			
 			if (arr_connect_object_sub.style_inherit.weight !== null) {
 				arr_object_sub_line.weight += arr_connect_object_sub.conditions.weight;
 			} else {
@@ -4101,6 +4194,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				}
 			}
 		} else {
+			
 			if (arr_connect_object_sub.style_inherit.weight !== 0) {
 				arr_object_sub_line.weight += 1;
 			} else {
@@ -4175,63 +4269,63 @@ function MapGeo(elm_draw, PARENT, options) {
 				
 				if (mode == MODE_MOVE) {
 
-					const x_start = arr_path[0].x;
-					const y_start = arr_path[0].y;
-					const x_end = arr_path[1].x;
-					const y_end = arr_path[1].y;
+					const num_x_start = arr_path[0].x;
+					const num_y_start = arr_path[0].y;
+					const num_x_end = arr_path[1].x;
+					const num_y_end = arr_path[1].y;
 										
-					let angle = (Math.atan2(y_end - y_start, x_end - x_start) * 180 / Math.PI);
-					angle -= 90; // Correction
-					if (angle < 0) {
-						angle = 360 - (-angle);
+					let num_angle = (Math.atan2(num_y_end - num_y_start, num_x_end - num_x_start) * 180 / Math.PI);
+					num_angle -= 90; // Correction
+					if (num_angle < 0) {
+						num_angle = 360 - (-num_angle);
 					}
-					if (angle > 360) {
-						angle = 360 - angle;
+					if (num_angle > 360) {
+						num_angle = 360 - num_angle;
 					}
 					
-					const identifier = x_start+'-'+x_end+'-'+y_start+'-'+y_end+'-'+arr_object_sub.location_geometry;
-					let arr_move_path = arr_assets_elm_line_dot_paths[identifier];
+					const identifier = num_x_start+'-'+num_x_end+'-'+num_y_start+'-'+num_y_end+'-'+arr_object_sub.location_geometry;
+					let arr_move_path = map_assets_elm_line_dot_paths.get(identifier);
 						
-					if (!arr_move_path) {
+					if (arr_move_path === undefined) {
 						
 						const arr_obj_path = (offset_line ? [] : false);
 													
-						let length_total = 0;
-						let x_start = arr_path[0].x;
-						let y_start = arr_path[0].y;
+						let num_distance_total = 0;
+						let num_x_start = arr_path[0].x;
+						let num_y_start = arr_path[0].y;
 						
 						for (let i = 1, len = arr_path.length; i < len; i++) {
 							
 							if (arr_path[i] === null) {
 								
 								i += 2;
-								x_start = arr_path[i].x;
-								y_start = arr_path[i].y;
+								num_x_start = arr_path[i].x;
+								num_y_start = arr_path[i].y;
 								continue;
 							}
 							
-							const x_end = x_start;
-							const y_end = y_start;
-							x_start = arr_path[i].x;
-							y_start = arr_path[i].y;
+							const num_x_end = num_x_start;
+							const num_y_end = num_y_start;
+							num_x_start = arr_path[i].x;
+							num_y_start = arr_path[i].y;
 							
-							const x_vec = x_end-x_start;
-							const y_vec = y_end-y_start;
+							const x_vec = num_x_end-num_x_start;
+							const y_vec = num_y_end-num_y_start;
 
-							length_total += Math.sqrt(x_vec*x_vec + y_vec*y_vec);
+							num_distance_total += Math.sqrt(x_vec*x_vec + y_vec*y_vec);
 							
 							if (offset_line) {
 																
-								const c1 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset_line, 0.25);
-								const c2 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset_line, 0.75);
+								const arr_c1 = GeoUtilities.calcPointOffset(num_x_start, num_y_start, num_x_end, num_y_end, offset_line, 0.25);
+								const arr_c2 = GeoUtilities.calcPointOffset(num_x_start, num_y_start, num_x_end, num_y_end, offset_line, 0.75);
 									
-								arr_obj_path[i] = new Bezier(x_start, y_start, c1.x, c1.y, c2.x, c2.y, x_end, y_end);
+								arr_obj_path[i] = new Bezier(num_x_start, num_y_start, arr_c1.x, arr_c1.y, arr_c2.x, arr_c2.y, num_x_end, num_y_end);
 							}
 						}
 						
-						arr_move_path = {obj: arr_obj_path, length: length_total, angle: angle};
+						arr_move_path = {obj: arr_obj_path, distance: num_distance_total, angle: num_angle};
 						
-						arr_assets_elm_line_dot_paths[identifier] = arr_move_path;
+						map_assets_elm_line_dot_paths.set(identifier, arr_move_path);
 					}
 					
 					arr_object_sub_lines_locate.arr_move_path = arr_move_path;
@@ -4246,7 +4340,6 @@ function MapGeo(elm_draw, PARENT, options) {
 					arr_object_sub_line.arr_move = {arr_object_sub_lines_locate: arr_object_sub_lines_locate, arr_object_sub_line: arr_object_sub_line, elm: false, elm_container: false, key: false, arr_elm_warp: [], start: false, duration: false, delay: false, cur_delay: false, percentage: false, status: 0};
 					
 					if (move_retain === 'all') {
-						
 						arr_object_sub_line.arr_move_queue = [];
 					}
 				}
@@ -4255,7 +4348,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							
 				if (move_unit == 'pixel') {
 					
-					let duration = arr_object_sub_lines_locate.arr_move_path.length / speed_move;
+					let duration = arr_object_sub_lines_locate.arr_move_path.distance / speed_move;
 					if (duration_move_min && duration < duration_move_min) {
 						duration = duration_move_min;
 					} else if (duration_move_max && duration > duration_move_max) {
@@ -4290,84 +4383,82 @@ function MapGeo(elm_draw, PARENT, options) {
 	
 	var computeObjectSubLinePosition = function(arr_object_sub_lines_locate, num_percentage) {
 		
-		var arr_move_path = arr_object_sub_lines_locate.arr_move_path;
-		var arr_path = arr_object_sub_lines_locate.arr_path;
+		const arr_move_path = arr_object_sub_lines_locate.arr_move_path;
+		const arr_path = arr_object_sub_lines_locate.arr_path;
 					
-		var length_find = (arr_move_path.length * num_percentage);
+		let num_distance_find = (arr_move_path.distance * num_percentage);
 
-		var length_compute = 0;
-		var x_start = arr_path[0].x;
-		var y_start = arr_path[0].y;
+		let num_distance_compute = 0;
+		let num_x_start = arr_path[0].x;
+		let num_y_start = arr_path[0].y;
 				
-		for (var i = 1, len = arr_path.length; i < len; i++) {
+		for (let i = 1, len = arr_path.length; i < len; i++) {
 			
-			var xy_new = arr_path[i];
+			const arr_xy_new = arr_path[i];
 			
-			if (xy_new === null) {
+			if (arr_xy_new === null) {
 				
 				i += 2;
-				x_start = arr_path[i].x;
-				y_start = arr_path[i].y;
+				num_x_start = arr_path[i].x;
+				num_y_start = arr_path[i].y;
 				continue;
 			}
 
-			var x_vec = xy_new.x-x_start;
-			var y_vec = xy_new.y-y_start;
-			var length_add = Math.sqrt(x_vec*x_vec + y_vec*y_vec);
+			const x_vec = arr_xy_new.x - num_x_start;
+			const y_vec = arr_xy_new.y - num_y_start;
+			const num_distance_add = Math.sqrt(x_vec*x_vec + y_vec*y_vec);
 
-			if (length_find <= (length_compute + length_add)) {
+			if (num_distance_find <= (num_distance_compute + num_distance_add)) {
 				
-				var num_percentage_pos = ((length_find - length_compute) / length_add);
+				const num_percentage_pos = ((num_distance_find - num_distance_compute) / num_distance_add);
+				let arr_p = null;
 				
 				if (offset_line) {
-					var p = arr_move_path.obj[i].compute(1 - num_percentage_pos); // Reverse because connection line computes from start sub-object (direction source) to connection sub-object
+					arr_p = arr_move_path.obj[i].compute(1 - num_percentage_pos); // Reverse because connection line computes from start sub-object (direction source) to connection sub-object
 				} else {
-					var p = {
-						x: (x_start + (xy_new.x - x_start) * num_percentage_pos),
-						y: (y_start + (xy_new.y - y_start) * num_percentage_pos)
-					};
+					arr_p = {x: (num_x_start + (arr_xy_new.x - num_x_start) * num_percentage_pos), y: (num_y_start + (arr_xy_new.y - num_y_start) * num_percentage_pos)};
 				}
 				
-				if (p.x > size_map.width) {
-					p.x = p.x - size_map.width;
-				} else if (p.x < 0) {
-					p.x = size_map.width + p.x;
+				if (arr_p.x > size_map.width) {
+					arr_p.x = arr_p.x - size_map.width;
+				} else if (arr_p.x < 0) {
+					arr_p.x = size_map.width + arr_p.x;
 				}
 				
-				return p;
+				return arr_p;
 			}
 			
-			length_compute += length_add;
-			x_start = xy_new.x;
-			y_start = xy_new.y;
+			num_distance_compute += num_distance_add;
+			num_x_start = arr_xy_new.x;
+			num_y_start = arr_xy_new.y;
 		}
 	};
 		
 	var computeObjectSubLineMatch = function(arr_object_sub_lines_locate, x_point, y_point, offset) {
 		
-		var arr_path = arr_object_sub_lines_locate.arr_path;
+		const arr_path = arr_object_sub_lines_locate.arr_path;
 			
-		var x_start = arr_path[0].x;
-		var y_start = arr_path[0].y;
+		let num_x_start = arr_path[0].x;
+		let num_y_start = arr_path[0].y;
 		
-		for (var i = 1, len = arr_path.length; i < len; i++) {
+		for (let i = 1, len = arr_path.length; i < len; i++) {
 			
-			var xy_new = arr_path[i];
+			const arr_xy_new = arr_path[i];
 			
-			if (xy_new === null) {
+			if (arr_xy_new === null) {
 				
 				i++; // Only skip one point, testing all the lines available, including possible duplicates due to the fold.
-				x_start = arr_path[i].x;
-				y_start = arr_path[i].y;
+				num_x_start = arr_path[i].x;
+				num_y_start = arr_path[i].y;
 				continue;
 			}
 							
-			if (GeoUtilities.isNearLine(x_start, y_start, xy_new.x, xy_new.y, x_point, y_point, offset)) {
+			if (GeoUtilities.isNearLine(num_x_start, num_y_start, arr_xy_new.x, arr_xy_new.y, x_point, y_point, offset)) {
 				return true;
 			}
 			
-			x_start = xy_new.x;
-			y_start = xy_new.y;
+			num_x_start = arr_xy_new.x;
+			num_y_start = arr_xy_new.y;
 		}
 		
 		return false;
@@ -4382,14 +4473,15 @@ function MapGeo(elm_draw, PARENT, options) {
 	
 	var setObjectSubLine = function(arr_object_sub, object_sub_id, arr_connect_object_sub, connect_object_sub_id, obj_object_sub_line, do_remove) {
 		
-		var arr_object_sub_lines_locate = obj_object_sub_line.arr_object_sub_lines_locate;
-		var arr_object_sub_line = obj_object_sub_line.arr_object_sub_line;
-		var arr_object_sub_line_source = arr_object_sub_line.object_sub_ids;
-		var arr_object_sub_line_connect = arr_object_sub_line.connect_object_sub_ids;
-		var pos = obj_object_sub_line.line_connect_identifier_pos;
-		var pos_connect = obj_object_sub_line.line_connect_identifier_pos_connect;
+		const arr_object_sub_lines_locate = obj_object_sub_line.arr_object_sub_lines_locate;
+		const arr_object_sub_line = obj_object_sub_line.arr_object_sub_line;
+		const arr_object_sub_line_source = arr_object_sub_line.object_sub_ids;
+		const arr_object_sub_line_connect = arr_object_sub_line.connect_object_sub_ids;
+		const pos = obj_object_sub_line.line_connect_identifier_pos;
+		const pos_connect = obj_object_sub_line.line_connect_identifier_pos_connect;
 
 		if (do_remove) {
+			
 			if (arr_object_sub_line_source[pos]) {
 				
 				arr_object_sub_line_source[pos] = 0;
@@ -4412,6 +4504,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				arr_object_sub_lines_locate.updated = count_loop;
 				arr_object_sub_lines_locate.count--;
 			}
+			
 			if (arr_object_sub_line_connect[pos_connect]) {
 				
 				arr_object_sub_line_connect[pos_connect] = 0;
@@ -4420,6 +4513,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				arr_object_sub_lines_locate.updated = count_loop;
 			}
 		} else {
+			
 			if (!arr_object_sub_line_source[pos]) {
 				
 				arr_object_sub_line_source[pos] = object_sub_id;
@@ -4442,6 +4536,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				arr_object_sub_lines_locate.updated = count_loop;
 				arr_object_sub_lines_locate.count++;
 			}
+			
 			if (!arr_object_sub_line_connect[pos_connect]) {
 				
 				arr_object_sub_line_connect[pos_connect] = connect_object_sub_id;
@@ -4454,37 +4549,46 @@ function MapGeo(elm_draw, PARENT, options) {
 
 	var drawDots = function() {
 
-		if (!count_dot_weight_max) {
+		if (num_dot_weight_max === 0) {
 			
-			count_dot_weight_min = (size_dot.start ? size_dot.start : 1);
+			if (size_dot.start) {
+				num_dot_weight_min = size_dot.start;
+			} else {
+				num_dot_weight_min = 1;
+				//num_dot_weight_min = null;
+			}
 			
 			if (size_dot.min == size_dot.max) {
 				
-				count_dot_weight_max = 1;
+				num_dot_weight_max = 1;
 			} else if (size_dot.stop) {
 				
-				count_dot_weight_max = size_dot.stop;
+				num_dot_weight_max = size_dot.stop;
 			} else {
 				
 				// Find location with highest amount of references
-				for (var i = 0, len = arr_loop_object_sub_dots.length; i < len; i++) {
+				for (let i = 0, len = arr_loop_object_sub_dots.length; i < len; i++) {
 					
-					var arr_object_sub_dot = arr_loop_object_sub_dots[i];
+					const arr_object_sub_dot = arr_loop_object_sub_dots[i];
 					
-					if (arr_object_sub_dot.weight > count_dot_weight_max) {
-						count_dot_weight_max = arr_object_sub_dot.weight;
+					if (arr_object_sub_dot.weight > num_dot_weight_max) {
+						num_dot_weight_max = arr_object_sub_dot.weight;
 					}
+					
+					/*if (arr_object_sub_dot.weight < num_dot_weight_min || num_dot_weight_min === null) {
+						num_dot_weight_min = arr_object_sub_dot.weight;
+					}*/
 				}
 			}
 			
-			if (count_dot_weight_min > count_dot_weight_max) {
-				count_dot_weight_min = count_dot_weight_max;
+			if (num_dot_weight_min > num_dot_weight_max) {
+				num_dot_weight_min = num_dot_weight_max;
 			}
 		}
 						
-		for (var i = 0, len = arr_loop_object_sub_dots.length; i < len; i++) {
+		for (let i = 0, len = arr_loop_object_sub_dots.length; i < len; i++) {
 
-			var arr_object_sub_dot = arr_loop_object_sub_dots[i];
+			const arr_object_sub_dot = arr_loop_object_sub_dots[i];
 			
 			if (arr_object_sub_dot.updated != count_loop && !redraw) { // This locate_identifier has not been updated, nothing to do!
 				continue;
@@ -4511,7 +4615,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							
 							arr_location.visible = false;
 							arr_location.elm.visible = false;
-							if (arr_location.elm_line !== false) {
+							if (arr_location.elm_line !== null) {
 								arr_location.elm_line.visible = false;
 							}
 							do_render_locations = true;
@@ -4540,7 +4644,7 @@ function MapGeo(elm_draw, PARENT, options) {
 								
 								arr_location.visible = false;
 								arr_location.elm.dataset.visible = 0;
-								if (arr_location.elm_line !== false) {
+								if (arr_location.elm_line !== null) {
 									arr_location.elm_line.dataset.visible = 0;
 								}
 							}
@@ -4565,9 +4669,12 @@ function MapGeo(elm_draw, PARENT, options) {
 			return;
 		}
 		
-		if (!count_line_weight_max) {
+		if (num_line_weight_max === 0) {
 			
 			// Find location with highest amount of references
+			
+			num_line_weight_min = 1;
+			//num_line_weight_min = null;
 			
 			const arr_loop = arr_loop_object_sub_lines.arr_loop;
 			
@@ -4582,6 +4689,14 @@ function MapGeo(elm_draw, PARENT, options) {
 					const arr_object_sub_line = arr_loop_loc[j];
 					
 					num_count_total += arr_object_sub_line.weight;
+					
+					if (arr_object_sub_line.weight > num_line_weight_max) {
+						num_line_weight_max = arr_object_sub_line.weight;
+					}
+					
+					/*if (arr_object_sub_line.weight < num_line_weight_min || num_line_weight_min === null) {
+						num_line_weight_min = arr_object_sub_line.weight;
+					}*/
 				}
 				
 				if (!offset_line) {
@@ -4602,9 +4717,13 @@ function MapGeo(elm_draw, PARENT, options) {
 					}
 				}	
 				
-				if (num_count_total > count_line_weight_max) {
-					count_line_weight_max = num_count_total;
+				if (num_count_total > num_lines_locate_weight_max) {
+					num_lines_locate_weight_max = num_count_total;
 				}
+			}
+			
+			if (num_line_weight_min > num_line_weight_max) {
+				num_line_weight_min = num_line_weight_max;
 			}
 		}
 		
@@ -4651,7 +4770,7 @@ function MapGeo(elm_draw, PARENT, options) {
 						arr_object_sub_line.is_added = false;
 					}
 				}
-							
+				
 				if (!arr_object_sub_line.weight) {
 					
 					removeLine(arr_object_sub_line); // Hide line
@@ -4684,8 +4803,8 @@ function MapGeo(elm_draw, PARENT, options) {
 				if (display == DISPLAY_PIXEL && opacity_connection_line) {
 					
 					const arr_path = arr_object_sub_lines_locate.arr_path;
-					const x_origin = Math.floor(arr_path[0].x);
-					const y_origin = Math.floor(arr_path[0].y);
+					const num_x_origin = Math.floor(arr_path[0].x);
+					const num_y_origin = Math.floor(arr_path[0].y);
 					
 					let arr_connection_line = arr_object_sub_lines_locate.arr_connection_line;
 
@@ -4695,8 +4814,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							
 							const elm = arr_connection_line.elm;
 				
-							elm.position.x = (arr_connection_line.x - pos_offset_x);
-							elm.position.y = (arr_connection_line.y - pos_offset_y);
+							elm.position.set(arr_connection_line.x - pos_offset_x, arr_connection_line.y - pos_offset_y);
 						}
 					} else if (num_count && !arr_connection_line.visible) {
 						
@@ -4715,10 +4833,9 @@ function MapGeo(elm_draw, PARENT, options) {
 							if (!arr_connection_line.elm) {
 								
 								const elm = new PIXI.Graphics();
-								elm.lineStyle(width_connection_line, GeoUtilities.parseColor(color_connection_line), 1); // 1.5 (default) pixels vs 1: better consistent render quality, though no optimisation
 
-								let x_start = 0;
-								let y_start = 0;
+								let num_x_start = 0;
+								let num_y_start = 0;
 																
 								if (offset_line) {
 	
@@ -4727,22 +4844,22 @@ function MapGeo(elm_draw, PARENT, options) {
 										if (arr_path[j] === null) {
 									
 											j++;
-											x_start = Math.floor(arr_path[j].x) - x_origin;
-											y_start = Math.floor(arr_path[j].y) - y_origin;
+											num_x_start = Math.floor(arr_path[j].x) - num_x_origin;
+											num_y_start = Math.floor(arr_path[j].y) - num_y_origin;
 											
-											elm.moveTo(x_start, y_start);
+											elm.moveTo(num_x_start, num_y_start);
 											continue;
 										}
 										
-										let x_end = x_start;
-										let y_end = y_start;
-										x_start = Math.floor(arr_path[j].x) - x_origin;
-										y_start = Math.floor(arr_path[j].y) - y_origin;
+										let x_end = num_x_start;
+										let y_end = num_y_start;
+										num_x_start = Math.floor(arr_path[j].x) - num_x_origin;
+										num_y_start = Math.floor(arr_path[j].y) - num_y_origin;
 
-										c1 = GeoUtilities.calcPointOffset(x_end, y_end, x_start, y_start, -offset_line, 0.25);
-										c2 = GeoUtilities.calcPointOffset(x_end, y_end, x_start, y_start, -offset_line, 0.75);
+										arr_c1 = GeoUtilities.calcPointOffset(x_end, y_end, num_x_start, num_y_start, -offset_line, 0.25);
+										arr_c2 = GeoUtilities.calcPointOffset(x_end, y_end, num_x_start, num_y_start, -offset_line, 0.75);
 										
-										elm.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, x_start, y_start);
+										elm.bezierCurveTo(arr_c1.x, arr_c1.y, arr_c2.x, arr_c2.y, num_x_start, num_y_start);
 									}
 								} else {
 
@@ -4751,26 +4868,28 @@ function MapGeo(elm_draw, PARENT, options) {
 										if (arr_path[j] === null) {
 									
 											j++;
-											x_start = Math.floor(arr_path[j].x) - x_origin;
-											y_start = Math.floor(arr_path[j].y) - y_origin;
+											num_x_start = Math.floor(arr_path[j].x) - num_x_origin;
+											num_y_start = Math.floor(arr_path[j].y) - num_y_origin;
 											
-											elm.moveTo(x_start, y_start);
+											elm.moveTo(num_x_start, num_y_start);
 											continue;
 										}
 										
-										x_start = Math.floor(arr_path[j].x) - x_origin;
-										y_start = Math.floor(arr_path[j].y) - y_origin;
+										num_x_start = Math.floor(arr_path[j].x) - num_x_origin;
+										num_y_start = Math.floor(arr_path[j].y) - num_y_origin;
 
-										elm.lineTo(x_start, y_start);
+										elm.lineTo(num_x_start, num_y_start);
 									}
 								}
+								
+								elm.stroke({width: width_connection_line, color: GeoUtilities.parseColor(color_connection_line, 1)}); // 1.5 (default) pixels vs 1: better consistent render quality, though no optimisation
 								
 								elm_plot_connection_lines.addChild(elm);
 								
 								arr_connection_line.arr_animate = [];
 								arr_connection_line.elm = elm;
-								arr_connection_line.x = x_origin; // Store origin because if !offset_line, the element can be shared between two different location origins
-								arr_connection_line.y = y_origin;
+								arr_connection_line.x = num_x_origin; // Store origin because if !offset_line, the element can be shared between two different location origins
+								arr_connection_line.y = num_y_origin;
 
 								/*var glow = new PIXI.filters.GlowFilter(renderer_activity.width, renderer_activity.height, 8, 2, 2, color_connection_line, 0.5);
 								elm.filters = [glow];*/							
@@ -4779,8 +4898,7 @@ function MapGeo(elm_draw, PARENT, options) {
 						
 						const elm = arr_connection_line.elm;
 						
-						elm.position.x = (arr_connection_line.x - pos_offset_x);
-						elm.position.y = (arr_connection_line.y - pos_offset_y);
+						elm.position.set(arr_connection_line.x - pos_offset_x, arr_connection_line.y - pos_offset_y);
 						
 						elm.alpha = opacity_connection_line;
 						elm.visible = true;
@@ -4830,9 +4948,9 @@ function MapGeo(elm_draw, PARENT, options) {
 						
 						let num_opacity = 0;
 						if (move_apply_opacity_connection_line == 'moved') {
-							num_opacity = (((num_count_total - num_count_active) * opacity_connection_line_range) / count_line_weight_max);	
+							num_opacity = (((num_count_total - num_count_active) * opacity_connection_line_range) / num_lines_locate_weight_max);	
 						} else {
-							num_opacity = ((num_count_total * opacity_connection_line_range) / count_line_weight_max);
+							num_opacity = ((num_count_total * opacity_connection_line_range) / num_lines_locate_weight_max);
 						}
 
 						elm.alpha += (num_opacity - arr_object_sub_lines_locate.opacity_connection_line);
@@ -4944,9 +5062,9 @@ function MapGeo(elm_draw, PARENT, options) {
 					
 					const arr_loop_loc = arr_object_sub_lines_locate.arr_con;
 					
-					let x_start = null;
-					let y_start = null;
-					let c = null;
+					let num_x_start = null;
+					let num_y_start = null;
+					let num_c = null;
 					
 					for (let j = 0, len_j = arr_loop_loc.length; j < len_j; j++) {
 						
@@ -4989,23 +5107,23 @@ function MapGeo(elm_draw, PARENT, options) {
 								valign = 'top';
 							}
 							
-							let correction = ((4/90) * (90 * ((num_angle/90) - Math.floor(num_angle/90)))); // Perform small corrections to make the pointing corner align nicely
+							let num_correction = ((4/90) * (90 * ((num_angle/90) - Math.floor(num_angle/90)))); // Perform small corrections to make the pointing corner align nicely
 							if ((num_angle < 270 && num_angle > 180) || (num_angle > 0 && num_angle < 90)) {
-								correction = -correction;
+								num_correction = -num_correction;
 							} else {
-								correction = 4 - correction;
+								num_correction = 4 - num_correction;
 							}
 							
 							const arr_path = arr_object_sub_lines_locate.arr_path;
-							x_start = arr_path[0].x;
-							y_start = arr_path[0].y;
-							const x_end = arr_path[1].x;
-							const y_end = arr_path[1].y;
+							num_x_start = arr_path[0].x;
+							num_y_start = arr_path[0].y;
+							const num_x_end = arr_path[1].x;
+							const num_y_end = arr_path[1].y;
 
-							c = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, 10, correction/arr_object_sub_lines_locate.arr_move_path.length);
+							num_c = GeoUtilities.calcPointOffset(num_x_start, num_y_start, num_x_end, num_y_end, 10, num_correction / arr_object_sub_lines_locate.arr_move_path.distance);
 						}
 
-						if (!arr_info.elm || arr_info.identifier != num_identifier) {
+						if (!arr_info.elm || arr_info.identifier !== num_identifier) {
 							
 							const arr_object_subs = getObjectSubsLineDetails(arr_object_sub_line);
 							const dateinta_range_sub = arr_object_subs.dateinta_range;
@@ -5065,7 +5183,7 @@ function MapGeo(elm_draw, PARENT, options) {
 								}
 							} else {
 								
-								str_object_name = stripHTMLTags(arr_data.objects[object_id].name);
+								str_object_name = parseObjectName(arr_data.objects[object_id].name);
 							}
 							
 							if (align == 'left') {
@@ -5084,7 +5202,7 @@ function MapGeo(elm_draw, PARENT, options) {
 								
 								const object_sub_description_name = arr_data.info.object_sub_descriptions[object_sub_definition.description_id].object_sub_description_name; // Could be collapsed
 								
-								str_add = str_add+'\n'+spacing_prefix+''+object_sub_definition.value+spacing_affix;
+								str_add = str_add+'\n'+spacing_prefix+''+parseObjectName(object_sub_definition.value)+spacing_affix;
 							}
 							
 							if (valign == 'top') {
@@ -5100,7 +5218,7 @@ function MapGeo(elm_draw, PARENT, options) {
 										
 								if (arr_object_sub_line.count == 1 && object_id != arr_first_object_sub.object_id) {
 									
-									str_object_name = stripHTMLTags(arr_data.objects[arr_first_object_sub.object_id].name);
+									str_object_name = parseObjectName(arr_data.objects[arr_first_object_sub.object_id].name);
 								} else {
 									str_object_name = '';
 								}
@@ -5121,7 +5239,7 @@ function MapGeo(elm_draw, PARENT, options) {
 									
 									const object_sub_description_name = arr_data.info.object_sub_descriptions[object_sub_definition.description_id].object_sub_description_name; // Could be collapsed
 									
-									str_add = str_add+'\n'+spacing_prefix+''+object_sub_definition.value+spacing_affix;
+									str_add = str_add+'\n'+spacing_prefix+''+parseObjectName(object_sub_definition.value)+spacing_affix;
 								}
 								
 								if (valign == 'top') {
@@ -5154,15 +5272,14 @@ function MapGeo(elm_draw, PARENT, options) {
 								elm_pointer = arr_info.elm_pointer;
 							}
 
-							arr_info.x = Math.floor(c.x-x_start);
-							arr_info.y = Math.floor(c.y-y_start);
+							arr_info.x = num_c.x - num_x_start;
+							arr_info.y = num_c.y - num_y_start;
 							arr_info.width = Math.floor(elm_info.width);
 							arr_info.height = Math.floor(elm_info.height);
 							
 							let num_angle_info = -45;
 							
-							elm_pointer.position.x = -4
-							elm_pointer.position.y = -2;
+							elm_pointer.position.set(-4, -2);
 							if (num_angle > 270) {
 								arr_info.y -= arr_info.height;
 								elm_pointer.position.y = arr_info.height + 2;
@@ -5171,8 +5288,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							} else if (num_angle > 180) {
 								arr_info.x -= arr_info.width;
 								arr_info.y -= arr_info.height;
-								elm_pointer.position.x = arr_info.width + 4;
-								elm_pointer.position.y = arr_info.height + 2;
+								elm_pointer.position.set(arr_info.width + 4, arr_info.height + 2);
 								elm_pointer.rotation = 180 * Math.PI/180;
 								num_angle_info = 180 - 45;
 							} else if (num_angle > 90) {
@@ -5289,7 +5405,7 @@ function MapGeo(elm_draw, PARENT, options) {
 					let num_identifier = arr_object_sub_dot.count;
 					let do_restart = false;
 
-					if (!arr_info.elm || arr_info.identifier != num_identifier) {
+					if (!arr_info.elm || arr_info.identifier !== num_identifier) {
 
 						const arr_object_subs_dot_details = getObjectSubsDotDetails(arr_object_sub_dot);
 				
@@ -5323,21 +5439,15 @@ function MapGeo(elm_draw, PARENT, options) {
 										return b[1] - a[1];
 									});
 									
-									let count = 0;
-									for (let j = 0, len_j = arr_sort.length; j < len_j; j++) {
-										
-										if (count > 3) {
-											break;
-										}
+									for (let j = 0, len_j = arr_sort.length; j < len_j && j < 4; j++) {
 										
 										const arr_ref_object = arr_ref_objects[arr_sort[j][0]];
 										
-										str_object = str_object+'\n'+stripHTMLTags(arr_ref_object.value)+(arr_ref_object.count > 1 ? ' ('+arr_ref_object.count+'x)' : '');
-										count++;
+										str_object = str_object+'\n'+parseObjectName(arr_ref_object.value)+(arr_ref_object.count > 1 ? ' ('+arr_ref_object.count+'x)' : '');
 									}
 									
-									if (arr_sort.length > count) {
-										str_object = str_object+'\n... '+(arr_sort.length-count)+'x';
+									if (arr_sort.length > 4) {
+										str_object = str_object+'\n... '+(arr_sort.length-4)+'x';
 									}
 								}
 								
@@ -5355,21 +5465,15 @@ function MapGeo(elm_draw, PARENT, options) {
 										return b[1] - a[1];
 									});
 									
-									let count = 0;
-									for (let j = 0, len_j = arr_sort.length; j < len_j; j++) {
-										
-										if (count > 3) {
-											break;
-										}
-										
+									for (let j = 0, len_j = arr_sort.length; j < len_j && j < 4; j++) {
+																				
 										const arr_object = arr_objects[arr_sort[j][0]];
 										
-										str_object = str_object+'\n'+stripHTMLTags(arr_object.value)+(arr_object.count > 1 ? ' ('+arr_object.count+'x)' : '');
-										count++;
+										str_object = str_object+'\n'+parseObjectName(arr_object.value)+(arr_object.count > 1 ? ' ('+arr_object.count+'x)' : '');
 									}
 									
-									if (arr_sort.length > count) {
-										str_object = str_object+'\n... '+(arr_sort.length-count)+'x';
+									if (arr_sort.length > 4) {
+										str_object = str_object+'\n... '+(arr_sort.length-4)+'x';
 									}
 								}
 							}
@@ -5393,21 +5497,15 @@ function MapGeo(elm_draw, PARENT, options) {
 									return b[1] - a[1];
 								});
 								
-								let count = 0;
-								for (let j = 0, len_j = arr_sort.length; j < len_j; j++) {
-									
-									if (count > 3) {
-										break;
-									}
+								for (let j = 0, len_j = arr_sort.length; j < len_j && j < 4; j++) {
 									
 									const arr_object = arr_objects[arr_sort[j][0]];
 									
-									str_object = (str_object ? str_object+'\n' : '')+stripHTMLTags(arr_object.value)+(arr_object.count > 1 ? ' ('+arr_object.count+'x)' : '');
-									count++;
+									str_object = (str_object ? str_object+'\n' : '')+parseObjectName(arr_object.value)+(arr_object.count > 1 ? ' ('+arr_object.count+'x)' : '');
 								}
 								
-								if (arr_sort.length > count) {
-									str_object = str_object+'\n... '+(arr_sort.length-count)+'x';
+								if (arr_sort.length > 4) {
+									str_object = str_object+'\n... '+(arr_sort.length-4)+'x';
 								}
 							}
 						}
@@ -5428,8 +5526,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							arr_info.elm_text = elm_text;
 							arr_info.elm_pointer = elm_pointer;
 							
-							elm_pointer.position.x = -4
-							elm_pointer.position.y = -2;
+							elm_pointer.position.set(-4, -2);
 						} else {
 							
 							elm_info = arr_info.elm;
@@ -5451,10 +5548,10 @@ function MapGeo(elm_draw, PARENT, options) {
 						const num_x = (arr_object_sub_dot.xy_geometry_center.x - pos_offset_x) + (num_radius * Math.cos(-num_angle*Math.PI/180) * num_distance);
 						const num_y = (arr_object_sub_dot.xy_geometry_center.y - pos_offset_y) + (num_radius * Math.sin(-num_angle*Math.PI/180) * num_distance);
 						
-						arr_info.elm.x = Math.floor(num_x + 7);
-						arr_info.elm.y = Math.floor(num_y + 6);
-						
+						arr_info.elm.position.set(Math.floor(num_x + 7), Math.floor(num_y + 6));
+
 						elm_container_info_dots.addChild(arr_info.elm);
+						
 						arr_info.is_added = true;
 						
 						if (info_mode == 'hover' && show_location) {
@@ -5474,7 +5571,6 @@ function MapGeo(elm_draw, PARENT, options) {
 					arr_info.elm.alpha = 0;
 					
 					if (do_restart) {
-						
 						arr_info.duration = duration_info_dot_min;
 					}
 				}
@@ -5516,14 +5612,14 @@ function MapGeo(elm_draw, PARENT, options) {
 		if (!num_size) {
 			
 			// No dot
-		} else if (count_dot_weight_max != count_dot_weight_min) {
+		} else if (num_dot_weight_max != num_dot_weight_min) {
 			
-			if (num_size > count_dot_weight_max) {
+			if (num_size > num_dot_weight_max) {
 				num_size = size_dot.max;
-			} else if (num_size < count_dot_weight_min) {
+			} else if (num_size < num_dot_weight_min) {
 				num_size = size_dot.min;
 			} else {
-				num_size = Math.round(size_dot.min + ((size_dot.max - size_dot.min) * ((num_size - count_dot_weight_min) / (count_dot_weight_max - count_dot_weight_min))));
+				num_size = Math.round(size_dot.min + ((size_dot.max - size_dot.min) * ((num_size - num_dot_weight_min) / (num_dot_weight_max - num_dot_weight_min))));
 			}
 		} else {
 			
@@ -5612,9 +5708,10 @@ function MapGeo(elm_draw, PARENT, options) {
 					
 					if (is_condition) {
 						
-						str_color_value = arr_object_sub.conditions.list[j].color;
+						const arr_condition_check = arr_object_sub.conditions.list[j];
+						str_color_value = arr_condition_check.color;
 						
-						if (!str_color_value) {
+						if (!str_color_value || arr_condition_check.weight === 0) {
 							continue;
 						}
 						
@@ -5624,7 +5721,7 @@ function MapGeo(elm_draw, PARENT, options) {
 					let arr_color_group = arr_assets[str_color_key];
 					
 					if (arr_color_group === undefined) {
-												
+						
 						arr_assets[str_color_key] = {weight: 0, color: str_color_value};
 						arr_color_group = arr_assets[str_color_key];
 						
@@ -5641,32 +5738,26 @@ function MapGeo(elm_draw, PARENT, options) {
 						arr_assets_touched[str_color_key] = true;
 					}
 					
-					if (is_weighted) {
-						
-						let num_weight = 1;
-						
-						if (is_condition) {
-							num_weight = arr_object_sub.conditions.list[j].weight;
-						} else if (arr_object_sub_style.weight !== null) {
-							num_weight = arr_object_sub_style.weight;
-						}
-						
-						arr_color_group.weight += num_weight;
-						num_weight_total += num_weight;
-					} else {
-						
-						arr_color_group.weight++;
-						num_weight_total++;
+					let num_weight = 1;
+					
+					if (is_condition) {
+						num_weight = arr_object_sub.conditions.list[j].weight;
+					} else if (arr_object_sub_style.weight !== null) {
+						num_weight = arr_object_sub_style.weight;
 					}
+					
+					arr_color_group.weight += num_weight;
+					num_weight_total += num_weight;
 				}
 				
 				if (arr_object_sub_style.icon) {
 					
 					for (let j = 0, len_j = arr_object_sub.conditions.list.length; j < len_j; j++) {
 						
-						const str_icon_value = arr_object_sub.conditions.list[j].icon;
+						const arr_condition_check = arr_object_sub.conditions.list[j];
+						const str_icon_value = arr_condition_check.icon;
 						
-						if (!str_icon_value) {
+						if (!str_icon_value || arr_condition_check.weight === 0) {
 							continue;
 						}
 						
@@ -5688,11 +5779,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							arr_assets_touched[str_icon_key] = true;
 						}
 
-						if (is_weighted) {
-							arr_icon_group.weight += arr_object_sub.conditions.list[j].weight;
-						} else {
-							arr_icon_group.weight++;
-						}
+						arr_icon_group.weight += arr_condition_check.weight;
 					}
 				}
 				
@@ -5752,8 +5839,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				if (display == DISPLAY_PIXEL) {
 					
 					elm.visible = true;
-					elm.position.x = Math.floor(x_origin - pos_offset_x);
-					elm.position.y = Math.floor(y_origin - pos_offset_y);
+					elm.position.set(Math.floor(x_origin - pos_offset_x), Math.floor(y_origin - pos_offset_y));
 					do_render_dots = true;
 					
 					if (show_location) {
@@ -5770,13 +5856,10 @@ function MapGeo(elm_draw, PARENT, options) {
 						arr_location.x_offset_element = -(elm_location.width / 2);
 						arr_location.y_offset_element = -(elm_location.height / 2);
 						
-						if (arr_location.elm_line !== false) {
-							
+						if (arr_location.elm_line !== null) {
 							moveDotLocation(arr_object_sub_dot, arr_location.x_offset, arr_location.y_offset);
 						} else {
-							
-							elm_location.position.x = Math.floor((x_origin - pos_offset_x) + arr_location.x_offset_element);
-							elm_location.position.y = Math.floor((y_origin - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset_element);
+							elm_location.position.set(Math.floor((x_origin - pos_offset_x) + arr_location.x_offset_element), Math.floor((y_origin - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset_element));
 						}
 					}
 					
@@ -5804,18 +5887,16 @@ function MapGeo(elm_draw, PARENT, options) {
 						arr_location.x_offset_element = 0;
 						arr_location.y_offset_element = (arr_location.height / 2);
 
-						if (arr_location.elm_line !== false) {
-							
+						if (arr_location.elm_line !== null) {
 							moveDotLocation(arr_object_sub_dot, arr_location.x_offset, arr_location.y_offset);
 						} else {
-							
 							elm_location.setAttribute('transform', 'translate('+Math.floor(x_origin - pos_offset_x)+' '+Math.floor((y_origin - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset_element)+')');
 						}
 					}
 				}
 			} else {
 				
-				if (arr_object_sub_dot.is_added && arr_object_sub_dot.identifier !== false) { // Check for dot existance, could have had a 0 size in the past
+				if (arr_object_sub_dot.is_added && arr_object_sub_dot.identifier !== false) { // Check for dot existance, making sure the previous identifier was plottable
 					elm_plot_dots.removeChild(arr_object_sub_dot.elm);
 				}
 				
@@ -5827,62 +5908,23 @@ function MapGeo(elm_draw, PARENT, options) {
 				if (display == DISPLAY_PIXEL) {
 					
 					if (has_colors || has_icon) {
-						
 						elm_plot = new PIXI.Container();
 					}
 				
 					if (!has_colors) {
-									
-						const elm_dot = new PIXI.Graphics();
 						
-						if (width_dot_stroke) {
-							elm_dot.lineStyle(width_dot_stroke, GeoUtilities.parseColor(color_dot_stroke), opacity_dot_stroke);
-						}
-						if (opacity_dot) {
-							elm_dot.beginFill(GeoUtilities.parseColor(arr_dot_colors[0].color), opacity_dot);
-						}
-						if (dot_icon == 'square') {
-							const num_width = (num_size + width_dot_stroke);
-							const num_offset = Math.floor(-num_width / 2);
-							elm_dot.drawRect(num_offset, num_offset, num_width, num_width);
-						} else {
-							elm_dot.drawCircle(0, 0, (num_size_radius + width_dot_stroke / 2));
-						}
-						elm_dot.endFill();
-						
-						if (elm_plot) {
+						const elm_dot = getGraphicsElementDot(null, dot_icon, num_size_radius, (opacity_dot ? GeoUtilities.parseColor(arr_dot_colors[0].color, opacity_dot) : null), width_dot_stroke, (width_dot_stroke ? GeoUtilities.parseColor(color_dot_stroke, opacity_dot_stroke) : null));
+
+						if (elm_plot !== null) {
 							elm_plot.addChild(elm_dot);
 						} else {
 							elm_plot = elm_dot;
 						}
 					} else {
 						
-						let num_count = 0;
-						
-						const elm_dot = new PIXI.Graphics();
-						if (width_dot_stroke) {
-							elm_dot.lineStyle(width_dot_stroke, GeoUtilities.parseColor(color_dot_stroke), opacity_dot_stroke);
-						}
-						elm_dot.drawCircle(0, 0, (num_size_radius + width_dot_stroke / 2));
-						
-						elm_plot.addChild(elm_dot);
+						const elm_dot = getGraphicsElementDotPie(null, num_size_radius, arr_dot_colors, opacity_dot, width_dot_stroke, (width_dot_stroke ? GeoUtilities.parseColor(color_dot_stroke, opacity_dot_stroke) : null), num_weight_total);
 
-						for (let i = 0, len = arr_dot_colors.length; i < len; i++) {
-									
-							const num_start = (num_count / num_weight_total) * 2 * Math.PI;
-							num_count += arr_dot_colors[i].weight;
-							const num_end = (num_count / num_weight_total) * 2 * Math.PI;
-							
-							const elm_dot = new PIXI.Graphics();
-							elm_dot.beginFill(GeoUtilities.parseColor(arr_dot_colors[i].color), opacity_dot);
-							elm_dot.moveTo(0, 0)
-								.lineTo(num_size_radius * Math.cos(num_start), num_size_radius * Math.sin(num_start))
-								.arc(0, 0, num_size_radius, num_start, num_end, false)
-								.lineTo(0, 0);
-							elm_dot.endFill();
-							
-							elm_plot.addChild(elm_dot);
-						}
+						elm_plot.addChild(elm_dot);
 					}
 					
 					if (has_icon) {
@@ -5911,8 +5953,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							if (i > 0) {
 								num_width_sum += spacer_elm_icons;
 							}
-							elm_icon.position.x = num_width_sum;
-							elm_icon.position.y = ((num_height_max - num_height_icon) / 2);
+							elm_icon.position.set(num_width_sum, ((num_height_max - num_height_icon) / 2));
 							num_width_sum += num_width_icon;
 							
 							if (i == 0) {
@@ -5941,14 +5982,12 @@ function MapGeo(elm_draw, PARENT, options) {
 							num_offset = (num_size_radius + width_dot_stroke + offset_dot_icons);
 						}
 						
-						elms_icon.position.x = Math.floor(-(num_width_sum / 2));
-						elms_icon.position.y = Math.floor(num_offset);
+						elms_icon.position.set(Math.floor(-(num_width_sum / 2)), Math.floor(num_offset));
 						
 						elm_plot.addChild(elms_icon);
 					}
 
-					elm_plot.position.x = Math.floor(x_origin - pos_offset_x);
-					elm_plot.position.y = Math.floor(y_origin - pos_offset_y);
+					elm_plot.position.set(Math.floor(x_origin - pos_offset_x), Math.floor(y_origin - pos_offset_y));
 					
 					elm_plot_dots.addChild(elm_plot);
 					do_render_dots = true;
@@ -5964,28 +6003,18 @@ function MapGeo(elm_draw, PARENT, options) {
 						
 						if (in_predraw) {
 							
-							elm_location = new PIXI.Text((arr_first_object_sub.location_name ? stripHTMLTags(arr_first_object_sub.location_name) : ''), {fontSize: size_location, fontFamily: font_family, fill: color_location});
+							const hex_color_fill = (hint_dot === 'location' ? 0xffffff : color_location);
+
+							elm_location = new PIXI.Text((arr_first_object_sub.location_name ? parseObjectName(arr_first_object_sub.location_name) : ''), {fontSize: size_location, fontFamily: font_family, fill: hex_color_fill});
 							elm_location.alpha = opacity_location;
+							if (hint_dot === 'location') {
+								elm_location.tint = color_location;
+							}
 
 							elm_plot_locations.addChild(elm_location);
 							
-							arr_object_sub_dot.arr_location = {elm: elm_location, visible: false, x_offset: 0, y_offset: 0, y_offset_origin: 0, x_offset_element: 0, y_offset_element: 0, width: elm_location.width, height: size_location, matrix: false, algorithm: do_show_location, size_algorithm: num_size, elm_line: false};
+							arr_object_sub_dot.arr_location = {elm: elm_location, visible: false, x_offset: 0, y_offset: 0, y_offset_origin: 0, x_offset_element: 0, y_offset_element: 0, width: elm_location.width, height: size_location, algorithm: do_show_location, size_algorithm: num_size, elm_line: null};
 							elm_location.arr_object_sub_dot = arr_object_sub_dot;
-							
-							if (hint_dot === 'location') {
-								
-								const filter = new PIXI.filters.ColorMatrixFilter();
-								/*var matrix = [
-									1,0,0,0,0,
-									0,1,0,0,0,
-									0,0,1,0,0,
-									0,0,0,1,0
-								];*/
-								const matrix = filter.matrix;
-								elm_location.filters = [filter];
-								
-								arr_object_sub_dot.arr_location.matrix = matrix;
-							}
 						} else {
 							
 							elm_location = arr_object_sub_dot.arr_location.elm;
@@ -6007,19 +6036,17 @@ function MapGeo(elm_draw, PARENT, options) {
 						
 						elm_location.visible = false;
 						
-						if (arr_location.elm_line !== false) {
+						if (arr_location.elm_line !== null) {
 							
 							moveDotLocation(arr_object_sub_dot, arr_location.x_offset, arr_location.y_offset);
 						} else {
 							
-							elm_location.position.x = Math.floor((x_origin - pos_offset_x) + arr_location.x_offset_element);
-							elm_location.position.y = Math.floor((y_origin - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset_element);
+							elm_location.position.set(Math.floor((x_origin - pos_offset_x) + arr_location.x_offset_element), Math.floor((y_origin - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset_element));
 						}
 					}
 				} else {
 
-					if (has_colors || has_icon) {
-						
+					if (has_colors || has_icon || (use_best_quality && width_dot_stroke)) {
 						elm_plot = stage.createElementNS(stage_ns, 'g');
 					}
 				
@@ -6029,8 +6056,8 @@ function MapGeo(elm_draw, PARENT, options) {
 						
 						if (dot_icon == 'square') {
 							
-							const num_width = (num_size + width_dot_stroke);
-							const num_offset = Math.floor(-num_width / 2);
+							const num_width = (use_best_quality ? num_size : (num_size + width_dot_stroke));
+							const num_offset = (-num_width / 2);
 							
 							elm_dot = stage.createElementNS(stage_ns, 'rect');
 							elm_dot.setAttribute('x', num_offset);
@@ -6042,25 +6069,49 @@ function MapGeo(elm_draw, PARENT, options) {
 							elm_dot = stage.createElementNS(stage_ns, 'circle');
 							elm_dot.setAttribute('cx', 0);
 							elm_dot.setAttribute('cy', 0);
-							elm_dot.setAttribute('r', (num_size_radius + width_dot_stroke / 2));
+							elm_dot.setAttribute('r', (use_best_quality ? num_size_radius : (num_size_radius + width_dot_stroke / 2)));
 						}
 						if (opacity_dot) {
-							elm_dot.style.fill = arr_dot_colors[0].color;
-							elm_dot.style.fillOpacity = opacity_dot;
+							elm_dot.style.fill = GeoUtilities.parseColor(arr_dot_colors[0].color, opacity_dot);
 						} else {
 							elm_dot.style.fill = 'none';
 						}
+						
 						if (width_dot_stroke) {
-							elm_dot.style.stroke = color_dot_stroke;
-							elm_dot.style.strokeWidth = width_dot_stroke;
-							elm_dot.style.strokeOpacity = opacity_dot_stroke;
+							
+							let elm_dot_stroke = elm_dot;
+							
+							if (use_best_quality) {
+								
+								if (dot_icon == 'square') {
+									
+									const num_width = (num_size + width_dot_stroke);
+									const num_offset = (-num_width / 2);
+									
+									elm_dot_stroke = stage.createElementNS(stage_ns, 'rect');
+									elm_dot_stroke.setAttribute('x', num_offset);
+									elm_dot_stroke.setAttribute('y', num_offset);
+									elm_dot_stroke.setAttribute('width', num_width);
+									elm_dot_stroke.setAttribute('height', num_width);
+								} else {
+									
+									elm_dot_stroke = stage.createElementNS(stage_ns, 'circle');
+									elm_dot_stroke.setAttribute('cx', 0);
+									elm_dot_stroke.setAttribute('cy', 0);
+									elm_dot_stroke.setAttribute('r', (num_size_radius + width_dot_stroke / 2));
+								}
+								
+								elm_dot_stroke.style.fill = 'none';
+								elm_plot.appendChild(elm_dot_stroke);
+							}
+							
+							elm_dot_stroke.style.stroke = GeoUtilities.parseColor(color_dot_stroke, opacity_dot_stroke);
+							elm_dot_stroke.style.strokeWidth = width_dot_stroke;
 						}
 						
-						if (elm_plot) {
-							
+						if (elm_plot !== null) {
 							elm_plot.appendChild(elm_dot);
 						} else {
-							
 							elm_plot = elm_dot;
 						}
 					} else {
@@ -6073,9 +6124,8 @@ function MapGeo(elm_draw, PARENT, options) {
 						elm_circle.setAttribute('r', (num_size_radius + width_dot_stroke / 2));
 						elm_circle.style.fill = 'none';
 						if (width_dot_stroke) {
-							elm_circle.style.stroke = color_dot_stroke;
+							elm_circle.style.stroke = GeoUtilities.parseColor(color_dot_stroke, opacity_dot_stroke);
 							elm_circle.style.strokeWidth = width_dot_stroke;
-							elm_circle.style.strokeOpacity = opacity_dot_stroke;
 						}
 						elm_plot.appendChild(elm_circle);
 						
@@ -6087,8 +6137,7 @@ function MapGeo(elm_draw, PARENT, options) {
 						
 							const elm_path = stage.createElementNS(stage_ns, 'path');
 							elm_path.setAttribute('d','M '+0+','+0+' L '+(0 + num_size_radius * Math.cos(num_start))+','+(0 + num_size_radius * Math.sin(num_start))+' A '+num_size_radius+','+num_size_radius+' 0 '+(num_end - num_start < Math.PI ? 0 : 1)+',1 '+(0 + num_size_radius * Math.cos(num_end))+','+(0 + num_size_radius * Math.sin(num_end))+' z');
-							elm_path.style.fill = arr_dot_colors[i].color;
-							elm_path.style.fillOpacity = opacity_dot;
+							elm_path.style.fill = GeoUtilities.parseColor(arr_dot_colors[i].color, opacity_dot);
 							elm_plot.appendChild(elm_path);
 						}
 					}
@@ -6174,11 +6223,11 @@ function MapGeo(elm_draw, PARENT, options) {
 							elm_location.style.fill = color_location;
 							elm_location.style.fillOpacity = opacity_location;
 							elm_location.style.textAnchor = 'middle';
-							var elm_text = document.createTextNode((arr_first_object_sub.location_name ? stripHTMLTags(arr_first_object_sub.location_name) : ''));
+							const elm_text = document.createTextNode((arr_first_object_sub.location_name ? parseObjectName(arr_first_object_sub.location_name) : ''));
 							elm_location.appendChild(elm_text);
 							fragment_plot_locations.appendChild(elm_location);
 							
-							arr_object_sub_dot.arr_location = {elm: elm_location, visible: false, x_offset: 0, y_offset: 0, y_offset_origin: 0, x_offset_element: 0, y_offset_element: 0, width: 0, height: size_location, arr_filter: false, algorithm: do_show_location, size_algorithm: num_size, elm_line: false};
+							arr_object_sub_dot.arr_location = {elm: elm_location, visible: false, x_offset: 0, y_offset: 0, y_offset_origin: 0, x_offset_element: 0, y_offset_element: 0, width: 0, height: size_location, algorithm: do_show_location, size_algorithm: num_size, elm_line: null};
 							elm_location.arr_object_sub_dot = arr_object_sub_dot;
 							
 							//elm_location.setAttribute('x', elm_location.getAttribute('x') - (arr_object_sub_dot.arr_location.width / 2)); // Using text-anchor text is automatically centered 
@@ -6186,7 +6235,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							
 							if (hint_dot === 'location') {
 								
-								const id = 'filter_location_'+fragment_plot_locations.children.length;
+								/*const id = 'filter_location_'+fragment_plot_locations.children.length;
 								
 								const elm_filters = stage.createElementNS(stage_ns, 'filter');
 								elm_filters.setAttribute('id', id);
@@ -6208,7 +6257,7 @@ function MapGeo(elm_draw, PARENT, options) {
 								
 								arr_object_sub_dot.arr_location.arr_filter = {func_update: function() {
 									elm_filter.setAttribute('values', matrix.join(' '));
-								}, matrix: matrix};
+								}, matrix: matrix};*/
 							}
 						} else {
 							
@@ -6231,11 +6280,9 @@ function MapGeo(elm_draw, PARENT, options) {
 						
 						elm_location.dataset.visible = 0;
 						
-						if (arr_location.elm_line !== false) {
-							
+						if (arr_location.elm_line !== null) {
 							moveDotLocation(arr_object_sub_dot, arr_location.x_offset, arr_location.y_offset);
 						} else {
-							
 							elm_location.setAttribute('transform', 'translate('+Math.floor(x_origin - pos_offset_x)+' '+Math.floor((y_origin - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset_element)+')');
 						}
 					}
@@ -6256,7 +6303,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				if (display == DISPLAY_PIXEL) {
 					
 					elm_location.visible = do_show_location;
-					if (arr_location.elm_line !== false) {
+					if (arr_location.elm_line !== null) {
 						arr_location.elm_line.visible = do_show_location;
 					}
 					if (elm_location.visible != visible) {
@@ -6265,14 +6312,19 @@ function MapGeo(elm_draw, PARENT, options) {
 				} else {
 					
 					elm_location.dataset.visible = (do_show_location ? 1 : 0);
-					if (arr_location.elm_line !== false) {
+					if (arr_location.elm_line !== null) {
 						arr_location.elm_line.dataset.visible = (do_show_location ? 1 : 0);
 					}
 				}
 			}
 		}
 		
-		if (str_identifier !== false && arr_object_sub_dot.identifier !== str_identifier) {
+		if (str_identifier === false) {
+			
+			if (arr_object_sub_dot.is_added && arr_object_sub_dot.identifier !== false) { // Check for dot existance, making sure the previous identifier was plottable
+				elm_plot_dots.removeChild(arr_object_sub_dot.elm);
+			}
+		} else if (arr_object_sub_dot.identifier !== str_identifier) {
 			
 			if (display == DISPLAY_PIXEL) {
 				
@@ -6384,6 +6436,9 @@ function MapGeo(elm_draw, PARENT, options) {
 					
 					let elm_geo = null;
 					
+					const arr_style_fill = GeoUtilities.parseColor(color_style_geometry, opacity_style_geometry);
+					const arr_style_stroke = {width: (width_geometry_stroke ? width_geometry_stroke : 1), color: GeoUtilities.parseColor((color_style_geometry_stroke ? color_style_geometry_stroke : color_style_geometry), opacity_style_geometry_stroke), alignment: 0.5};
+					
 					while (i_geo < len_i_geo) {
 
 						switch (arr_geometry_plotable[i_geo]) {
@@ -6399,15 +6454,15 @@ function MapGeo(elm_draw, PARENT, options) {
 								while (typeof arr_geometry_plotable[i_geo] === 'number') {
 																		
 									elm_geo = new PIXI.Graphics();
+									
+									elm_geo.circle((arr_geometry_plotable[i_geo] / calc_plot_point) - geometry_center_x, (arr_geometry_plotable[i_geo+1] / calc_plot_point) - geometry_center_y, size_dot.min/2);
 									if (opacity_style_geometry) {
-										elm_geo.beginFill(GeoUtilities.parseColor(color_style_geometry), opacity_style_geometry);
+										elm_geo.fill(arr_style_fill);
 									}
 									if (width_geometry_stroke) {
-										elm_geo.lineStyle(width_geometry_stroke, GeoUtilities.parseColor(color_style_geometry_stroke), opacity_style_geometry_stroke);
+										elm_geo.stroke(arr_style_stroke);
 									}
-									elm_geo.drawCircle((arr_geometry_plotable[i_geo] / calc_plot_point) - geometry_center_x, (arr_geometry_plotable[i_geo+1] / calc_plot_point) - geometry_center_y, size_dot.min/2);
 									
-									elm_geo.endFill();
 									elm_geometry.addChild(elm_geo);
 
 									i_geo += 2;
@@ -6425,9 +6480,7 @@ function MapGeo(elm_draw, PARENT, options) {
 								}
 								
 								elm_geo = new PIXI.Graphics();
-								if (!is_line_polygon || (is_line_polygon && width_geometry_stroke)) {
-									elm_geo.lineStyle((width_geometry_stroke ? width_geometry_stroke : 1), GeoUtilities.parseColor((color_style_geometry_stroke ? color_style_geometry_stroke : color_style_geometry)), opacity_style_geometry_stroke);
-								}												
+																	
 								elm_geo.moveTo((arr_geometry_plotable[i_geo] / calc_plot_point) - geometry_center_x, (arr_geometry_plotable[i_geo+1] / calc_plot_point) - geometry_center_y);
 								
 								i_geo += 2;
@@ -6448,6 +6501,10 @@ function MapGeo(elm_draw, PARENT, options) {
 									
 									i_geo += 2;
 								}
+								
+								if (!is_line_polygon || (is_line_polygon && width_geometry_stroke)) {
+									elm_geo.stroke(arr_style_stroke);
+								}
 
 								elm_geometry.addChild(elm_geo);
 								
@@ -6463,13 +6520,7 @@ function MapGeo(elm_draw, PARENT, options) {
 								}
 																	
 								elm_geo = new PIXI.Graphics();
-								if (opacity_style_geometry) {
-									elm_geo.beginFill(GeoUtilities.parseColor(color_style_geometry), opacity_style_geometry);
-								}
-								if (width_geometry_stroke && has_line) {
-									elm_geo.lineStyle(width_geometry_stroke, GeoUtilities.parseColor(color_style_geometry_stroke), opacity_style_geometry_stroke);
-								}
-	
+
 								let str_ring = arr_geometry_plotable[i_geo];
 
 								while (str_ring === 'ring' || str_ring === 'hole') {
@@ -6488,20 +6539,24 @@ function MapGeo(elm_draw, PARENT, options) {
 										i += 2;
 									}
 									
-									if (str_ring === 'hole') {
-										elm_geo.beginHole();
-									}
-									
 									elm_geo.drawPolygon(arr_points);
 									
 									if (str_ring === 'hole') {
-										elm_geo.endHole();
+										
+										elm_geo.cut();
+									} else {
+										
+										if (opacity_style_geometry) {
+											elm_geo.fill(arr_style_fill);
+										}
+										if (width_geometry_stroke && has_line) {
+											elm_geo.stroke(arr_style_stroke);
+										}
 									}
 									
 									str_ring = arr_geometry_plotable[i_geo];
 								}
 								
-								elm_geo.endFill();
 								elm_geometry.addChild(elm_geo);
 								
 								break;
@@ -6683,25 +6738,27 @@ function MapGeo(elm_draw, PARENT, options) {
 			const elm_location = arr_location.elm;
 			
 			if (display == DISPLAY_PIXEL) {
+				
 				elm_location.visible = true;
-				if (arr_location.elm_line !== false) {
+				if (arr_location.elm_line !== null) {
 					arr_location.elm_line.visible = true;
 				}
 			} else {
+				
 				elm_location.dataset.visible = 1;
-				if (arr_location.elm_line !== false) {
+				if (arr_location.elm_line !== null) {
 					arr_location.elm_line.dataset.visible = 1;
 				}
 			}
 			
 			if (arr_hint) {
 
-				arr_hint[0] = false;
+				arr_hint[0] = null;
 			} else {
 				
 				count_animate_locations++;
 				
-				arr_hint = [false];
+				arr_hint = [null];
 
 				arr_object_sub_dot.arr_hint_queue[0] = arr_hint;
 			}
@@ -6711,7 +6768,7 @@ function MapGeo(elm_draw, PARENT, options) {
 			
 				const arr_hint = arr_object_sub_dot.arr_hint_queue;
 				
-				arr_hint[0][0] = false;
+				arr_hint[0][0] = null;
 				arr_hint.push(arr_hint.shift());
 				
 				return;
@@ -6723,8 +6780,12 @@ function MapGeo(elm_draw, PARENT, options) {
 			const num_size_radius = (arr_object_sub_dot.arr_settings.size / 2);
 			
 			if (display == DISPLAY_PIXEL) {
-						
-				elm = new PIXI.Graphics();
+				
+				elm = arr_hint_pool.shift(); // Get an elm to be used from the pool
+				
+				if (elm === undefined) {
+					elm = new PIXI.Graphics();
+				}
 
 				elm_plot_between.addChild(elm);
 			} else {
@@ -6745,7 +6806,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				fragment_plot_between.appendChild(elm);
 			}
 							
-			const arr_hint = [false, elm, num_size_radius];
+			const arr_hint = [null, elm, num_size_radius];
 			
 			arr_object_sub_dot.arr_hint_queue.push(arr_hint);
 		}
@@ -6772,29 +6833,29 @@ function MapGeo(elm_draw, PARENT, options) {
 		}
 	};
 	
-	var moveDotLocation = function (arr_object_sub_dot, x, y, is_absolute) {
+	var moveDotLocation = function (arr_object_sub_dot, num_x, num_y, is_absolute) {
 		
 		const arr_location = arr_object_sub_dot.arr_location;
 		const elm_location = arr_location.elm;
 		
-		const pos_origin_x = arr_object_sub_dot.xy_geometry_center.x;
-		const pos_origin_y = arr_object_sub_dot.xy_geometry_center.y;
+		const num_pos_origin_x = arr_object_sub_dot.xy_geometry_center.x;
+		const num_pos_origin_y = arr_object_sub_dot.xy_geometry_center.y;
 				
 		if (is_absolute === true) {
-			arr_location.x_offset = (x - pos_origin_x);
-			arr_location.y_offset = (y - arr_location.y_offset_origin - pos_origin_y);
+			arr_location.x_offset = (num_x - num_pos_origin_x);
+			arr_location.y_offset = (num_y - arr_location.y_offset_origin - num_pos_origin_y);
 		} else {
-			arr_location.x_offset = x;
-			arr_location.y_offset = y;
+			arr_location.x_offset = num_x;
+			arr_location.y_offset = num_y;
 		}
 		
 		if (display == DISPLAY_PIXEL) {
 			
-			elm_location.position.x = Math.floor((pos_origin_x - pos_offset_x) + arr_location.x_offset + arr_location.x_offset_element);
-			elm_location.position.y = Math.floor((pos_origin_y - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset + arr_location.y_offset_element);
+			elm_location.position.x = Math.floor((num_pos_origin_x - pos_offset_x) + arr_location.x_offset + arr_location.x_offset_element);
+			elm_location.position.y = Math.floor((num_pos_origin_y - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset + arr_location.y_offset_element);
 		} else {
 			
-			elm_location.setAttribute('transform', 'translate('+Math.floor((pos_origin_x - pos_offset_x) + arr_location.x_offset)+' '+Math.floor((pos_origin_y - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset + arr_location.y_offset_element)+')');
+			elm_location.setAttribute('transform', 'translate('+Math.floor((num_pos_origin_x - pos_offset_x) + arr_location.x_offset)+' '+Math.floor((num_pos_origin_y - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset + arr_location.y_offset_element)+')');
 		}
 		
 		let do_show = (arr_location.x_offset != 0 || arr_location.y_offset != 0);
@@ -6802,15 +6863,15 @@ function MapGeo(elm_draw, PARENT, options) {
 		if (do_show) {
 			
 			let num_offset_y = 0;
-			if (pos_origin_y <= pos_origin_y + arr_location.y_offset_origin + arr_location.y_offset) {
+			if (num_pos_origin_y <= num_pos_origin_y + arr_location.y_offset_origin + arr_location.y_offset) {
 				num_offset_y = -Math.abs(offset_location) - (arr_location.height / 2);
 			} else {
 				num_offset_y = Math.abs(offset_location) + (arr_location.height / 2);
 			}
 			
-			let elm_line = false;
+			let elm_line = null;
 			
-			if (arr_location.elm_line === false) {
+			if (arr_location.elm_line === null) {
 
 				if (display == DISPLAY_PIXEL) {
 					
@@ -6821,8 +6882,8 @@ function MapGeo(elm_draw, PARENT, options) {
 				} else {
 					
 					elm_line = stage.createElementNS(stage_ns, 'line');
-					elm_line.setAttribute('x1', (pos_origin_x - pos_offset_x));
-					elm_line.setAttribute('y1', (pos_origin_y - pos_offset_y));
+					elm_line.setAttribute('x1', (num_pos_origin_x - pos_offset_x));
+					elm_line.setAttribute('y1', (num_pos_origin_y - pos_offset_y));
 					elm_line.setAttribute('x2', 0);
 					elm_line.setAttribute('y2', 0);
 					elm_line.style.stroke = color_location;
@@ -6846,21 +6907,21 @@ function MapGeo(elm_draw, PARENT, options) {
 			
 			if (display == DISPLAY_PIXEL) {
 				
-				elm_line.lineStyle({width: width_location_line, color: GeoUtilities.parseColor(color_location), alpha: opacity_location, cap: PIXI.LINE_CAP.ROUND});
-				elm_line.moveTo(Math.floor(pos_origin_x - pos_offset_x), Math.floor(pos_origin_y - pos_offset_y));
-				elm_line.lineTo(Math.floor((pos_origin_x - pos_offset_x) + arr_location.x_offset), Math.floor((pos_origin_y - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset + num_offset_y));
+				elm_line.moveTo(Math.floor(num_pos_origin_x - pos_offset_x), Math.floor(num_pos_origin_y - pos_offset_y));
+				elm_line.lineTo(Math.floor((num_pos_origin_x - pos_offset_x) + arr_location.x_offset), Math.floor((num_pos_origin_y - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset + num_offset_y));
+				elm_line.stroke({width: width_location_line, color: GeoUtilities.parseColor(color_location, opacity_location), cap: 'round'});
 				
 				do_render_locations = true;
 			} else {
 
-				elm_line.setAttribute('x1', (pos_origin_x - pos_offset_x));
-				elm_line.setAttribute('y1', (pos_origin_y - pos_offset_y));
-				elm_line.setAttribute('x2', (pos_origin_x - pos_offset_x) + arr_location.x_offset);				
-				elm_line.setAttribute('y2', (pos_origin_y - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset + num_offset_y);
+				elm_line.setAttribute('x1', (num_pos_origin_x - pos_offset_x));
+				elm_line.setAttribute('y1', (num_pos_origin_y - pos_offset_y));
+				elm_line.setAttribute('x2', (num_pos_origin_x - pos_offset_x) + arr_location.x_offset);				
+				elm_line.setAttribute('y2', (num_pos_origin_y - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset + num_offset_y);
 			}
 		}
 
-		if (!do_show && arr_location.elm_line !== false) {
+		if (!do_show && arr_location.elm_line !== null) {
 			
 			if (display == DISPLAY_PIXEL) {
 				
@@ -6872,7 +6933,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				elm_plot_locations.removeChild(arr_location.elm_line);
 			}
 			
-			arr_location.elm_line = false;
+			arr_location.elm_line = null;
 		}
 	};
 	
@@ -6880,20 +6941,25 @@ function MapGeo(elm_draw, PARENT, options) {
 		
 		const arr_settings = arr_object_sub_line.arr_settings;
 		
-		let num_size = arr_object_sub_line.weight/3;
-		num_size = Math.ceil(num_size > width_line_max ? width_line_max : (num_size < width_line_min ? width_line_min : num_size));
+		let num_size = arr_object_sub_line.weight;
+		
+		if (num_line_weight_max != num_line_weight_min) {
+			num_size = Math.ceil(width_line_min + ((width_line_max - width_line_min) * ((num_size - num_line_weight_min) / (num_line_weight_max - num_line_weight_min))));
+		} else {
+			num_size = width_line_min;
+		}
 		
 		arr_settings.size = num_size;
 		
-		let color = false;
+		let str_color = null;
 		let do_show_info = (info_condition ? false : true);
 		let str_svg_classes = 'line';
 		
 		if (color_line) { // Override colour
-			color = color_line;
+			str_color = color_line;
 		}
 		
-		if (!color || info_condition || svg_style !== false) {
+		if (str_color === null || info_condition || svg_style !== false) {
 			
 			let arr_conditions = {};
 			
@@ -6909,12 +6975,12 @@ function MapGeo(elm_draw, PARENT, options) {
 					
 				const arr_object_sub_style = arr_data.object_subs[connect_object_sub_id].style_inherit;
 				
-				if (!color) {
+				if (str_color === null) {
 					
-					color = arr_object_sub_style.color;
+					str_color = arr_object_sub_style.color;
 					
-					if (typeof color == 'object') { // Select last color color contains multiple values
-						color = color[color.length-1];
+					if (typeof str_color == 'object') { // Select last color color contains multiple values
+						str_color = str_color[str_color.length-1];
 					}
 				}
 				if (info_condition && !do_show_info && arr_object_sub_style.conditions) {
@@ -6967,22 +7033,22 @@ function MapGeo(elm_draw, PARENT, options) {
 			}
 		}
 		
-		if (!color) { // Default colour
+		if (str_color == null) { // Default colour
 			
 			const arr_legend = arr_data.legend.object_subs[arr_object_sub_line.connect_object_sub_details_id];
 			const arr_color = arr_legend.color;
 			
-			color = 'rgb('+arr_color.r+','+arr_color.g+','+arr_color.b+')';
+			str_color = 'rgb('+arr_color.r+','+arr_color.g+','+arr_color.b+')';
 		}
 				
-		const alternate = (mode != MODE_MOVE && count % 2);
+		const is_alternate = (mode != MODE_MOVE && count % 2);
 		
 		const arr_path = arr_object_sub_lines_locate.arr_path;
 		
 		const x_origin = arr_path[0].x;
 		const y_origin = arr_path[0].y;
 		
-		let str_identifier = (mode != MODE_MOVE ? cur_zoom+''+offset : '')+''+num_size+''+color+''+(alternate ? '1' : '0');
+		let str_identifier = (mode != MODE_MOVE ? cur_zoom+''+offset : '')+''+num_size+''+str_color+''+(is_alternate ? '1' : '0');
 		
 		if (mode == MODE_MOVE && move_retain === 'all' && arr_object_sub_line.identifier === str_identifier && arr_object_sub_line.arr_move.status !== false && !redraw) { // Main instance is already running in move_retain mode, force an additional new instance
 			str_identifier = false;
@@ -7033,7 +7099,6 @@ function MapGeo(elm_draw, PARENT, options) {
 							arr_move.elm.alpha = 0;
 							
 							for (let i = 0; i < length_move_warp; i++) {
-								
 								arr_move.arr_elm_warp[i].alpha = 0;
 							}
 						}
@@ -7061,15 +7126,16 @@ function MapGeo(elm_draw, PARENT, options) {
 			
 			if (mode != MODE_MOVE) {
 				
-				if (alternate) { // Alternate colours when stacking them
-					const arr_color = GeoUtilities.colorToBrightColor(color, 22);
-					color = 'rgb('+arr_color.r+','+arr_color.g+','+arr_color.b+')';
+				if (is_alternate) { // Alternate colours when stacking them
+					
+					const arr_color = GeoUtilities.colorToBrightColor(str_color, 22);
+					str_color = 'rgba('+arr_color.r+','+arr_color.g+','+arr_color.b+','+arr_color.a+')';
 				}
 			}
-		
+			
 			if (display == DISPLAY_PIXEL) {
 				
-				const hex_color = GeoUtilities.parseColor(color);
+				const hex_color = GeoUtilities.parseColor(str_color, opacity_line);
 				
 				if (mode == MODE_MOVE) {
 					
@@ -7077,10 +7143,10 @@ function MapGeo(elm_draw, PARENT, options) {
 					
 					if (arr_object_sub_line.is_added && str_identifier !== false) { // Identifier has changed, require full redraw
 						
-						arr_move.elm_container[0].removeChild(arr_move.elm);
+						arr_move.elm_container[0].removeParticle(arr_move.elm);
 									
 						for (let i = 0; i < length_move_warp; i++) {
-							arr_move.elm_container[1].removeChild(arr_move.arr_elm_warp[i]);
+							arr_move.elm_container[1].removeParticle(arr_move.arr_elm_warp[i]);
 						}
 						
 						arr_move.arr_elm_warp = [];
@@ -7090,11 +7156,12 @@ function MapGeo(elm_draw, PARENT, options) {
 					const arr_elm_particles = (str_identifier === false ? arr_elm_plot_line_particles_temp : arr_elm_plot_line_particles);
 					let elm_container = arr_elm_particles[str_identifier_texture];
 					
-					if (!elm_container || elm_container[0].children.length >= size_max_elm_container) {
+					if (elm_container === undefined) {
+					/*if (elm_container === undefined || elm_container[0].children.length >= size_max_elm_container) {
 						
 						if (str_identifier === false) {
 							
-							if (elm_container) { // Container is full
+							if (elm_container !== undefined) { // Container is full
 								
 								elm_container = null;
 								let num_count = 0;
@@ -7118,39 +7185,42 @@ function MapGeo(elm_draw, PARENT, options) {
 									num_count++;
 								}
 							}
-						}
+						}*/
+
+						arr_elm_particles[str_identifier_texture] = [];
 						
-						if (str_identifier !== false || !elm_container) {
-								
-							arr_elm_particles[str_identifier_texture] = [];
+						if (move_glow) {
 							
-							if (move_glow) {
-								arr_elm_particles[str_identifier_texture][0] = new PIXI.ParticleContainer(size_max_elm_container / length_move_warp, {position: true, alpha: true});
-								arr_elm_particles[str_identifier_texture][1] = new PIXI.ParticleContainer(size_max_elm_container, {position: true, alpha: true});
-								
-								elm_container = arr_elm_particles[str_identifier_texture];
-								elm_plot_lines.addChild(elm_container[1]);
-								elm_plot_lines.addChild(elm_container[0]);
-							} else {
-								arr_elm_particles[str_identifier_texture][0] = arr_elm_particles[str_identifier_texture][1] = new PIXI.ParticleContainer(size_max_elm_container, {position: true, alpha: true});
-								
-								elm_container = arr_elm_particles[str_identifier_texture];
-								elm_plot_lines.addChild(elm_container[0]);
-							}
+							arr_elm_particles[str_identifier_texture][0] = new PIXI.ParticleContainer({dynamicProperties: {position: true, color: true}});
+							arr_elm_particles[str_identifier_texture][1] = new PIXI.ParticleContainer({dynamicProperties: {position: true, color: true}});
+							
+							elm_container = arr_elm_particles[str_identifier_texture];
+							elm_plot_lines.addChild(elm_container[1]);
+							elm_plot_lines.addChild(elm_container[0]);
+						} else {
+							
+							const elm_particle_container = new PIXI.ParticleContainer({dynamicProperties: {position: true, color: true}});
+							
+							arr_elm_particles[str_identifier_texture][0] = elm_particle_container;
+							arr_elm_particles[str_identifier_texture][1] = elm_particle_container;
+							
+							elm_container = arr_elm_particles[str_identifier_texture];
+							elm_plot_lines.addChild(elm_container[0]);
 						}
 					}
 					
 					let arr_texture = arr_assets_texture_line_dots[str_identifier_texture];
 					const r = (num_size / 2);
 					
-					if (!arr_texture) {
+					if (arr_texture === undefined) {
 						
 						arr_texture = [];
 						
 						elm = new PIXI.Graphics();
-						elm.beginFill(hex_color, 1);
-						elm.drawCircle(r, r, r);
-						elm.endFill();
+						elm.circle(r, r, r);
+						elm.fill(hex_color);
+						
+						const arr_renderer_settings = {target: elm, resolution: renderer_activity.resolution, antialias: true, textureSourceOptions: {scaleMode: 'linear'}};
 						
 						if (move_glow) {
 							
@@ -7161,50 +7231,42 @@ function MapGeo(elm_draw, PARENT, options) {
 							canvas.height = num_size_glow*2;
 							const context = canvas.getContext('2d');
 							
-							const arr_color = parseCSSColor(color);
+							const arr_color = GeoUtilities.parseColorToArray(str_color);
 							
 							const gradient = context.createRadialGradient(num_size_glow, num_size_glow, r, num_size_glow, num_size_glow, num_size_glow);
-							gradient.addColorStop(0, 'rgba('+arr_color.r+', '+arr_color.g+', '+arr_color.b+', 0.4)');
-							gradient.addColorStop(1, 'rgba('+arr_color.r+', '+arr_color.g+', '+arr_color.b+', 0)');
+							gradient.addColorStop(0, 'rgba('+arr_color.r+','+arr_color.g+','+arr_color.b+',0.4)');
+							gradient.addColorStop(1, 'rgba('+arr_color.r+','+arr_color.g+','+arr_color.b+',0)');
 							context.beginPath();
 							context.fillStyle = gradient;
 							context.arc(num_size_glow, num_size_glow, num_size_glow, 0, 360);
 							context.fill();
 							context.beginPath();
-							context.fillStyle = 'rgba('+arr_color.r+', '+arr_color.g+', '+arr_color.b+', 1)';
+							context.fillStyle = 'rgba('+arr_color.r+','+arr_color.g+','+arr_color.b+',1)';
 							context.arc(num_size_glow, num_size_glow, r, 0, 360);
 							context.fill();
 							
 							arr_texture[0] = PIXI.Texture.from(canvas);
-							if (use_best_quality) {
-								arr_texture[1] = elm.generateCanvasTexture();
-							} else {
-								arr_texture[1] = renderer_activity.generateTexture(elm);
-							}
+							arr_texture[1] = renderer_activity.generateTexture(arr_renderer_settings);
 						} else {
 
-							if (use_best_quality) {
-								arr_texture[0] = elm.generateCanvasTexture();
-							} else {
-								arr_texture[0] = renderer_activity.generateTexture(elm);
-							}
+							arr_texture[0] = renderer_activity.generateTexture(arr_renderer_settings);
 							arr_texture[1] = arr_texture[0];
 						}
-											
+						
 						arr_assets_texture_line_dots[str_identifier_texture] = arr_texture;
 					}
 					
-					elm = new PIXI.Sprite(arr_texture[0]);
+					elm = new PIXI.Particle(arr_texture[0]);
 					
 					/*var glow = new GlowFilter(renderer_activity.width, renderer_activity.height, 15, 2, 2, hex_color, 0.5);
 					elm.filters = [glow];*/
 					
-					elm.position.x = Math.floor(x_origin - pos_offset_x);
-					elm.position.y = Math.floor(y_origin - pos_offset_y);
-					elm.anchor.x = 0.5;
-					elm.anchor.y = 0.5;
+					elm.x = Math.floor(x_origin - pos_offset_x);
+					elm.y = Math.floor(y_origin - pos_offset_y);
+					elm.anchorX = 0.5;
+					elm.anchorY = 0.5;
 					
-					elm_container[0].addChild(elm);
+					elm_container[0].addParticle(elm);
 					
 					if (move_retain === 'all') {
 						
@@ -7256,13 +7318,13 @@ function MapGeo(elm_draw, PARENT, options) {
 					
 					for (let i = 1; i < (length_move_warp+1); i++) {
 						
-						const elm_warp = new PIXI.Sprite(arr_texture[1]);
-						elm_warp.anchor.x = 0.5;
-						elm_warp.anchor.y = 0.5;
-						elm_warp.scale.x = 1 - (i * (0.3/(length_move_warp+1)));
-						elm_warp.scale.y = 1 - (i * (0.3/(length_move_warp+1)));
+						const elm_warp = new PIXI.Particle(arr_texture[1]);
+						elm_warp.anchorX = 0.5;
+						elm_warp.anchorY = 0.5;
+						elm_warp.scaleX = 1 - (i * (0.3 / (length_move_warp+1)));
+						elm_warp.scaleY = 1 - (i * (0.3 / (length_move_warp+1)));
 						
-						elm_container[1].addChild(elm_warp);
+						elm_container[1].addParticle(elm_warp);
 						arr_move.arr_elm_warp.push(elm_warp);
 					}
 					
@@ -7313,12 +7375,10 @@ function MapGeo(elm_draw, PARENT, options) {
 					}
 
 					elm = new PIXI.Graphics();
-					elm.lineStyle(1, hex_color, 0.8);
-					elm.beginFill(hex_color, 0.8);
-					
+
 					let x_start = 0;
 					let y_start = 0;
-										
+					
 					for (let i = 1, len = arr_path.length; i < len; i++) {
 						
 						if (arr_path[i] === null) {
@@ -7334,13 +7394,16 @@ function MapGeo(elm_draw, PARENT, options) {
 						x_start = Math.floor(arr_path[i].x - x_origin);
 						y_start = Math.floor(arr_path[i].y - y_origin);
 
-						const c1 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, 0.5+offset, 0.25);
-						const c2 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, 0.5+offset, 0.75);
-						const cc1 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset+num_size-0.5, 0.75);
-						const cc2 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset+num_size-0.5, 0.25);
+						const arr_c1 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, 0.5+offset, 0.25);
+						const arr_c2 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, 0.5+offset, 0.75);
+						const arr_cc1 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset+num_size-0.5, 0.75);
+						const arr_cc2 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset+num_size-0.5, 0.25);
 						
-						elm.moveTo(x_start, y_start).bezierCurveTo(c1.x, c1.y, c2.x, c2.y, x_end, y_end).bezierCurveTo(cc1.x, cc1.y, cc2.x, cc2.y, x_start, y_start);
+						elm.moveTo(x_start, y_start).bezierCurveTo(arr_c1.x, arr_c1.y, arr_c2.x, arr_c2.y, x_end, y_end).bezierCurveTo(arr_cc1.x, arr_cc1.y, arr_cc2.x, arr_cc2.y, x_start, y_start);
 					}
+					
+					elm.fill(hex_color);
+					elm.stroke({width: 1, color: hex_color, alignment: 0.5});
 
 					elm.position.x = Math.floor(x_origin - pos_offset_x);
 					elm.position.y = Math.floor(y_origin - pos_offset_y);
@@ -7350,6 +7413,8 @@ function MapGeo(elm_draw, PARENT, options) {
 				}
 			} else {
 				
+				str_color = GeoUtilities.parseColor(str_color, opacity_line);
+
 				if (arr_object_sub_line.is_added) {
 					elm_plot_lines.removeChild(arr_object_sub_line.elm);
 				}
@@ -7381,32 +7446,31 @@ function MapGeo(elm_draw, PARENT, options) {
 					
 					if (svg_style !== false) {
 						
-						const c1 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset+(num_size/2), 0.25);
-						const c2 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset+(num_size/2), 0.75);
+						const arr_c1 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset+(num_size/2), 0.25);
+						const arr_c2 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset+(num_size/2), 0.75);
 
-						str_svg += 'M '+x_start+','+y_start+' C '+c1.x+','+c1.y+' '+c2.x+','+c2.y+' '+x_end+','+y_end+'';
+						str_svg += 'M '+x_start+','+y_start+' C '+arr_c1.x+','+arr_c1.y+' '+arr_c2.x+','+arr_c2.y+' '+x_end+','+y_end+'';
 					} else {
 
-						const c1 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, 0.5+offset, 0.25);
-						const c2 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, 0.5+offset, 0.75);
-						const cc1 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset+num_size-0.5, 0.75);
-						const cc2 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset+num_size-0.5, 0.25);
+						const arr_c1 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, 0.5+offset, 0.25);
+						const arr_c2 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, 0.5+offset, 0.75);
+						const arr_cc1 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset+num_size-0.5, 0.75);
+						const arr_cc2 = GeoUtilities.calcPointOffset(x_start, y_start, x_end, y_end, offset+num_size-0.5, 0.25);
 						
-						str_svg += 'M '+x_start+','+y_start+' C '+c1.x+','+c1.y+' '+c2.x+','+c2.y+' '+x_end+','+y_end+' C '+cc1.x+','+cc1.y+' '+cc2.x+','+cc2.y+' '+x_start+','+y_start+'';
+						str_svg += 'M '+x_start+','+y_start+' C '+arr_c1.x+','+arr_c1.y+' '+arr_c2.x+','+arr_c2.y+' '+x_end+','+y_end+' C '+arr_cc1.x+','+arr_cc1.y+' '+arr_cc2.x+','+arr_cc2.y+' '+x_start+','+y_start+'';
 					}
 				}
 
 				elm.setAttribute('d', str_svg);
 				if (svg_style !== false) {
 					elm.style.fill = 'transparent';
-					elm.style.stroke = color;
+					elm.style.stroke = str_color;
 					elm.style.strokeWidth = num_size;
 				} else {
-					elm.style.fill = color;
-					elm.style.stroke = color;
+					elm.style.fill = str_color;
+					elm.style.stroke = str_color;
 					elm.style.strokeWidth = 1;
 				}
-				elm.style.opacity = 0.8;
 				fragment_plot_lines.appendChild(elm);
 				
 				elm.setAttribute('transform', 'translate('+Math.floor(x_origin - pos_offset_x)+' '+Math.floor(y_origin - pos_offset_y)+')');
@@ -7419,10 +7483,6 @@ function MapGeo(elm_draw, PARENT, options) {
 		if (str_identifier !== false && arr_object_sub_line.identifier !== str_identifier) {
 			
 			arr_object_sub_line.elm = elm;
-			if (mode == MODE_MOVE) {
-				arr_object_sub_line.elm_container = arr_move.elm_container;
-				arr_object_sub_line.arr_elm_warp = arr_move.arr_elm_warp;
-			}
 			arr_object_sub_line.identifier = str_identifier;
 			
 			if (display == DISPLAY_PIXEL) {
@@ -7494,13 +7554,142 @@ function MapGeo(elm_draw, PARENT, options) {
 			}
 		} else {
 			
-			arr_move.elm_container[0].removeChild(arr_move.elm);
+			arr_move.elm_container[0].removeParticle(arr_move.elm);
 						
 			for (var i = 0; i < length_move_warp; i++) {
-				arr_move.elm_container[1].removeChild(arr_move.arr_elm_warp[i]);
+				arr_move.elm_container[1].removeParticle(arr_move.arr_elm_warp[i]);
 			}
 		}
-	};	
+	};
+	
+	const arr_cache_graphics_dots = new Map();
+	const arr_cache_graphics_dots_pie = new Map();
+	const arr_cache_graphics_hints = new Map();
+	
+	var getGraphicsElementDot = function(elm, mode_icon, num_radius, color, num_stroke, color_stroke) {
+	
+		var num_radius = (num_radius < 0.5 ? 0.5 : Math.round(num_radius * 2) / 2); // 0.5 rounding
+		const str_identifier = mode_icon+'|'+num_radius+'|'+color+'|'+num_stroke+'|'+color_stroke;
+		
+		let context = arr_cache_graphics_dots.get(str_identifier);
+		
+		if (context === undefined) {
+			
+			context = new PIXI.GraphicsContext();
+			
+			if (mode_icon === 'square') {
+				
+				const num_size = (num_radius * 2);
+				const num_offset = (-num_size / 2);
+				
+				context.rect(num_offset, num_offset, num_size, num_size);
+			} else {
+				
+				context.circle(0, 0, num_radius);
+			}
+			if (color !== null) {
+				context.fill(color);
+			}
+			if (color_stroke !== null) {
+				context.stroke({width: num_stroke, color: color_stroke, alignment: 0});
+			}
+			
+			arr_cache_graphics_dots.set(str_identifier, context);
+		}
+
+		if (elm === null) {
+			return new PIXI.Graphics(context);	
+		}
+		
+		elm.context = context;
+	};
+	
+	var getGraphicsElementDotPie = function(elm, num_radius, arr_colors, num_opacity, num_stroke, color_stroke, num_weight_total) {
+		
+		var num_radius = (num_radius < 0.5 ? 0.5 : Math.round(num_radius * 2) / 2);  // 0.5 rounding
+		let str_identifier = num_radius+'|'+num_stroke+'|'+color_stroke+'|'+num_opacity+'|'+num_weight_total+'|';
+		
+		for (let i = 0; i < arr_colors.length; i++) {
+			
+			const num_portion = Math.round(arr_colors[i].weight * 100) / 100;
+			
+			str_identifier += arr_colors[i].color+'-'+num_portion+',';
+		}
+		
+		let context = arr_cache_graphics_dots_pie.get(str_identifier);
+		
+		if (context === undefined) {
+			
+			context = new PIXI.GraphicsContext();
+			context.circle(0, 0, num_radius);
+			if (color_stroke !== null) {
+				context.stroke({width: num_stroke, color: color_stroke, alignment: 0});
+			}
+			
+			let num_current_portion = 0;
+			
+			for (let i = 0, len = arr_colors.length; i < len; i++) {
+				
+				const num_portion = Math.round(arr_colors[i].weight * 100) / 100;
+				
+				const num_start = (num_current_portion / num_weight_total) * 2 * Math.PI;
+				num_current_portion += num_portion;
+				const num_end = (num_current_portion / num_weight_total) * 2 * Math.PI;
+				
+				context.moveTo(0, 0)
+					.lineTo(num_radius * Math.cos(num_start), num_radius * Math.sin(num_start))
+					.arc(0, 0, num_radius, num_start, num_end, false)
+					.lineTo(0, 0);
+				context.fill(GeoUtilities.parseColor(arr_colors[i].color, num_opacity));
+			}
+			
+			arr_cache_graphics_dots_pie.set(str_identifier, context);
+		}
+
+		if (elm === null) {
+			return new PIXI.Graphics(context);	
+		}
+		
+		elm.context = context;
+	};
+
+	var getGraphicsElementHint = function(elm, num_radius, color, num_opacity, num_stroke, color_stroke, num_opacity_stroke) {
+		
+		var num_radius = (num_radius < 0.5 ? 0.5 : Math.round(num_radius * 10) / 10); // 0.1 rounding
+		var num_opacity = Math.round(num_opacity * 100) / 100;
+		var num_opacity_stroke = Math.round(num_opacity_stroke * 100) / 100;
+		const str_identifier = num_radius+'|'+color+'|'+num_opacity+'|'+num_stroke+'|'+color_stroke+'|'+num_opacity_stroke;
+		
+		let context = arr_cache_graphics_hints.get(str_identifier);
+		
+		if (context === undefined) {
+			
+			context = new PIXI.GraphicsContext();
+			context.circle(0, 0, num_radius);
+			context.fill({color: color, alpha: num_opacity});
+			if (num_stroke) {
+				context.stroke({width: num_stroke, color: color_stroke, alpha: num_opacity_stroke, alignment: 0.5});
+			}
+			
+			arr_cache_graphics_hints.set(str_identifier, context);
+		}
+
+		if (elm === null) {
+			return new PIXI.Graphics(context);	
+		}
+		
+		elm.context = context;
+	};
+	
+	var parseObjectName = function(str_name) {
+		
+		var str_name = stripHTMLTags(str_name);
+		if (str_name.length > length_text_max) {
+			str_name = str_name.substr(0, length_text_max)+'...';
+		}
+		
+		return str_name;
+	};
 
 	var displayGeoInfo = function() {
 		

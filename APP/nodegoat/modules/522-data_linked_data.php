@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -178,6 +178,10 @@ class data_linked_data extends base_module {
 					<li>
 						<label>'.getLabel('lbl_protocol').'</label>
 						<div><select name="protocol">'.cms_general::createDropdown(ResourceExternal::getProtocols(), $arr_resource['protocol']).'</select></div>
+					</li>
+					<li>
+						<label>'.getLabel('lbl_protocol').' '.getLabel('lbl_request').'</label>
+						<div>'.cms_general::createSelectorRadio(ResourceExternal::getProtocolMethods(), 'protocol_method', $arr_resource['protocol_method']).'</div>
 					</li>
 					<li>
 						<label>'.getLabel('lbl_url').'</label>
@@ -403,10 +407,21 @@ class data_linked_data extends base_module {
 				
 				e.detail.elm.find('[name=protocol]').trigger('change');
 			}).on('change', '[name=protocol]', function() {
-				var cur = $(this);
-				var value = cur.val();
-				var elm_target = cur.closest('ul').find('[name=url_options]').closest('li').nextAll();
-				elm_target.toggleClass('hide', (value == 'static'));
+				const cur = $(this);
+				const value = cur.val();
+				
+				const elms_dynamic = cur.closest('ul').find('[name=url_options]').closest('li').nextAll();
+				const elm_protocol_method = cur.closest('ul').find('[name=protocol_method]').closest('li');
+				
+				elms_dynamic.removeClass('hide');
+				elm_protocol_method.removeClass('hide');
+				
+				if (value == 'static') {
+					elms_dynamic.addClass('hide');
+					elm_protocol_method.addClass('hide');
+				} else if (value == 'sparql') {
+					elm_protocol_method.addClass('hide');
+				}
 			}).on('click', '[id^=y\\\:data_linked_data\\\:test_query]', function() {
 				
 				var cur = $(this);
@@ -579,9 +594,10 @@ class data_linked_data extends base_module {
 				return;
 			}
 			
-			$arr_resource = static::parseResourceExternal([
+			$arr_resource = StoreResourceExternal::parseResource([
 				'name' => $value['name'],
 				'protocol' => $value['protocol'],
+				'protocol_method' => (int)$value['protocol_method'],
 				'url' => $value['url'],
 				'url_options' => $value['url_options'],
 				'url_headers' => $value['url_headers'],
@@ -729,14 +745,14 @@ class data_linked_data extends base_module {
 				error(getLabel('msg_missing_information'));
 			}
 			
-			$arr = static::parseResourceExternal($_POST);
+			$arr = StoreResourceExternal::parseResource($_POST);
 			
 			$store_resource = new StoreResourceExternal();
 			$store_resource->storeResource((int)$id, $arr);
 			
 			$this->html = $this->createAddResource();
 			$this->refresh_table = true;
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "insert_conversion" || ($method == "update_conversion" && (int)$id)) {
@@ -757,7 +773,7 @@ class data_linked_data extends base_module {
 			
 			$this->html = $this->createAddResourceConversion();
 			$this->refresh_table = true;
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "del" && (int)$id) {
@@ -770,7 +786,7 @@ class data_linked_data extends base_module {
 			$store_resource = new StoreResourceExternal();
 			$store_resource->delResource($id);
 								
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "del_conversion" && (int)$id) {
@@ -782,43 +798,8 @@ class data_linked_data extends base_module {
 			
 			$store_resource = new StoreResourceExternal();
 			$store_resource->delConversion($id);
-								
-			$this->msg = true;
-		}
-	}
-	
-	public static function parseResourceExternal($arr) {
-		
-		$arr_url_headers = (array)$arr['url_headers'];
-		$arr['url_headers'] = [];
-		
-		foreach ($arr_url_headers as $key => $value) {
 			
-			if (is_array($value)) { // Form
-							
-				$key = trim($value['key']);
-				$value = trim($value['value']);
-			} else {
-				
-				$key = trim($key);
-				$value = trim($value);
-			}
-				
-			if (!$key) {
-				continue;
-			}
-				
-			$arr['url_headers'][$key] = $value;
+			$this->message = true;
 		}
-		
-		$arr_response_values = (array)$arr['response_values'];
-		$arr['response_values'] = [];
-		
-		foreach ($arr_response_values as $arr_value) {
-			
-			$arr['response_values'][$arr_value['name']] = $arr_value;
-		}
-		
-		return $arr;
 	}
 }

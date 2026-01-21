@@ -1,7 +1,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -12,7 +12,7 @@ function MapUtilities(PARENT) {
 
 	var SELF = this;
 	
-	var arr_assets_colors_parsed = {};
+	var arr_assets_colors_parsed = new Map();
 			
 	this.pointsToCenter = function(arr) {
 		
@@ -130,36 +130,64 @@ function MapUtilities(PARENT) {
 		}
 	};
 	
-	this.parseColor = function(str) {
+	this.parseColorToArray = function(str, num_opacity) {
 		
-		let arr_color = arr_assets_colors_parsed['a_'+str];
+		const str_identifier = 'a_'+str+num_opacity;
+		
+		let arr_color = arr_assets_colors_parsed.get(str_identifier);
 		
 		if (arr_color === undefined) {
 			
 			arr_color = parseCSSColor(str);
-			arr_assets_colors_parsed['a_'+str] = arr_color;
+			
+			if (num_opacity !== undefined && arr_color.a === 1) {
+				arr_color.a = num_opacity;
+			}
+			
+			arr_assets_colors_parsed.set(str_identifier, arr_color);
 		}
 		
 		return arr_color;
 	};
 	
-	this.parseColorToHex = function(str) {
+	this.parseColorToHex = function(str, num_opacity) {
 		
-		let hex = arr_assets_colors_parsed['h_'+str];
+		const str_identifier = 'h_'+str+num_opacity;
+		
+		let hex = arr_assets_colors_parsed.get(str_identifier);
 		
 		if (hex === undefined) {
 			
-			hex = parseCSSColorToHex(str);
-			arr_assets_colors_parsed['h_'+str] = hex;
+			const arr_color = SELF.parseColorToArray(str, num_opacity);
+			
+			hex = parseColorToHex(arr_color);
+			arr_assets_colors_parsed.set(str_identifier, hex);
 		}
 		
 		return hex;
+	};
+	
+	this.parseColorToString = function(str, num_opacity) {
+		
+		const str_identifier = 's_'+str+num_opacity;
+		
+		let str_new = arr_assets_colors_parsed.get(str_identifier);
+		
+		if (str_new === undefined) {
+			
+			const arr_color = SELF.parseColorToArray(str, num_opacity);
+			
+			str_new = 'rgba('+arr_color.r+','+arr_color.g+','+arr_color.b+','+arr_color.a+')';
+			arr_assets_colors_parsed.set(str_identifier, str_new);
+		}
+		
+		return str_new;
 	};
 		
 	this.colorToBrightColor = function(str, num_percent) {
 		
 		const str_identifier = 'b_'+str+'_'+num_percent;
-		let arr_color = arr_assets_colors_parsed[str_identifier];
+		let arr_color = arr_assets_colors_parsed.get(str_identifier);
 		
 		if (arr_color === undefined) {
 			
@@ -169,10 +197,21 @@ function MapUtilities(PARENT) {
 			arr_color.g = Math.floor(arr_color.g + (256 - arr_color.g) * num_percent / 100);
 			arr_color.b = Math.floor(arr_color.b + (256 - arr_color.b) * num_percent / 100);
 			
-			arr_assets_colors_parsed[str_identifier] = arr_color;
+			arr_assets_colors_parsed.set(str_identifier, arr_color);
 		}
 			
 		return arr_color;
+	};
+	
+	this.lerpColorsArray = function(arr_color_start, arr_color_end, num_amount) { // Interpolate two colours
+		
+		const num_t = Math.max(0, Math.min(1, num_amount)); // Keep num_amount between 0 and 1 to prevent exploding colours
+		
+		const num_r = Math.round(arr_color_start.r + (arr_color_end.r - arr_color_start.r) * num_t);
+		const num_g = Math.round(arr_color_start.g + (arr_color_end.g - arr_color_start.g) * num_t);
+		const num_b = Math.round(arr_color_start.b + (arr_color_end.b - arr_color_start.b) * num_t);
+
+		return {r: num_r, g: num_g, b: num_b};
 	};
 	
 	this.pointIsInside = function(xy, arr) {

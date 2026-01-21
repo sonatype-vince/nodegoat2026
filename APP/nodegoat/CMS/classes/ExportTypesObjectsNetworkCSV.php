@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -13,7 +13,7 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 	
 	protected $package = false;
 	protected $str_escape = false;
-		
+	
 	protected $arr_column_names = [];
 	protected $arr_column_identifiers = [];
 	protected $arr_column_identifier_keys = [];
@@ -21,9 +21,14 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 	
 	protected $arr_collector = [];
 	protected $arr_collector_connections = [];
-    
-    protected $do_collect_columns = false;
-    	
+	
+	protected $do_collect_columns = false;
+	
+	protected $num_rows = 0;
+	protected $num_length = 0;
+	
+	const STREAM_THRESHOLD_LENGTH = 50 * BYTE_MULTIPLIER * BYTE_MULTIPLIER;
+	
 	public function &collect($cur_target_object_id, $cur_arr, $source_path, $cur_path, $cur_target_type_id, $arr_info, $collect) {
 		
 		$str_identifier_column_base = $arr_info['identifier'];
@@ -35,7 +40,7 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 		
 		$arr_selection = $this->arr_type_network_types[$source_path][$cur_target_type_id];
 		
-		if ($arr_info['in_out'] == 'in') {
+		if ($arr_info['in_out'] == TraceTypesNetwork::PATH_IN) {
 
 			$this->arr_collector_connections[$str_identifier_column_base][$arr_info['object_id']][$cur_target_object_id] = $cur_target_object_id;
 			
@@ -45,7 +50,7 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 
 				$this->arr_collector[$str_identifier_connection_column][$cur_target_object_id] = $cur_target_object_id;
 			}
-		} else if ($arr_info['in_out'] == 'out') {
+		} else if ($arr_info['in_out'] == TraceTypesNetwork::PATH_OUT) {
 			
 			if ($arr_info['object_description_id']) {
 				
@@ -262,9 +267,9 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 			$has_multi = $arr_object_description['object_description_has_multi'];
 			
 			if ($arr_object_description['object_description_ref_type_id'] && !$arr_object_description['object_description_is_dynamic']) {
-				$value_type = 'ref_object_id';
+				$str_value_type = 'ref_object_id';
 			} else {
-				$value_type = $arr_object_description['object_description_value_type'];
+				$str_value_type = $arr_object_description['object_description_value_type'];
 			}
 		} else {
 			
@@ -275,9 +280,9 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 			$has_multi = false;
 			
 			if ($arr_object_sub_description['object_sub_description_ref_type_id'] && !$arr_object_sub_description['object_sub_description_is_dynamic']) {
-				$value_type = 'ref_object_id';
+				$str_value_type = 'ref_object_id';
 			} else {
-				$value_type = $arr_object_sub_description['object_sub_description_value_type'];
+				$str_value_type = $arr_object_sub_description['object_sub_description_value_type'];
 			}
 		}
 	
@@ -286,7 +291,7 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 		
 		// References
 		
-		if ($value_type == 'ref_object_id') {
+		if ($str_value_type == 'ref_object_id') {
 			
 			$arr_value = [];
 
@@ -346,7 +351,6 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 			$arr_value = [];
 			
 			foreach ($arr_definition[$key_value] as $key => $str_value) {
-	
 				$arr_value[$key] = FormatTypeObjects::clearObjectDefinitionText($str_value);
 			}
 			
@@ -360,10 +364,19 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 		// Values plain
 
 		if ($type == 'object_sub_description') {
-			return [$arr_options['object_sub_id'] => $arr_definition[$key_value][0]]; // Object definition value is casted to array earlier, select first element (0)
+			return [$arr_options['object_sub_id'] => static::formatToDataType($str_value_type, $arr_definition[$key_value][0])]; // Object definition value is casted to array earlier, select first element (0)
 		}
 		
-		return $arr_definition[$key_value];
+		return static::formatToDataType($str_value_type, $arr_definition[$key_value]);
+	}
+	
+	protected function formatToDataType($str_value_type, $value) {
+		
+		if ($str_value_type == 'vector') {
+			$value = FormatTypeObjects::parseValue($str_value_type, $value);
+		}
+		
+		return $value;
 	}
 	
 	protected function addColumn($type, $type_id, $str_identifier_column, $arr_column_base, $arr_options = []) {
@@ -667,10 +680,11 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 		}
 		
 		$this->class_collect->setInitLimit(static::$num_objects_stream);
-
-		while ($this->class_collect->init($this->arr_filters)) {
+		$num_stream_length = 0;
+		
+		while ($this->class_collect->init()) {
 			
-			$arr_objects = $this->class_collect->getPathObjects('0');
+			$arr_objects = $this->class_collect->getPathObjects(CollectTypesObjects::PATH_START);
 			
 			GenerateTypeObjects::setClearSharedTypeObjectNames(false); // Disabled clearing name cache
 
@@ -683,51 +697,135 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 
 				foreach ($this->iterateCollector($object_id) as $arr_row) {
 					
-					fputcsv($this->package, $arr_row, $str_separator, $str_enclose, CSV_ESCAPE);
+					$num_stream_length += fputcsv($this->package, $arr_row, $str_separator, $str_enclose, CSV_ESCAPE);
+					$this->num_rows++;
+					
+					if ($num_stream_length > static::STREAM_THRESHOLD_LENGTH) {
+						
+						fwrite($this->package, '[[STREAM]]'.EOL_1100CC);
+						
+						$this->num_length += $num_stream_length;
+						$num_stream_length = 0;
+					}
 				}
 			}
-			
+
 			// Manual clearing name cache, being disabled for the iterator
 			GenerateTypeObjects::setClearSharedTypeObjectNames(true);
 			GenerateTypeObjects::printSharedTypeObjectNames('');
 		}
 		
+		$this->num_length += $num_stream_length;
+		
 		rewind($this->package);
 
 		return ($this->package !== false ? true : false);
 	}
-	
+		
 	public function readPackage($str_filename) {
 		
-		$data = read($this->package);
+		if ($this->num_length <= static::STREAM_THRESHOLD_LENGTH) {
+			
+			$data = read($this->package);
+			ftruncate($this->package, 0);
+			fclose($this->package);
+				
+			Response::setFormat(Response::OUTPUT_CSV);
+			Response::setFormatSettings($this->str_escape);
+			$data = Response::parse($data);
+			
+			// UTF-8 BOM
+			$data = "\xEF\xBB\xBF".$data;
+
+			Response::sendFileHeaders($data, $str_filename.'.csv');
+			
+			echo $data;
+			
+			return;
+		}
+		
+		$str_parse = '';
 		
 		Response::setFormat(Response::OUTPUT_CSV);
 		Response::setFormatSettings($this->str_escape);
-		$data = Response::parse($data);
+		
+		Response::sendFileHeaders(null, $str_filename.'.csv');
 		
 		// UTF-8 BOM
-		$data = "\xEF\xBB\xBF".$data;
-
-		Response::sendFileHeaders($data, $str_filename.'.csv');
+		echo "\xEF\xBB\xBF";
 		
-		echo $data;
+		while (true) {
+			
+			$str_row = fgets($this->package);
+			
+			if ($str_row !== false && $str_row !== '[[STREAM]]'.EOL_1100CC) {
+				
+				$str_parse .= $str_row;
+				continue;
+			}
+
+			echo Response::parse($str_parse);
+			$str_parse = '';
+			
+			if ($str_row === false) {
+				break;
+			}
+		}
 	}
 	
 	public function getPackage() {
+
+		if ($this->num_length <= static::STREAM_THRESHOLD_LENGTH) {
 		
-		$data = read($this->package);
+			$data = read($this->package);
+			ftruncate($this->package, 0);
+						
+			Response::holdFormat(true);
+			
+			Response::setFormat(Response::OUTPUT_CSV);
+			Response::setFormatSettings($this->str_escape);
+			$data = Response::parse($data);
+			
+			Response::holdFormat();
+
+			fwrite($this->package, $data);
+			rewind($this->package);
+			
+			return $this->package;
+		}
+		
+		$package_new = getStreamMemory(false); 
+		$str_parse = '';
 		
 		Response::holdFormat(true);
-		
+				
 		Response::setFormat(Response::OUTPUT_CSV);
 		Response::setFormatSettings($this->str_escape);
-		$data = Response::parse($data);
+		
+		while (true) {
+			
+			$str_row = fgets($this->package);
+			
+			if ($str_row !== false && $str_row !== '[[STREAM]]'.EOL_1100CC) {
+				
+				$str_parse .= $str_row;
+				continue;
+			}
+			
+			fwrite($package_new, Response::parse($str_parse));
+			$str_parse = '';
+			
+			if ($str_row === false) {
+				break;
+			}
+		}
 		
 		Response::holdFormat();
 		
 		ftruncate($this->package, 0);
-		fwrite($this->package, $data);
+		fclose($this->package);
 		
+		$this->package = $package_new;
 		rewind($this->package);
 		
 		return $this->package;

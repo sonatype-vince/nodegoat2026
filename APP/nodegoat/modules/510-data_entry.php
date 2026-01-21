@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -143,8 +143,7 @@ class data_entry extends base_module {
 		
 		$filter = new FilterTypeObjects($type_id);
 		
-		// Clear result cache
-		$filter->clearResultInfo('data_entry');
+		// Clear some cache
 		toolbar::clearTypeFilterSet();
 		
 		if (!empty($this->arr_query['mode'][0]) && ($this->arr_query['mode'][0] == 'add' || $this->arr_query['mode'][0] == 'edit')) {
@@ -205,15 +204,15 @@ class data_entry extends base_module {
 					$num_columns++;
 				}
 				
-				$can_edit = ($_SESSION['NODEGOAT_CLEARANCE'] > NODEGOAT_CLEARANCE_INTERACT && static::checkClearanceType($type_id, false) && custom_projects::checkAccessType(StoreCustomProject::ACCESS_PURPOSE_EDIT, $type_id, false));
-				$can_create = ($can_edit && custom_projects::checkAccessType(StoreCustomProject::ACCESS_PURPOSE_CREATE, $type_id, false));
+				$has_edit = ($_SESSION['NODEGOAT_CLEARANCE'] > NODEGOAT_CLEARANCE_INTERACT && static::checkClearanceType($type_id, false) && custom_projects::checkAccessType(StoreCustomProject::ACCESS_PURPOSE_EDIT, $type_id, false));
+				$has_create = ($has_edit && custom_projects::checkAccessType(StoreCustomProject::ACCESS_PURPOSE_CREATE, $type_id, false));
 				
-				$return .= ($can_edit ? '<th title="'.getLabel('lbl_version').'" data-sort="desc-0" data-identifier="version"><span>V</span></th>' : '').'
-				'.($can_edit ? '<th class="disable-sort menu" id="x:data_entry:type_id-'.$type_id.'" title="'.getLabel('lbl_multi_select').'">'
+				$return .= ($has_edit ? '<th title="'.getLabel('lbl_status').'" data-sort="desc-0" data-identifier="status"><span>🞱</span></th>' : '').'
+				'.($has_edit ? '<th class="disable-sort menu" id="x:data_entry:type_id-'.$type_id.'" title="'.getLabel('lbl_multi_select').'">'
 					.'<div class="hide-edit hide">'
 						.'<input type="button" class="data edit popup popup_find_change" value="c" title="'.getLabel('lbl_change').'" />'
-						.($can_create ? '<input type="button" class="data edit popup popup_merge" value="m" title="'.getLabel('lbl_merge').'" />' : '')
-						.($can_create ? '<input type="button" class="data del quick delete_bulk" value="d" title="'.getLabel('lbl_delete').'" />' : '')
+						.($has_create ? '<input type="button" class="data edit popup popup_merge" value="m" title="'.getLabel('lbl_merge').'" />' : '')
+						.($has_create ? '<input type="button" class="data del quick delete_bulk" value="d" title="'.getLabel('lbl_delete').'" />' : '')
 					.'</div>'
 					.'<input type="button" class="data neutral" value="multi" />'
 					.'<input type="checkbox" class="multi all" value="" />'
@@ -400,7 +399,7 @@ class data_entry extends base_module {
 
 		if ($arr_type_set['type']['use_object_name']) {
 			
-			$is_changed = ($arr_object_set_changes && $arr_object_set_changes['object']['object_version'] != 'added' && $arr_object_set_changes['object']['object_name_plain'] != $arr_object_set['object']['object_name_plain']);
+			$is_changed = ($arr_object_set_changes && $arr_object_set_changes['object']['object_state'] != StoreTypeObjects::OBJECT_STATE_ADDED && $arr_object_set_changes['object']['object_name_plain'] != $arr_object_set['object']['object_name_plain']);
 			
 			$html_object .= '<li>
 				<label>'.getLabel('lbl_name').'</label>
@@ -440,7 +439,7 @@ class data_entry extends base_module {
 			$str_classes = 'definition';
 				
 			$definition_type = ($arr_object_description['object_description_ref_type_id'] ? 'object_definition_ref_object_id' : 'object_definition_value');
-			$is_changed = ($arr_object_set_changes && $arr_object_set_changes['object']['object_version'] != 'added' && $arr_object_set_changes['object_definitions'][$object_description_id][$definition_type] != $arr_object_set['object_definitions'][$object_description_id][$definition_type]);
+			$is_changed = ($arr_object_set_changes && $arr_object_set_changes['object']['object_state'] != StoreTypeObjects::OBJECT_STATE_ADDED && $arr_object_set_changes['object_definitions'][$object_description_id][$definition_type] != $arr_object_set['object_definitions'][$object_description_id][$definition_type]);
 			$arr_object_definition = ($arr_object_set_changes ? $arr_object_set_changes['object_definitions'][$object_description_id] : $arr_object_set['object_definitions'][$object_description_id]);
 			$has_multi = $arr_object_description['object_description_has_multi'];
 			$is_module = StoreType::isValueTypeModule($arr_object_description['object_description_value_type']);
@@ -640,7 +639,7 @@ class data_entry extends base_module {
 								$arr_collect_object_sub_details[$object_sub_details_id] = $object_sub_details_id;
 								unset($arr_direct_show[$object_sub_details_id]);
 
-								if (!$arr_object_sub['object_sub']['object_sub_version']) { // Only show changed subobjects in the initial view
+								if (!$arr_object_sub['object_sub']['object_sub_state']) { // Only show changed subobjects in the initial view
 									continue;
 								}
 							
@@ -917,7 +916,7 @@ class data_entry extends base_module {
 			
 			$arr_object_sub_changes = $arr_object_subs_changes[$key];
 			
-			$is_changed = ($arr_object_sub_changes && (($arr_object_sub_changes['object_sub']['object_sub_version'] != 'added' && $arr_object_sub_changes['object_sub'] !== $arr_object_sub['object_sub']) || $arr_object_sub_changes['object_sub']['object_sub_version'] == 'deleted'));
+			$is_changed = ($arr_object_sub_changes && (($arr_object_sub_changes['object_sub']['object_sub_state'] != StoreTypeObjects::OBJECT_STATE_ADDED && $arr_object_sub_changes['object_sub'] !== $arr_object_sub['object_sub']) || $arr_object_sub_changes['object_sub']['object_sub_state'] == StoreTypeObjects::OBJECT_STATE_DELETED));
 			$arr_object_sub_value = ($arr_object_sub_changes ? $arr_object_sub_changes['object_sub'] : $arr_object_sub['object_sub']);
 			$str_sources = ($arr_object_sub_value['object_sub_sources'] ? strEscapeHTML(value2JSON($arr_object_sub_value['object_sub_sources'])) : '');
 			if ($arr_object_sub_details['object_sub_details']['object_sub_details_type_id']) { // Referenced?
@@ -937,7 +936,7 @@ class data_entry extends base_module {
 					(!$arr_object_sub_details['object_sub_details']['object_sub_details_is_single'] && keyIsUncontested('button_copy', $arr_options) ? '<input type="button" id="y:data_entry:copy_object_sub-'.$type_id.'_'.$object_id.'_'.$object_sub_details_id.'" class="data popup neutral" value="copy" />' : ''),
 					(!($arr_object_sub_details['object_sub_details']['object_sub_details_is_required'] && $arr_object_sub_details['object_sub_details']['object_sub_details_is_single']) && keyIsUncontested('button_delete', $arr_options) ? '<input type="button" class="data del" value="del" />' : '')
 				],
-				'hidden' => ($arr_object_sub_value['object_sub_id'] ? '<input type="hidden" name="'.$form_name.'[object_sub_id]" value="'.$arr_object_sub_value['object_sub_id'].'" /><input type="hidden" name="'.$form_name.'[object_sub_version]" value="'.$arr_object_sub_value['object_sub_version'].'" />' : '')
+				'hidden' => ($arr_object_sub_value['object_sub_id'] ? '<input type="hidden" name="'.$form_name.'[object_sub_id]" value="'.$arr_object_sub_value['object_sub_id'].'" /><input type="hidden" name="'.$form_name.'[object_sub_state]" value="'.$arr_object_sub_value['object_sub_state'].'" />' : '')
 					.'<input type="hidden" name="'.$form_name.'[object_sub_details_id]" value="'.$object_sub_details_id.'" />'
 					.'<input type="hidden" name="'.$form_name.'[object_sub_self]" value="1" />',
 			];
@@ -969,7 +968,7 @@ class data_entry extends base_module {
 					$is_reversal = ($arr_object_sub_description['object_sub_description_ref_type_id'] && !is_array($arr_object_sub_description['object_sub_description_ref_type_id']) && $arr_types[$arr_object_sub_description['object_sub_description_ref_type_id']]['class'] == StoreType::TYPE_CLASS_REVERSAL ? true : false);
 					$has_clearance_edit = (data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_EDIT, $arr_type_set, false, $object_sub_details_id, $object_sub_description_id) && custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_EDIT, $arr_project['types'], $arr_type_set, false, $object_sub_details_id, $object_sub_description_id));
 					$definition_type = ($arr_object_sub_description['object_sub_description_ref_type_id'] ? 'object_sub_definition_ref_object_id' : 'object_sub_definition_value');
-					$is_changed = ($arr_object_sub_changes && $arr_object_sub_changes['object_sub']['object_sub_version'] != 'added' && $arr_object_sub_changes['object_sub_definitions'][$object_sub_description_id][$definition_type] != $arr_object_sub['object_sub_definitions'][$object_sub_description_id][$definition_type]);
+					$is_changed = ($arr_object_sub_changes && $arr_object_sub_changes['object_sub']['object_sub_state'] != StoreTypeObjects::OBJECT_STATE_ADDED && $arr_object_sub_changes['object_sub_definitions'][$object_sub_description_id][$definition_type] != $arr_object_sub['object_sub_definitions'][$object_sub_description_id][$definition_type]);
 					$arr_object_sub_definition = ($arr_object_sub_changes ? $arr_object_sub_changes['object_sub_definitions'][$object_sub_description_id] : $arr_object_sub['object_sub_definitions'][$object_sub_description_id]);
 					$arr_format_extra = ['type_id' => $type_id, 'ref_type_id' => $arr_object_sub_description['object_sub_description_ref_type_id'], 'context' => $arr_object_sub_description + ['object_sub_details_id' => $object_sub_details_id]];
 					
@@ -1127,7 +1126,7 @@ class data_entry extends base_module {
 				if ($is_multi && $key == 0) { // Add source row
 					$arr_sorter[] = ['value' => $arr_html, 'source' => true];
 				} else {
-					$arr_sorter[] = ['value' => $arr_html, 'class' => ($arr_object_sub_value['object_sub_version'] ? $arr_object_sub_value['object_sub_version'] : '')];
+					$arr_sorter[] = ['value' => $arr_html, 'class' => ($arr_object_sub_value['object_sub_state'] ? $arr_object_sub_value['object_sub_state'] : '')];
 				}
 				
 			} else {
@@ -1146,7 +1145,7 @@ class data_entry extends base_module {
 					}
 				}
 				
-				$return = '<fieldset'.($arr_object_sub_value['object_sub_version'] ? ' class="'.$arr_object_sub_value['object_sub_version'].'"' : '').'><legend>'
+				$return = '<fieldset'.($arr_object_sub_value['object_sub_state'] ? ' class="'.$arr_object_sub_value['object_sub_state'].'"' : '').'><legend>'
 						.'<span'.($str_version ? ' title="'.$str_version.'"' : '').'>'
 						.($arr_object_sub_details['object_sub_details']['object_sub_details_type_id'] ? '<span class="icon" data-category="direction" title="'.getLabel('lbl_referenced').'">'.getIcon('leftright-right').'</span><span>'.strEscapeHTML(Labels::parseTextVariables($arr_types[$arr_object_sub_details['object_sub_details']['object_sub_details_type_id']]['name'])).'</span> ' : '')
 						.'<span class="sub-name">'.Labels::parseTextVariables($arr_object_sub_details['object_sub_details']['object_sub_details_name']).'</span></span>'
@@ -2162,56 +2161,60 @@ class data_entry extends base_module {
 		return $return;
 	}
 	
-	private static function createChangesTypeObject($type_id, $object_id, $arr_object, $arr_object_changes) {
+	private static function createStatusTypeObject($type_id, $object_id, $arr_object) {
 		
 		$arr_type_set = StoreType::getTypeSet($type_id);
 		
 		$return_locked = '';
 		$return_version = '';
 		$return_dating = '';
+		$return_other = '';
 		
-		if ($arr_object_changes['object']['object_locked']) {
-			
+		if ($arr_object['object']['object_locked']) {
 			$return_locked = '<h1>'.Response::addParsePost(getLabel('lbl_locked'), ['case' => 'upper']).'</h1>';
 		}
 		
-		if ($arr_object_changes['object']['object_dating']) {
-			
-			$return_dating = '<h1>'.getLabel('lbl_changed').':</h1><dl><div><dt></dt><dd>'.date('d-m-Y H:i', strtotime($arr_object_changes['object']['object_dating'])).'</dd></div></dl>';
+		if ($arr_object['object']['object_dating']) {
+			$return_dating = '<h1>'.getLabel('lbl_changed').':</h1><dl><div><dt></dt><dd>'.date('d-m-Y H:i', strtotime($arr_object['object']['object_dating'])).'</dd></div></dl>';
 		}
 		
-		if ($arr_object_changes['object']['object_version'] == 'added' || $arr_object_changes['object']['object_version'] == 'deleted') {
+		if ($arr_object['object']['object_state'] == StoreTypeObjects::OBJECT_STATE_ADDED || $arr_object['object']['object_state'] == StoreTypeObjects::OBJECT_STATE_DELETED) {
 			
-			$return_version = '<div>'.getLabel('lbl_'.$arr_object_changes['object']['object_version']).'</div>';
-		} else {
+			$return_version = '<div>'.getLabel('lbl_'.$arr_object['object']['object_state']).'</div>';
+		} else if ($arr_object['object']['object_state'] == StoreTypeObjects::OBJECT_STATE_ATTENTION) {
 			
-			$return_changes = '';
+			$return_other = '<h1>'.Response::addParsePost(getLabel('lbl_attention'), ['case' => 'upper']).'</h1>';
+		} else if ($arr_object['object']['object_changes']) {
 			
-			if ($arr_object['object']['object_name_plain'] != $arr_object_changes['object']['object_name_plain']) {
-				$return_changes .= '<div><dt>'.getLabel('lbl_name').'</dt><dd>'.strEscapeHTML($arr_object_changes['object']['object_name_plain']).'</dd></div>';
+			$str_html_changes = '';
+			$arr_changes = str2Array($arr_object['object']['object_changes'], '/');
+			
+			if ($arr_changes[0]) {
+				$str_html_changes .= '<div><dt>'.getLabel('lbl_changed').'</dt><dd>'.getLabel('lbl_name').'</dd></div>';
 			}
 			
-			if ($arr_object['object']['object_changes']) {
-				$return_changes .= '<div>
+			if ($arr_changes[1]) {
+				
+				$str_html_changes .= '<div>
 					<dt>'.getLabel('lbl_changed').' '.getLabel('lbl_object_descriptions').'</dt>
-					<dd>'.$arr_object['object']['object_changes'].'x</dd>
+					<dd>'.$arr_changes[1].'x</dd>
 				</div>';
 			}
 			
-			if ($arr_object['object']['object_sub_changes']) {
-				$return_changes .= '<div>
+			if ($arr_changes[2]) {
+				
+				$str_html_changes .= '<div>
 					<dt>'.getLabel('lbl_changed').' '.getLabel('lbl_object_subs').'</dt>
-					<dd>'.$arr_object['object']['object_sub_changes'].'x</dd>
+					<dd>'.$arr_changes[2].'x</dd>
 				</div>';
 			}
 					
-			if ($return_changes) {
-				$return_version .= $return_changes;
+			if ($str_html_changes) {
+				$return_version .= $str_html_changes;
 			}
 		}
 		
 		if (!$return_locked && !$return_version && !$return_dating) {
-			
 			return [];
 		}
 		
@@ -2221,6 +2224,8 @@ class data_entry extends base_module {
 			$return = '<dl>'.$return_version.'</dl>'.$return_dating;
 			$return = strEscapeHTML($return);
 			$return = ['html' => '<input type="button" class="data add quick accept_version" value=" " title="<h1>'.Response::addParsePost(getLabel('lbl_accept'), ['case' => 'upper']).' '.getLabel('lbl_version').':</h1>'.$return.'" /><input type="button" class="data del quick discard_version" value=" " title="<h1>'.Response::addParsePost(getLabel('lbl_discard'), ['case' => 'upper']).' '.getLabel('lbl_version').':</h1>'.$return.'" />'];
+		} else if ($return_other) {
+			$return = ['title' => $return_other.$return_dating, 'html' => '<span class="icon">'.getIcon('attention').'</span>'];
 		} else {
 			$return = ['title' => $return_dating];
 		}
@@ -2891,6 +2896,7 @@ class data_entry extends base_module {
 			.data_entry > .tabs > div > menu button .icon + span { margin-left: 4px; }
 			.data_entry > .tabs > div > menu button .icon > svg { height: 12px; }
 			.data_entry .datatable > .options .count > sup { margin-left: 0.1em; font-size: 1em; cursor: default; }
+			.data_entry .datatable > table tr > th[data-identifier="status"] { font-family: var(--font-symbol); }
 			
 			.entry fieldset.object > ul { display: block; }
 			
@@ -2961,9 +2967,9 @@ class data_entry extends base_module {
 
 			.entry.object-subs fieldset > legend > span > span { vertical-align: middle; }
 			.entry.object-subs fieldset.added > legend:before,
-			.entry.object-subs fieldset li.added > ul:before { content:"+++"; margin-right: 4px; font-weight: bold; }
+			.entry.object-subs fieldset li.added > ul:before { content:"+++"; margin-right: 4px; font-weight: bold; vertical-align: middle; }
 			.entry.object-subs fieldset.deleted > legend:before,
-			.entry.object-subs fieldset li.deleted > ul:before { content:"---"; margin-right: 4px; font-weight: bold; }
+			.entry.object-subs fieldset li.deleted > ul:before { content:"---"; margin-right: 4px; font-weight: bold; vertical-align: middle; }
 			.entry.object-subs fieldset.deleted .del,
 			.entry.object-subs fieldset li.deleted .del { display: none; }
 			
@@ -3066,7 +3072,6 @@ class data_entry extends base_module {
 					}
 					
 					const func_command = function() {
-						
 						COMMANDS.quickCommand(elm_command);
 					};
 					
@@ -3304,7 +3309,7 @@ class data_entry extends base_module {
 					var target = cur.closest('fieldset');
 				}
 				if (target.find('[name$=\"[object_sub][object_sub_id]\"]').length) {
-					target.addClass('deleted').find('[name*=object_sub_version]').val('deleted');
+					target.addClass('".StoreTypeObjects::OBJECT_STATE_DELETED."').find('[name*=object_sub_state]').val('".StoreTypeObjects::OBJECT_STATE_DELETED."');
 				} else {
 					target.remove();
 				}
@@ -3915,7 +3920,7 @@ class data_entry extends base_module {
 				
 				if ($method == 'accept_version') {
 					
-					if ($arr_object_set['object']['object_version'] == 'deleted') {
+					if ($arr_object_set['object']['object_state'] == StoreTypeObjects::OBJECT_STATE_DELETED) {
 						
 						$this->html = getLabel('conf_object_delete');
 						$this->do_confirm = true;
@@ -3925,7 +3930,7 @@ class data_entry extends base_module {
 					$method_accept_version = true;
 				} else {
 					
-					if ($arr_object_set['object']['object_version'] == 'added') {
+					if ($arr_object_set['object']['object_state'] == StoreTypeObjects::OBJECT_STATE_ADDED) {
 						
 						$this->html = getLabel('conf_object_delete');
 						$this->do_confirm = true;
@@ -3936,7 +3941,7 @@ class data_entry extends base_module {
 				}
 				
 				$this->refresh_table = true;
-				$this->msg = true;
+				$this->message = true;
 			} else {
 				
 				if ($_SESSION['NODEGOAT_CLEARANCE'] < NODEGOAT_CLEARANCE_USER) {
@@ -3956,7 +3961,7 @@ class data_entry extends base_module {
 				}
 				
 				$this->refresh_table = true;
-				$this->msg = true;
+				$this->message = true;
 			}
 		}
 		
@@ -4291,7 +4296,7 @@ class data_entry extends base_module {
 				
 				$arr_objects_object_subs[$object_id][]['object_sub'] = [
 					'object_sub_id' => $object_sub_id,
-					'object_sub_version' => 'deleted',
+					'object_sub_state' => StoreTypeObjects::OBJECT_STATE_DELETED,
 				];
 			}
 			
@@ -4310,7 +4315,7 @@ class data_entry extends base_module {
 			}
 			
 			$this->refresh_table = true;
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "select_chronology") {
@@ -4471,7 +4476,7 @@ class data_entry extends base_module {
 			
 			$storage->removeLockDiscussion($lock_key);
 			
-			$this->msg = true;
+			$this->message = true;
 			$this->html = $this->createDiscussionContent($type_id, $object_id);
 		}
 			
@@ -4674,7 +4679,7 @@ class data_entry extends base_module {
 			$filter = new FilterTypeObjects($type_id, GenerateTypeObjects::VIEW_OVERVIEW, true);
 			$filter->setScope(['users' => $_SESSION['USER_ID'], 'types' => $arr_ref_type_ids, 'project_id' => $_SESSION['custom_projects']['project_id']]);
 			
-			$filter->setVersioning();
+			$filter->setVersioning(GenerateTypeObjects::VERSIONING_FULL);
 			$filter->setVersioningFilter(GenerateTypeObjects::VERSIONING_ADDED);
 			
 			$arr_selection = ['object' => ['all' => true], 'object_descriptions' => [], 'object_sub_details' => []];
@@ -4682,8 +4687,7 @@ class data_entry extends base_module {
 			$arr_analyses_active = data_analysis::getTypeAnalysesActive($type_id);
 			
 			if ($arr_analyses_active) {
-				
-				$arr_selection['object']['analysis'] = $arr_analyses_active;
+				$arr_selection['object']['object_analysis'] = $arr_analyses_active;
 			}
 			
 			foreach ($arr_type_set['object_descriptions'] as $object_description_id => $arr_object_description) {
@@ -4723,7 +4727,7 @@ class data_entry extends base_module {
 							$num_count_columns++;
 						}
 						
-						if ($arr_selection['object']['analysis']) { 
+						if ($arr_selection['object']['object_analysis']) { 
 							
 							if ($num_column == $num_count_columns) {
 								$arr_ordering['object_analysis'] = $str_direction; // Object analysis
@@ -4754,7 +4758,9 @@ class data_entry extends base_module {
 			$arr_filter = data_filter::parseUserFilterInput($value);
 			$has_filter_input = ($arr_filter ? true : false);
 			
-			$arr_set_cache = false;
+			$arr_set_cache = null;
+			$has_set_cache = null;
+			$has_scenario_cache = null;
 				
 			if ($has_filter_input) { // When there is a filter active, check for client or scenario cache 
 				
@@ -4765,7 +4771,6 @@ class data_entry extends base_module {
 				$arr_filters = ($arr_filters['arr_filters'] ?? []);
 				
 				$scenario_id = SiteStartEnvironment::getFeedback('scenario_id');
-				$has_scenario_cache = null;
 
 				if ($scenario_id) { // Check for scenario filter
 					
@@ -4781,17 +4786,14 @@ class data_entry extends base_module {
 						$arr_set_cache = ['result' => null];
 						
 						if ($has_scenario_cache) {
-						
 							$arr_set_cache['result'] = $cache_scenario->getCache();
 						} else {
-							
-							status(getLabel('msg_building_cache_scenario_filter'), false, getLabel('msg_wait'), ['identifier' => SiteStartEnvironment::getSessionId(true).'cache_scenario_filter', 'duration' => 1000, 'persist' => true]);
+							status(getLabel('msg_building_cache_scenario_filter'), false, getLabel('msg_wait'), ['identifier' => SiteStartEnvironment::getSessionID(true).'cache_scenario_filter', 'duration' => 1000, 'persist' => true]);
 						}
 					}
 				}
 				
 				if ($has_scenario_cache === null) { // Check for client cache 
-					
 					$arr_set_cache = toolbar::getTypeFilterSet($type_id, $arr_filters);
 				}
 			}
@@ -4825,7 +4827,7 @@ class data_entry extends base_module {
 					
 					if ($has_scenario_cache) {
 						
-						$filter->setDifferentiationIdentifier(SiteStartEnvironment::getSessionId()); // Keep temporary table name the same (when applicable) over multiple requests
+						$filter->setDifferentiationIdentifier(SiteStartEnvironment::getSessionID()); // Keep temporary table name the same (when applicable) over multiple requests
 						$table_name = $filter->storeIDsTemporarily($arr_filter_set['objects'], true);
 						
 						if (!$has_order) { // Set order to temporary table and internally to none when scenario is opened
@@ -4865,8 +4867,11 @@ class data_entry extends base_module {
 				timeLimit($arr_nodegoat_details['processing_time']);
 			}
 			
-			//$filter->debug();
-			$arr_changes = $filter->init();
+			if (Settings::get('debug', 'nodegoat_filter')) {
+				$filter->debug();
+			}
+			//$str_sql_table_name = $filter->storeResultTemporarily(true, true);
+			$arr_objects_latest = $filter->init();
 
 			if ($arr_set_cache) {
 				
@@ -4874,7 +4879,7 @@ class data_entry extends base_module {
 					
 					$arr_set_result = [];
 
-					$arr_info = $filter->getResultInfo(['statistics' => true, 'objects' => true], 'data_entry');
+					$arr_info = $filter->getResultInfo(['statistics' => true, 'objects' => true]);
 					
 					$arr_set_result['objects'] = $arr_info['objects'];
 					unset($arr_info['objects']);
@@ -4883,7 +4888,7 @@ class data_entry extends base_module {
 						
 						$cache_scenario->updateCache($arr_set_result);
 						
-						clearStatus(SiteStartEnvironment::getSessionId(true).'cache_scenario_filter');
+						clearStatus(SiteStartEnvironment::getSessionID(true).'cache_scenario_filter');
 					} else {
 
 						$arr_set_cache['result'] = $arr_set_result;
@@ -4893,7 +4898,7 @@ class data_entry extends base_module {
 				}
 			}
 			
-			$arr_info = $filter->getResultInfo(['statistics' => true], 'data_entry');
+			$arr_info = $filter->getResultInfo(['statistics' => true]);
 			
 			$str_info = ($arr_info['statistics']['added'] ? '<sup title="'.strEscapeHTML('<ul><li><label>'.getLabel('lbl_active').'</label><span>'.$arr_info['statistics']['active'].'</span></li><li><label>'.getLabel('lbl_clearance_under_review').'</label><span>'.$arr_info['statistics']['added'].'</span></li></ul>').'">*</sup>' : null);
 			$str_filtered_info = ($arr_info['statistics_filtered']['added'] ? '<sup title="'.strEscapeHTML('<ul><li><label>'.getLabel('lbl_active').'</label><span>'.$arr_info['statistics_filtered']['active'].'</span></li><li><label>'.getLabel('lbl_clearance_under_review').'</label><span>'.$arr_info['statistics_filtered']['added'].'</span></li></ul>').'">*</sup>' : null);
@@ -4906,14 +4911,29 @@ class data_entry extends base_module {
 				'data' => []
 			];
 			
-			if ($arr_changes) {
+			$arr_objects_active = [];
+			
+			foreach ($arr_objects_latest as $object_id => $arr_object_latest) {
+				
+				if (!$arr_object_latest['object']['object_state']) {
+					continue;
+				}
+				
+				$arr_objects_active[$object_id] = $object_id;
+			}
+			
+			if ($arr_objects_active) {
 				
 				$filter = new FilterTypeObjects($type_id, GenerateTypeObjects::VIEW_OVERVIEW);
 				$filter->setConditions(GenerateTypeObjects::CONDITIONS_MODE_STYLE, $arr_conditions);
 				$filter->setScope(['users' => $_SESSION['USER_ID'], 'types' => $arr_ref_type_ids, 'project_id' => $_SESSION['custom_projects']['project_id']]);
 				$filter->setSelection($arr_selection);
-				$filter->setFilter(['objects' => array_keys($arr_changes)]);
-				$arr_original = $filter->init();
+
+				$filter->setFilter(['objects' => $arr_objects_active]);
+				//$filter->setFilter(['table' => $str_sql_table_name]);
+				//$filter->storeResultTemporarily(false, true);
+				
+				$arr_objects_active = $filter->init();
 			}
 			
 			$is_type_system_process = false;
@@ -4924,9 +4944,9 @@ class data_entry extends base_module {
 				}
 			}
 					
-			foreach ($arr_changes as $object_id => $arr_object) {
+			foreach ($arr_objects_latest as $object_id => $arr_object_latest) {
 				
-				$arr_object_use = ($arr_original[$object_id] ?: $arr_object);
+				$arr_object_use = ($arr_objects_active[$object_id] ?? $arr_object_latest);
 				$count = 0;
 				
 				$arr_data = [];
@@ -4969,7 +4989,7 @@ class data_entry extends base_module {
 					
 					$count++;
 				}
-				if ($arr_selection['object']['analysis']) {
+				if ($arr_selection['object']['object_analysis']) {
 					
 					$arr_data['cell'][$count]['attr']['class'] = 'analysis';
 					$arr_data[] = $arr_object_use['object']['object_analysis'];
@@ -4978,12 +4998,12 @@ class data_entry extends base_module {
 				}
 				if ($_SESSION['NODEGOAT_CLEARANCE'] > NODEGOAT_CLEARANCE_INTERACT && static::checkClearanceType($type_id, false) && custom_projects::checkAccessType(StoreCustomProject::ACCESS_PURPOSE_EDIT, $type_id, false)) {
 					
-					$arr_changes_info = $this->createChangesTypeObject($type_id, $arr_object_use['object']['object_id'], $arr_original[$object_id], $arr_object);
+					$arr_status_info = $this->createStatusTypeObject($type_id, $arr_object_use['object']['object_id'], $arr_object_latest);
 					
-					if ($arr_changes_info['title']) {
-						$arr_data['cell'][$count]['attr']['title'] = $arr_changes_info['title'];
+					if ($arr_status_info['title']) {
+						$arr_data['cell'][$count]['attr']['title'] = $arr_status_info['title'];
 					}
-					$arr_data[] = $arr_changes_info['html'];
+					$arr_data[] = $arr_status_info['html'];
 					
 					$html_menu = ($is_type_system_process ? '<input type="button" class="data add run" value="run" />' : '')
 						.'<input type="button" class="data edit" value="edit" />'
@@ -5015,7 +5035,11 @@ class data_entry extends base_module {
 			$arr_types = StoreType::getTypes(array_keys($arr_project['types']));
 			
 			$arr_type_set = StoreCustomProject::getTypeSetReferenced($type_id, $arr_project['types'][$type_id], StoreCustomProject::ACCESS_PURPOSE_EDIT);
-			$arr_object_sub_details = $arr_type_set['object_sub_details'][$object_sub_details_id];
+			$arr_object_sub_details = ($arr_type_set['object_sub_details'][$object_sub_details_id] ?? null);
+			
+			if ($object_sub_details_id != 'all' && !$arr_object_sub_details) {
+				return;
+			}
 			
 			if ($object_sub_details_id != 'all' && (!data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, false, $object_sub_details_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, false, $object_sub_details_id))) {
 				return;
@@ -5354,13 +5378,13 @@ class data_entry extends base_module {
 		
 			$this->reset_form = true;
 			$this->refresh_table = true;
-			$this->msg = true;
+			$this->message = true;
 		}
 		if ($method == "update" && $id) {
 					
 			$this->html = self::createAddTypeObject($type_id, $arr_type_set['type']['name']);
 			$this->refresh_table = true;
-			$this->msg = true;
+			$this->message = true;
 		}
 		if ($method == "insert_quick") {
 			
@@ -5373,7 +5397,7 @@ class data_entry extends base_module {
 			$str_object_name = $arr_object['object']['object_name'];
 			
 			$this->html = ['id' => $object_id, 'value' => $str_object_name];
-			$this->msg = true;
+			$this->message = true;
 		}
 		if ($method == "update_quick" && $id) {
 			
@@ -5381,7 +5405,7 @@ class data_entry extends base_module {
 				$this->html = data_view::createViewTypeObject($type_id, $arr_id[1]);
 			}
 
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "process" || $method == "check_process") {
@@ -5445,6 +5469,7 @@ class data_entry extends base_module {
 			}
 			
 			$arr_filter_input = data_filter::parseUserFilterInput($value['filter']);
+			
 			if ($arr_filter_input) {
 				$arr_filter[] = $arr_filter_input;
 			}
@@ -5459,7 +5484,9 @@ class data_entry extends base_module {
 			
 			$arr_project = StoreCustomProject::getProjects($_SESSION['custom_projects']['project_id']);
 			$arr_type_set = StoreType::getTypeSet($type_id);
-			$arr_project_type = $arr_project['types'][$type_id];			
+			$arr_project_type = $arr_project['types'][$type_id];
+			
+			$str_sql_project_filter_table_name = null;
 			
 			if ($arr_project_type['type_filter_id']) {
 				
@@ -5472,8 +5499,8 @@ class data_entry extends base_module {
 				$arr_project_filters = cms_nodegoat_custom_projects::getProjectTypeFilters($_SESSION['custom_projects']['project_id'], false, false, $arr_project_type['type_filter_id'], true, $arr_use_project_ids);
 				$filter->setFilter(FilterTypeObjects::convertFilterInput($arr_project_filters['object']));
 				
-				$sql_table_name = $filter->storeResultTemporarily(uniqid(), true);
-				$arr_filter['table'] = $sql_table_name;
+				$str_sql_project_filter_table_name = $filter->storeResultTemporarily(uniqid(), true);
+				$arr_filter['table'] = $str_sql_project_filter_table_name;
 			}
 		}
 		
@@ -5610,7 +5637,7 @@ class data_entry extends base_module {
 			}
 			
 			$this->refresh_table = true;
-			$this->msg = true;	
+			$this->message = true;	
 		}
 		
 		if ($method == 'find_change' && $id && $this->is_confirm !== false) {
@@ -5653,6 +5680,10 @@ class data_entry extends base_module {
 				
 				$this->do_confirm = true;
 				return;
+			}
+			
+			if ($str_sql_project_filter_table_name) {
+				GenerateTypeObjects::keepResult($str_sql_project_filter_table_name); // Save from dropResults
 			}
 			
 			GenerateTypeObjects::dropResults(); // Cleanup possible leftover tables: clean transaction
@@ -5743,7 +5774,7 @@ class data_entry extends base_module {
 			$storage_lock->removeLockObject();
 			
 			$this->refresh_table = true;
-			$this->msg = true;	
+			$this->message = true;	
 		}
 		
 		if ($method == 'delete' && $id) {
@@ -5847,8 +5878,10 @@ class data_entry extends base_module {
 			
 			$storage->delTypeObject(($_SESSION['NODEGOAT_CLEARANCE'] >= NODEGOAT_CLEARANCE_USER));
 			
+			$storage->removeLockObject();
+			
 			$this->refresh_table = true;
-			$this->msg = true;					
+			$this->message = true;					
 		}
 	}
 	
@@ -5932,7 +5965,7 @@ class data_entry extends base_module {
 		];
 		
 		$arr_object_definitions = [];
-		$arr_object_definitions_files = ($_FILES['object_definition'] ? arrRearrangeParams($_FILES['object_definition']) : []);
+		$arr_object_definitions_files = ($_FILES['object_definition'] ? arrRearrangeKeysValues($_FILES['object_definition']) : []);
 		$arr_referenced_type_objects = [];
 		
 		foreach ((array)$arr_input['object_definition'] as $object_description_id => $arr_object_definition) {
@@ -5945,8 +5978,8 @@ class data_entry extends base_module {
 			
 			if ($arr_object_description['object_description_value_type'] == 'media' && $arr_object_definitions_files[$object_description_id]) {
 				
-				$arr_object_definitions_files_value = arrRearrangeParams($arr_object_definitions_files[$object_description_id]);
-				$arr_object_definitions_files_value = arrRearrangeParams($arr_object_definitions_files_value['object_definition_value']);
+				$arr_object_definitions_files_value = arrRearrangeKeysValues($arr_object_definitions_files[$object_description_id]);
+				$arr_object_definitions_files_value = arrRearrangeKeysValues($arr_object_definitions_files_value['object_definition_value']);
 				
 				if (isset($arr_object_definition['object_definition_value']['file']) || isset($arr_object_definition['object_definition_value']['url'])) {
 				
@@ -5961,7 +5994,7 @@ class data_entry extends base_module {
 							continue;
 						}
 
-						$arr_object_definition_file_value = arrRearrangeParams($arr_object_definition_file_value);
+						$arr_object_definition_file_value = arrRearrangeKeysValues($arr_object_definition_file_value);
 					
 						$arr_object_definition['object_definition_value'][$key] = array_merge((array)$arr_value, $arr_object_definition_file_value);
 					}
@@ -6031,7 +6064,7 @@ class data_entry extends base_module {
 		
 		$arr_object_subs = [];
 		
-		$arr_object_subs_files = ($_FILES['object_sub'] ? arrRearrangeParams($_FILES['object_sub']) : []);
+		$arr_object_subs_files = ($_FILES['object_sub'] ? arrRearrangeKeysValues($_FILES['object_sub']) : []);
 		
 		foreach ((array)$arr_input['object_sub'] as $key_object_sub => $arr_object_sub) {
 			
@@ -6061,8 +6094,8 @@ class data_entry extends base_module {
 			$arr_object_sub_definitions = [];
 			$arr_object_sub_definitions_files = [];
 			if ($arr_object_subs_files[$key_object_sub]) {
-				$arr_object_sub_definitions_files = arrRearrangeParams($arr_object_subs_files[$key_object_sub]);
-				$arr_object_sub_definitions_files = arrRearrangeParams($arr_object_sub_definitions_files['object_sub_definitions']);
+				$arr_object_sub_definitions_files = arrRearrangeKeysValues($arr_object_subs_files[$key_object_sub]);
+				$arr_object_sub_definitions_files = arrRearrangeKeysValues($arr_object_sub_definitions_files['object_sub_definitions']);
 			}
 			$has_referenced = false;
 			
@@ -6076,8 +6109,8 @@ class data_entry extends base_module {
 				
 				if ($arr_object_sub_description['object_sub_description_value_type'] == 'media' && $arr_object_sub_definitions_files[$object_sub_description_id]) {
 					
-					$arr_object_sub_definitions_files_value = arrRearrangeParams($arr_object_sub_definitions_files[$object_sub_description_id]);
-					$arr_object_sub_definitions_files_value = arrRearrangeParams($arr_object_sub_definitions_files_value['object_sub_definition_value']);
+					$arr_object_sub_definitions_files_value = arrRearrangeKeysValues($arr_object_sub_definitions_files[$object_sub_description_id]);
+					$arr_object_sub_definitions_files_value = arrRearrangeKeysValues($arr_object_sub_definitions_files_value['object_sub_definition_value']);
 					
 					if (isset($arr_object_sub_definition['object_sub_definition_value']['file']) || isset($arr_object_sub_definition['object_sub_definition_value']['url'])) {
 					

@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -133,7 +133,7 @@ class StoreCustomProject {
 					$str_information = trim($arr_definition['type_information']);
 					$str_information = ($str_information ? "'".DBFunctions::strEscape($str_information)."'" : 'NULL');					
 				}
-				$has_information = ($str_information !== null);
+				$has_information = ($str_information !== null); // 'Information' is not always included for a Type
 				
 				$num_type_edit = ($arr_definition['type_edit'] == static::ACCESS_PURPOSE_CREATE ? 2 : ($arr_definition['type_edit'] == static::ACCESS_PURPOSE_EDIT ? 1 : 0));
 				
@@ -286,9 +286,11 @@ class StoreCustomProject {
 					");
 				}
 				
-				// Type - include referenced types
+				// Type - include referenced Types
 				
 				$arr_types_referenced = FilterTypeObjects::getTypesReferenced($type_id, $arr_ref_type_ids, ['dynamic' => false, 'object_sub_locations' => false]);
+				
+				$has_information = false; // 'Information' is not always included for referenced Types
 				
 				foreach ($arr_types_referenced as $ref_type_id => $arr_type_referenced) {
 					
@@ -303,8 +305,9 @@ class StoreCustomProject {
 						$filter_id = (int)$arr_referenced_object_description['filter_id'];
 						
 						$str_information = null;
-						if ($has_information) {
+						if (isset($arr_referenced_object_description['information'])) {
 							$str_information = trim($arr_referenced_object_description['information']);
+							$has_information = true;
 						}
 						
 						$has_data = ($edit || $view || $filter_id || $str_information);
@@ -336,8 +339,9 @@ class StoreCustomProject {
 							$filter_id = (int)$arr_referenced_object_sub_description['filter_id'];
 							
 							$str_information = null;
-							if ($has_information) {
+							if (isset($arr_referenced_object_sub_description['information'])) {
 								$str_information = trim($arr_referenced_object_sub_description['information']);
+								$has_information = true;
 							}
 							
 							$has_data = ($edit || $view || $filter_id || $str_information);
@@ -844,7 +848,6 @@ class StoreCustomProject {
 				$arr_types = StoreType::getTypes();
 				
 				if ($arr_types[$type_id]) {
-					
 					$is_found = ($arr_project['project']['full_scope_enable'] ? 'scope' : 'domain');
 				}
 			}
@@ -967,7 +970,7 @@ class StoreCustomProject {
 		
 		if (!$arr['hash_date']) {
 			
-			$date_updated = DBFunctions::str2Date(time());
+			$date_updated = DBFunctions::str2DateTime(DBFunctions::numTimeNow(), '=');
 		} else {
 			
 			$date_updated = FilterTypeObjects::getTypesUpdatedAfter($arr['hash_date'], static::getScopeTypes(($use_project_id ?: $project_id)), 'last');
@@ -988,7 +991,7 @@ class StoreCustomProject {
 			$use_project_id = false;
 		}
 		
-		$hash_date = DBFunctions::str2Date($hash_date);
+		$hash_date = DBFunctions::str2DateTime($hash_date, '=');
 		
 		$res = DB::query("INSERT INTO ".DB::getTable('DATA_NODEGOAT_CUSTOM_PROJECT_TYPE_SCENARIO_CACHE')."
 			(project_id, scenario_id, use_project_id, hash, hash_date)

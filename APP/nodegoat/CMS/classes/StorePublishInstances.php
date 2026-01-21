@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -70,7 +70,7 @@ class StorePublishInstances {
 	public function updateProjectDate($arr_instance_project, $str_date = false) {
 		
 		$project_id = $arr_instance_project['project_id'];
-		$str_date = DBFunctions::str2Date(($str_date ?: time()));
+		$str_date = DBFunctions::str2DateTime(($str_date ?: DBFunctions::numTimeNow(false)), '=');
 		
 		$res = DB::query("UPDATE ".DB::getTable('DEF_NODEGOAT_PUBLISH_CUSTOM_PROJECTS')." SET
 				date = '".$str_date."'
@@ -82,7 +82,7 @@ class StorePublishInstances {
 	
 	public function publishProject($arr_instance_project) {
 		
-		$num_date = time();
+		$num_date = DBFunctions::numTimeNow(false);
 		$arr_instance_project['date'] = $num_date;
 		
 		$publish = new PublishInstanceProject($arr_instance_project);

@@ -30,7 +30,7 @@ CREATE DATABASE nodegoat_temp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 Grant the 1100CC MySQL users their nodegoat_content and a nodegoat_temp privileges:
 
 ```sql
-GRANT SELECT, INSERT, UPDATE, DELETE, DROP ON nodegoat_content.* TO 1100CC_cms@localhost;
+GRANT SELECT, INSERT, UPDATE, DELETE, DROP, INDEX, ALTER ON nodegoat_content.* TO 1100CC_cms@localhost;
 GRANT SELECT, INSERT, UPDATE, DELETE ON nodegoat_content.* TO 1100CC_home@localhost;
 
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, CREATE TEMPORARY TABLES, EXECUTE, CREATE ROUTINE, ALTER ROUTINE ON nodegoat_temp.* TO 1100CC_cms@localhost;
@@ -62,7 +62,7 @@ LOAD DATABASE
 			column data_type_object_definitions_modules.object to json,
 			column data_type_object_sub_definitions_modules.object to json
 			
-	MATERIALIZE VIEWS data_type_object_sub_location_geometry_import AS $$ SELECT object_sub_id, AsWKT(geometry) AS geometry, version FROM data_type_object_sub_location_geometry $$
+	MATERIALIZE VIEWS data_type_object_sub_location_geometry_import AS $$ SELECT object_sub_id, ST_AsWKT(geometry) AS geometry, ST_SRID(geometry) AS srid, version FROM data_type_object_sub_location_geometry $$
 
 	EXCLUDING TABLE NAMES MATCHING 'data_type_object_sub_location_geometry'
 
@@ -71,7 +71,8 @@ LOAD DATABASE
 	AFTER LOAD DO
 		
 		$$ ALTER TABLE nodegoat_content.data_type_object_sub_location_geometry ADD CONSTRAINT data_type_object_sub_location_geometry_object_sub_id PRIMARY KEY ("object_sub_id", "version"); $$,
-		$$ ALTER TABLE nodegoat_content.data_type_object_sub_location_geometry ALTER COLUMN "geometry" TYPE GEOMETRY(GEOMETRY, 0) USING ST_GeomFromText("geometry", 0); $$,
+		$$ ALTER TABLE nodegoat_content.data_type_object_sub_location_geometry ALTER COLUMN "geometry" TYPE GEOMETRY(GEOMETRY, 0) USING ST_GeomFromText("geometry", "srid"); $$,
+		$$ ALTER TABLE nodegoat_content.data_type_object_sub_location_geometry DROP COLUMN "srid"; $$,
 		$$ CREATE INDEX ON nodegoat_content.data_type_object_sub_location_geometry USING GIST ("geometry"); $$
 ;
 ```

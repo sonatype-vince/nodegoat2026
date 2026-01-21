@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -17,6 +17,7 @@ abstract class FormatTypeObjectsBase {
 	const DATE_INT_SEQUENCE_NULL = 5000;
 	const VALUE_NUMERIC_DECIMALS = 10;
 	const VALUE_NUMERIC_MULTIPLIER = 10 ** 10;
+	const VALUE_VECTOR_DIMENSIONS = 1024; // Or 1536 for more accuracy
 	const GEOMETRY_SRID = 4326; // 4326 for WGS84
 	const GEOMETRY_COORDINATE_DECIMALS = 20;
 	const TEXT_TAG_OBJECT = 1;
@@ -34,6 +35,8 @@ abstract class FormatTypeObjectsBase {
 	
 	const FORMAT_MULTI_SEPERATOR = ' '; // U+2002 - EN SPACE
 	const FORMAT_MULTI_SEPERATOR_LIST = ', ';
+	
+	protected static $arr_secondary_values = null;
 	
 	protected static $mode_format = 0;
 	protected static $func_create_link = 'data_view::createTypeObjectLink';
@@ -68,18 +71,24 @@ abstract class FormatTypeObjectsBase {
 		return static::$str_command_hover;
 	}
 	
-	public static function clearObjectDefinitionText($str_text, $target_tag = false) {
+	public static function clearObjectDefinitionText($str_text, $target_tag = null, $do_check = false) {
 		
-		if (!$target_tag || $target_tag == static::TEXT_TAG_OBJECT) {
+		if ($target_tag === static::TEXT_TAG_OBJECT || $target_tag === null) {
 			
-			$str_text = preg_replace('/'.static::TAGCODE_PARSE_TEXT_OBJECT_OPEN.'/s', '', $str_text);
-			$str_text = preg_replace('/'.static::TAGCODE_PARSE_TEXT_OBJECT_CLOSE.'/s', '', $str_text);
+			if (!$do_check || strpos($str_text, '[object=') !== false) {
+				
+				$str_text = preg_replace('/'.static::TAGCODE_PARSE_TEXT_OBJECT_OPEN.'/s', '', $str_text);
+				$str_text = preg_replace('/'.static::TAGCODE_PARSE_TEXT_OBJECT_CLOSE.'/s', '', $str_text);
+			}
 		}
 		
-		if (!$target_tag || $target_tag == static::TEXT_TAG_ENTITY) {
+		if ($target_tag === static::TEXT_TAG_ENTITY || $target_tag === null) {
 			
-			$str_text = preg_replace('/'.static::TAGCODE_PARSE_TEXT_ENTITY_OPEN.'/s', '', $str_text);
-			$str_text = preg_replace('/'.static::TAGCODE_PARSE_TEXT_ENTITY_CLOSE.'/s', '', $str_text);
+			if (!$do_check || strpos($str_text, '[entity') !== false) {
+				
+				$str_text = preg_replace('/'.static::TAGCODE_PARSE_TEXT_ENTITY_OPEN.'/s', '', $str_text);
+				$str_text = preg_replace('/'.static::TAGCODE_PARSE_TEXT_ENTITY_CLOSE.'/s', '', $str_text);
+			}
 		}
 		
 		return $str_text;
@@ -161,7 +170,7 @@ abstract class FormatTypeObjectsBase {
 					}
 															
 					$num_pos_close += ($num_length_tag_close + ($has_close_tag_identifiers ? $num_length_tag_identifiers_updated : 0) + 1); // Set position after closing tag
-				}				
+				}
 			} else {
 				
 				$num_pos_close += ($num_length_tag_close + ($has_close_tag_identifiers ? $num_length_tag_identifiers : 0) + 1); // Set position after closing tag
@@ -212,8 +221,10 @@ abstract class FormatTypeObjectsBase {
 	public static function parseValue($type, $value, $arr_type_settings = []) {
 		
 		switch ($type) {
-			case 'int':
+			case 'integer':
+			
 				if (static::$mode_format & static::FORMAT_DATA_TYPE) {
+					
 					if (is_array($value)) {
 						$value = arrParseRecursive($value, TYPE_INTEGER);
 					} else {
@@ -222,33 +233,43 @@ abstract class FormatTypeObjectsBase {
 				}
 				break;
 			case 'numeric':
+			
 				if (is_array($value)) {
+					
 					foreach ($value as &$v) {
+						
 						$v = static::int2Numeric($v);
+						
 						if (static::$mode_format & static::FORMAT_DATA_TYPE) {
 							$v = (float)$v;
 						}
 					}
 				} else {
+					
 					$value = static::int2Numeric($value);
+					
 					if (static::$mode_format & static::FORMAT_DATA_TYPE) {
 						$value = (float)$value;
 					}
 				}
 				break;
 			case 'boolean':
+			
 				if (static::$mode_format & static::FORMAT_DATA_TYPE) {
 					$value = ($value == 1 || $value === 'yes' ? true : false);
 				} else {
 					$value = ($value == 1 || $value === 'yes' ? getLabel('lbl_yes') : getLabel('lbl_no'));
 				}
 				break;
-			case 'date':				
+			case 'date':
+			
 				if (is_array($value)) {
+					
 					foreach ($value as &$v) {
 						$v = ($v ? static::int2Date($v) : '');
 					}
 				} else {
+					
 					$value = ($value ? static::int2Date($value) : '');
 				}
 				break;
@@ -257,6 +278,18 @@ abstract class FormatTypeObjectsBase {
 				break;
 			case 'geometry':
 				$value = static::formatToGeometry($value);
+				break;
+			case 'vector':
+			
+				if (is_array($value)) {
+					
+					foreach ($value as &$v) {
+						$v = static::formatToVector($v);
+					}
+				} else {
+					
+					$value = static::formatToVector($value);
+				}
 				break;
 			case 'module':
 				
@@ -418,10 +451,10 @@ abstract class FormatTypeObjectsBase {
 				$do_group = false;
 				
 				break;
-			case 'int':
+			case 'integer':
 			case 'numeric':
 			case 'float':
-			case 'serial_varchar':
+			case 'serial_string':
 			case '':
 				
 				if (is_array($value)) {
@@ -441,8 +474,10 @@ abstract class FormatTypeObjectsBase {
 			case 'text_tags':
 				
 				if ($arr_type_settings['html']) {
+					
 					$value = parseBody($value, ['sanitise' => true]);
 				} else {
+					
 					$value = strEscapeHTML($value);
 					$value = parseBody($value);
 				}
@@ -713,6 +748,21 @@ abstract class FormatTypeObjectsBase {
 				$format = strEscapeHTML($value);
 				
 				break;
+			case 'vector':
+				
+				if (is_array($value)) {
+					
+					foreach ($value as $key => $str_vector) {
+						$value[$key] = static::formatToVectorSummary($str_vector);
+					}
+
+					$format = '<span>'.implode('</span><span class="separator">'.($arr_type_settings['separator'] ?: static::FORMAT_MULTI_SEPERATOR).'</span><span>', arrParseRecursive($value, 'strEscapeHTML')).'</span>';
+				} else {
+
+					$format = static::formatToVectorSummary($value);
+				}
+				
+				break;
 			case 'date_cycle':
 			
 				$format = getLabel('unit_month').' '.(int)$value[0].'<br />'.getLabel('unit_day').' '.(int)$value[1];
@@ -748,10 +798,10 @@ abstract class FormatTypeObjectsBase {
 		$format = false;
 		
 		switch ($type) {
-			case 'int':
+			case 'integer':
 			case 'numeric':
 			case 'float':
-			case 'serial_varchar':
+			case 'serial_string':
 			case '':
 						
 				if (is_array($value)) {
@@ -899,6 +949,23 @@ abstract class FormatTypeObjectsBase {
 					}
 				}
 				break;
+			case 'vector':
+				
+				if ($value) {
+
+					if (is_array($value)) {
+						
+						foreach ($value as $key => $str_vector) {
+							$value[$key] = static::formatToVectorSummary($str_vector, false);
+						}
+
+						$format = implode(($arr_type_settings['separator'] ?: static::FORMAT_MULTI_SEPERATOR), $value);
+					} else {
+
+						$format = static::formatToVectorSummary($value, false);
+					}
+				}
+				break;
 			default:
 			
 				$format = self::formatToHTMLValue($type, $value, $reference, $arr_type_settings, $arr_extra);
@@ -1038,10 +1105,10 @@ abstract class FormatTypeObjectsBase {
 		$format = false;
 		
 		switch ($type) {
-			case 'int':
+			case 'integer':
 			case 'numeric':
 			case 'float':
-			case 'serial_varchar':
+			case 'serial_string':
 			case '':
 			
 				if (is_array($value)) {
@@ -1123,6 +1190,17 @@ abstract class FormatTypeObjectsBase {
 				$format = implode('<span class="separator">'.($arr_type_settings['separator'] ?: static::FORMAT_MULTI_SEPERATOR).'</span>', $arr_html);
 
 				break;
+			case 'vector':
+				
+				$value = arrParseRecursive($value, __CLASS__.'::formatToVector');
+				
+				if (is_array($value)) {
+					$format = '<span>'.implode('</span><span class="separator">'.($arr_type_settings['separator'] ?: static::FORMAT_MULTI_SEPERATOR).'</span><span>', $value).'</span>';
+				} else {
+					$format = $value;
+				}
+				
+				break;
 			case 'module':
 				
 				$module = EnucleateValueTypeModule::init($arr_type_settings['type']);
@@ -1160,10 +1238,12 @@ abstract class FormatTypeObjectsBase {
 				}
 				
 				if ($arr_extra['has_multi']) {
+					
 					$format = '<div class="input">'.cms_general::createMultiSelect($name, 'y:data_filter:lookup_type_object-'.$str_lookup_identifier.'|multi', $value, 'y:data_filter:lookup_type_object_pick-'.$str_lookup_identifier, ['list' => ($arr_extra['list'] ?? false), 'order' => true])
 						.$str_html_menu
 					.'</div>';
 				} else {
+					
 					$format = '<input type="hidden" id="y:data_filter:lookup_type_object_pick-'.$str_lookup_identifier.'" name="'.$name.'" value="'.$reference.'" /><input type="search" id="y:data_filter:lookup_type_object-'.$str_lookup_identifier.'" class="autocomplete" value="'.$value.'" />'
 						.$str_html_menu;
 				}
@@ -1188,11 +1268,13 @@ abstract class FormatTypeObjectsBase {
 				}
 				$str_html_select = '<select class="update_object_type clear_type_object">'.Labels::parseTextVariables(cms_general::createDropdown($arr_reference_types, $object_reference_type_id)).'</select>';
 								
-				if ($arr_extra['has_multi']) {					
+				if ($arr_extra['has_multi']) {
+									
 					$format = '<div class="input">'.cms_general::createMultiSelect($name, 'y:data_filter:lookup_type_object-'.$str_lookup_identifier.'|multi', $value, 'y:data_filter:lookup_type_object_pick-'.$str_lookup_identifier, ['list' => ($arr_extra['list'] ?? false), 'order' => true, 'attr' => ['data-object_identifier' => true]])
 						.$str_html_select.$str_html_menu
 					.'</div>';
 				} else {
+					
 					$format = '<input type="hidden" id="y:data_filter:lookup_type_object_pick-'.$str_lookup_identifier.'" name="'.$name.'" value="'.$reference.'" /><input type="search" id="y:data_filter:lookup_type_object-'.$str_lookup_identifier.'" class="autocomplete" value="'.$value.'" data-object_identifier="1" />'
 						.$str_html_select.$str_html_menu;
 				}
@@ -1201,7 +1283,7 @@ abstract class FormatTypeObjectsBase {
 				
 				break;
 			case 'media_external':
-			case 'serial_varchar':
+			case 'serial_string':
 			case '':
 			
 				if (is_array($value)) {
@@ -1221,7 +1303,7 @@ abstract class FormatTypeObjectsBase {
 				}
 				
 				break;
-			case 'int':
+			case 'integer':
 			case 'numeric':
 			case 'float':
 			
@@ -1243,6 +1325,27 @@ abstract class FormatTypeObjectsBase {
 				} else {
 					
 					$format = '<input type="number" name="'.$name.'" value="'.strEscapeHTML($value).'" />';
+				}
+				
+				break;
+			case 'vector':
+				
+				$value = arrParseRecursive($value, __CLASS__.'::formatToVector');
+				
+				if (is_array($value)) {
+					
+					$format = [];
+					
+					if (!$value) {
+						$value[] = '';
+					}
+					
+					foreach ($value as $str) {
+						$format[] = ['value' => '<input type="text" class="default" name="'.$name.'[]" value="'.strEscapeHTML($str).'" />'];
+					}
+				} else {
+					
+					$format = '<input type="text" class="default" name="'.$name.'" value="'.strEscapeHTML($value).'" />';
 				}
 				
 				break;
@@ -1437,7 +1540,6 @@ abstract class FormatTypeObjectsBase {
 				$arr_html = [];
 				
 				foreach ($value as $key => $v) {
-					
 					$arr_html[] = FormatTypeObjects::formatToValue($type, $v, $arr_type_settings);
 				}
 				
@@ -1483,7 +1585,7 @@ abstract class FormatTypeObjectsBase {
 					.'<input type="checkbox" name="'.$name.'[range_now]" value="1" title="'.getLabel('inf_date_now').'"'.($value['range'] === 'now' ? ' checked="checked"' : '').' />';
 				
 				break;
-			case 'int':
+			case 'integer':
 			case 'numeric':
 			case 'float':
 				
@@ -1501,7 +1603,7 @@ abstract class FormatTypeObjectsBase {
 			case 'media':
 			case 'media_external':
 			case 'external':
-			case 'serial_varchar':
+			case 'serial_string':
 			case '':
 			
 				$value = (is_array($value) ? $value : ['equality' => '*', 'value' => $value]);
@@ -1516,6 +1618,20 @@ abstract class FormatTypeObjectsBase {
 					.cms_general::createRegularExpressionEditor(($value['regex'] ?: []), $name.'[regex]', ['class' => (!$is_regex ? 'hide' : '')]);
 				
 				break;
+			case 'vector':
+			
+				$value = (is_array($value) ? $value : ['distance_operator' => '', 'equality' => '=', 'distance' => '', 'value' => $value]);
+				$arr_distance_operators = FilterTypeObjects::getVectorDistanceOperators();
+				$arr_equality = FilterTypeObjects::getEqualityValues();
+				unset($arr_equality['≠']);
+				
+				$format = '<select name="'.$name.'[distance_operator]" title="'.Response::addParseDelay(getLabel('inf_vector_distance'), 'strEscapeHTML').'">'.cms_general::createDropdown($arr_distance_operators, $value['distance_operator']).'</select>'
+					.'<select name="'.$name.'[equality]">'.cms_general::createDropdown($arr_equality, $value['equality']).'</select>'
+					.'<input type="number" name="'.$name.'[distance]" value="'.$value['distance'].'" step="0.001" min="0" />'
+					.'<input type="number" name="'.$name.'[range]" value="'.$value['range'].'" />'
+					.'<input type="text" name="'.$name.'[value]" value="'.$value['value'].'" />';
+			
+				break;
 			default:
 				$format = self::formatToFormValue($type, $value, false, $name, $arr_type_settings);
 		}
@@ -1529,6 +1645,7 @@ abstract class FormatTypeObjectsBase {
 		
 		switch ($type) {
 			case 'boolean':
+			
 				$format = "CASE WHEN ".$value." = 1 THEN '".getLabel('lbl_yes')."' WHEN ".$value." = 0 THEN '".getLabel('lbl_no')."' ELSE '' END";
 				break;
 			case 'date':
@@ -1569,6 +1686,7 @@ abstract class FormatTypeObjectsBase {
 				
 				break;
 			case 'chronology':
+			
 				$format = self::formatFromSQLChronology($value);
 				break;
 			case 'geometry':
@@ -1594,8 +1712,9 @@ abstract class FormatTypeObjectsBase {
 				}
 				
 				break;
-			case 'int':
+			case 'integer':
 			case 'float':
+			
 				$format = DBFunctions::castAs($value, DBFunctions::CAST_TYPE_STRING);
 				break;
 			case 'numeric':
@@ -1621,10 +1740,24 @@ abstract class FormatTypeObjectsBase {
 		return $format;
 	}
 	
-	public static function formatToSQLValue($type, $value) {
+	public static function setSecondaryValues(&$arr_secondary) {
+		
+		static::$arr_secondary_values =& $arr_secondary;
+	}
+	
+	public static function addSecondaryValue($value_use, $value_secondary) {
+		
+		if (isset(static::$arr_secondary_values[$value_use])) {
+			return;
+		}
+
+		static::$arr_secondary_values[$value_use] = $value_secondary;
+	}
+
+	public static function formatToSQLValue($type, $value, &$arr_secondary = null) {
 		
 		$do_unique = true;
-		$format = false;
+		$format = null;
 	
 		switch ($type) {
 			case 'boolean':
@@ -1706,7 +1839,6 @@ abstract class FormatTypeObjectsBase {
 							$str_filename = $str_filename.'.'.$str_extension;
 							
 							if (!isPath(DIR_HOME_TYPE_OBJECT_MEDIA.$str_filename)) {
-	
 								$store_file = new FileStore($arr_file, ['directory' => DIR_HOME_TYPE_OBJECT_MEDIA, 'filename' => $str_filename], FileStore::getSizeLimit(FileStore::STORE_FILE));
 							}
 						}
@@ -1728,10 +1860,8 @@ abstract class FormatTypeObjectsBase {
 							$str_filename = $str_filename.'.'.$str_extension;
 							
 							if (!isPath(DIR_HOME_TYPE_OBJECT_MEDIA.$str_filename)) {
-								
 								$store_file = new FileStore($file, ['directory' => DIR_HOME_TYPE_OBJECT_MEDIA, 'filename' => $str_filename], FileStore::getSizeLimit(FileStore::STORE_FILE));
 							} else {
-								
 								$file->abort();
 							}
 						} else {
@@ -1747,7 +1877,7 @@ abstract class FormatTypeObjectsBase {
 					$format = current($format);
 				}
 				break;
-			case 'int':
+			case 'integer':
 				$format = ($value !== '' && $value !== null ? arrParseRecursive($value, TYPE_INTEGER) : '');
 				break;
 			case 'numeric':
@@ -1763,7 +1893,7 @@ abstract class FormatTypeObjectsBase {
 				break;
 			case 'media_external':
 			case 'external':
-			case 'serial_varchar':
+			case 'serial_string':
 			case '':
 				$format = arrParseRecursive($value, TYPE_STRING);
 				break;
@@ -1771,8 +1901,24 @@ abstract class FormatTypeObjectsBase {
 			case 'external_module':
 			case 'reconcile_module':
 			case 'reversal_module':
+			
 				$do_unique = false;
-				$format = (!empty($value) ? (is_array($value) ? value2JSON($value) : $value) : '');
+				
+				$format = '';
+				if (!empty($value)) {
+					$format = (is_array($value) ? value2JSON($value) : $value);
+				}
+				
+				break;
+			case 'vector':
+				
+				static::setSecondaryValues($arr_secondary);
+				
+				$format = '';
+				if ($value !== '' && $value !== null) {
+					$format = arrParseRecursive($value, __CLASS__.'::formatToSQLVector');
+				}
+	
 				break;
 			case 'reference_mutable':
 				
@@ -1807,16 +1953,51 @@ abstract class FormatTypeObjectsBase {
 		
 		return $format;
 	}
+
+	public static function formatToSQLStore($type, $value, &$arr_secondary = null) {
+		
+		if ($type === 'vector') {
+
+			$value_secondary = $arr_secondary[$value];
+			$value = DBFunctions::escapeAs($value, DBFunctions::TYPE_BINARY);
+			
+			if (DB::ENGINE_IS_MYSQL && (Settings::get('value_type_vector', 'support') ?? true)) {
+				$value .= ', VEC_FromText(\''.DBFunctions::strEscape($value_secondary).'\')';
+			} else {
+				$value .= ', \''.DBFunctions::strEscape($value_secondary).'\'';
+			}
+			
+			return $value;
+		}
+		
+		return '\''.DBFunctions::strEscape($value).'\'';
+	}
+	
+	public static function formatToSQLEscape($type, $value, $is_secondary = false) {
+		
+		if ($type === 'vector') {
+			
+			if ($is_secondary) {
+				
+				if (DB::ENGINE_IS_MYSQL && (Settings::get('value_type_vector', 'support') ?? true)) {
+					return 'VEC_FromText(\''.DBFunctions::strEscape($value).'\')';
+				} else {
+					return '\''.DBFunctions::strEscape($value).'\'';
+				}
+			}
+		}
+		
+		return '\''.DBFunctions::strEscape($value).'\'';
+	}
 	
 	public static function formatToSQLValueFilter($type, $value, $name) {
 		
 		if (is_array($name)) {
-			
 			$name = 'JSON_VALUE('.$name['name'].', \''.$name['path'].'\' RETURNING '.static::formatToSQLType($type).')';
 		}
 		
 		$value_plain = (is_array($value) ? $value['value'] : $value);
-		$format = false;
+		$format = null;
 	
 		switch ($type) {
 			case 'date':
@@ -1826,28 +2007,11 @@ abstract class FormatTypeObjectsBase {
 				$arr_num_range = static::dateInt2Compontents(static::date2Integer($value['range']));
 				$arr_sql_name = static::dateSQL2Compontents($name);
 				$sql_equality = ($value['equality'] == '==' ? '=' : $value['equality']); // Check generic exact match string/numeric
-
-				switch ($sql_equality) {
-					case '=':
-					case '>':
-					case '<':
-						$format = $arr_sql_name['absolute'].' '.$sql_equality.' '.$arr_num_value['absolute'];
-						break;
-					case '≥':
-						$format = $arr_sql_name['absolute'].' >= '.$arr_num_value['absolute'];
-						break;
-					case '≤':
-						$format = $arr_sql_name['absolute'].' <= '.$arr_num_value['absolute'];
-						break;
-					case '><':
-						$format = '('.$arr_sql_name['absolute'].' > '.$arr_num_value['absolute'].' AND '.$arr_sql_name['absolute'].' < '.$arr_num_range['absolute'].')';
-						break;
-					case '≥≤':
-						$format = '('.$arr_sql_name['absolute'].' >= '.$arr_num_value['absolute'].' AND '.$arr_sql_name['absolute'].' <= '.$arr_num_range['absolute'].')';
-						break;
-				}
+				
+				$format = static::formatToSQLEquality($sql_equality, $arr_sql_name['absolute'], $arr_num_value['absolute'], $arr_num_range['absolute']);
+				
 				break;
-			case 'int':
+			case 'integer':
 			case 'numeric':
 			case 'float':
 			
@@ -1863,26 +2027,54 @@ abstract class FormatTypeObjectsBase {
 					$value['range'] = (int)$value['range'];
 				}
 				$sql_equality = ($value['equality'] == '==' ? '=' : $value['equality']); // Check generic exact match string/numeric
+				
+				$format = static::formatToSQLEquality($sql_equality, $name, $value['value'], $value['range']);
+				
+				break;
+			case 'vector':
+			
+				$value = (is_array($value) ? $value : ['distance_operator' => 'euclidean', 'equality' => '=', 'distance' => '', 'value' => $value]);
+				$str_sql_field = $name;
+				
+				$arr_secondary = [];
+				self::formatToSQLValue($type, $value_plain, $arr_secondary);
+				$str_sql_test = current($arr_secondary);
+				$str_sql_test = self::formatToSQLEscape($type, $str_sql_test, true);
+				
+				if (!$value['distance_operator'] || !$value['distance']) {
+					
+					$format = $str_sql_field.' = '.$str_sql_test;
+					
+					break;
+				}
 
-				switch ($sql_equality) {
-					case '=':
-					case '>':
-					case '<':
-						$format = $name.' '.$sql_equality.' '.$value['value'];
+				switch ($value['distance_operator']) {
+					case 'euclidean':
+						
+						if (DB::ENGINE_IS_MYSQL) {
+							$str_sql_field = 'VEC_DISTANCE_EUCLIDEAN('.$str_sql_field.', '.$str_sql_test.')';
+						} else {
+							$str_sql_field = '('.$str_sql_field.' <-> '.$str_sql_test.')';
+						}
+						
 						break;
-					case '≥':
-						$format = $name.' >= '.$value['value'];
-						break;
-					case '≤':
-						$format = $name.' <= '.$value['value'];
-						break;
-					case '><':
-						$format = '('.$name.' > '.$value['value'].' AND '.$name.' < '.$value['range'].')';
-						break;
-					case '≥≤':
-						$format = '('.$name.' >= '.$value['value'].' AND '.$name.' <= '.$value['range'].')';
+					case 'cosine':
+						
+						if (DB::ENGINE_IS_MYSQL) {
+							$str_sql_field = 'VEC_DISTANCE_COSINE('.$str_sql_field.', '.$str_sql_test.')';
+						} else {
+							$str_sql_field = '('.$str_sql_field.' <=> '.$str_sql_test.')';
+						}
+						
 						break;
 				}
+								
+				$value['distance'] = (float)$value['distance'];
+				$value['range'] = (float)$value['range'];
+				$sql_equality = ($value['equality'] == '==' ? '=' : $value['equality']); // Check generic exact match string/numeric
+				
+				$format = static::formatToSQLEquality($sql_equality, $str_sql_field, $value['distance'], $value['range']);
+				
 				break;
 			case 'text':
 			case 'text_layout':
@@ -1890,7 +2082,7 @@ abstract class FormatTypeObjectsBase {
 			case 'media':
 			case 'media_external':
 			case 'external':
-			case 'serial_varchar':
+			case 'serial_string':
 			case '':
 			
 				$value = (is_array($value) ? $value : ['equality' => '*', 'value' => $value]);
@@ -1904,38 +2096,24 @@ abstract class FormatTypeObjectsBase {
 					$sql_value = self::formatToSQLValue($type, $value['value']);
 					$is_ḓC = ($value['modifier'] == 'ḓC');
 					
-					switch ($sql_equality) {
-						case '==': // Check generic exact match string/numeric
-							$format = DBFunctions::searchMatchSensitivity($name, DBFunctions::SQL_IS_LITERAL.DBFunctions::strEscape($sql_value), false, true, true);
-							break;
-						case '*':
-							$format = DBFunctions::searchMatchSensitivity($name, DBFunctions::SQL_IS_LITERAL.DBFunctions::str2Search($sql_value), MATCH_ANY, $is_ḓC, $is_ḓC);
-							break;
-						case '^':
-							$format = DBFunctions::searchMatchSensitivity($name, DBFunctions::SQL_IS_LITERAL.DBFunctions::str2Search($sql_value), MATCH_START, $is_ḓC, $is_ḓC);
-							break;
-						case '$':
-							$format = DBFunctions::searchMatchSensitivity($name, DBFunctions::SQL_IS_LITERAL.DBFunctions::str2Search($sql_value), MATCH_END, $is_ḓC, $is_ḓC);
-							break;
-						case '=':
-							$format = DBFunctions::searchMatchSensitivity($name, DBFunctions::SQL_IS_LITERAL.DBFunctions::str2Search($sql_value), MATCH_FULL, $is_ḓC, $is_ḓC);
-							break;
-					}
+					$format = static::formatToSQLEqualityString($sql_equality, $name, $sql_value, $is_ḓC);
 				}
 
 				break;
 			case 'boolean':
+			
 				$format = self::formatToSQLValue($type, $value_plain);
 				$format = ($format !== '' ? $name." = ".$format : 'TRUE');
 				break;
 			default:
+			
 				$format = DBFunctions::searchMatch($name, self::formatToSQLValue($type, $value_plain));
 				break;
 		}
 		
 		return $format;
 	}
-	
+
 	public static function formatToSQLTranscension($type, $value, $name) {
 		
 		if (!$value['value'] || $value['value'] == 'any') {
@@ -1972,7 +2150,7 @@ abstract class FormatTypeObjectsBase {
 				case 'media':
 				case 'media_external':
 				case 'external':
-				case 'serial_varchar':
+				case 'serial_string':
 				case 'reversed_collection':
 				case 'reversed_collection_resource_path':
 				case '':
@@ -1983,6 +2161,7 @@ abstract class FormatTypeObjectsBase {
 					}
 					break;
 				case 'boolean':
+				case 'vector':
 				case 'null':
 					if ($value['value'] == 'empty') {
 						$format = $name." IS NULL";
@@ -2010,10 +2189,62 @@ abstract class FormatTypeObjectsBase {
 		return $format;
 	}
 	
+	public static function formatToSQLEquality($str_sql_equality, $str_sql_name, $num_value, $num_value_range) {
+		
+		$format = null;
+		
+		switch ($str_sql_equality) {
+			case '=':
+			case '>':
+			case '<':
+				$format = $str_sql_name.' '.$str_sql_equality.' '.$num_value;
+				break;
+			case '≥':
+				$format = $str_sql_name.' >= '.$num_value;
+				break;
+			case '≤':
+				$format = $str_sql_name.' <= '.$num_value;
+				break;
+			case '><':
+				$format = '('.$str_sql_name.' > '.$num_value.' AND '.$str_sql_name.' < '.$num_value_range.')';
+				break;
+			case '≥≤':
+				$format = '('.$str_sql_name.' >= '.$num_value.' AND '.$str_sql_name.' <= '.$num_value_range.')';
+				break;
+		}
+		
+		return $format;
+	}
+	
+	public static function formatToSQLEqualityString($str_sql_equality, $str_sql_name, $str_sql_value, $is_ḓC) {
+		
+		$format = null;
+		
+		switch ($str_sql_equality) {
+			case '==': // Check generic exact match string/numeric
+				$format = DBFunctions::searchMatchSensitivity($str_sql_name, DBFunctions::SQL_IS_LITERAL.DBFunctions::strEscape($str_sql_value), false, true, true);
+				break;
+			case '*':
+				$format = DBFunctions::searchMatchSensitivity($str_sql_name, DBFunctions::SQL_IS_LITERAL.DBFunctions::str2Search($str_sql_value), MATCH_ANY, $is_ḓC, $is_ḓC);
+				break;
+			case '^':
+				$format = DBFunctions::searchMatchSensitivity($str_sql_name, DBFunctions::SQL_IS_LITERAL.DBFunctions::str2Search($str_sql_value), MATCH_START, $is_ḓC, $is_ḓC);
+				break;
+			case '$':
+				$format = DBFunctions::searchMatchSensitivity($str_sql_name, DBFunctions::SQL_IS_LITERAL.DBFunctions::str2Search($str_sql_value), MATCH_END, $is_ḓC, $is_ḓC);
+				break;
+			case '=':
+				$format = DBFunctions::searchMatchSensitivity($str_sql_name, DBFunctions::SQL_IS_LITERAL.DBFunctions::str2Search($str_sql_value), MATCH_FULL, $is_ḓC, $is_ḓC);
+				break;
+		}
+		
+		return $format;
+	}
+	
 	public static function formatToSQLType($type) {
 		
 		switch ($type) {
-			case 'int':
+			case 'integer':
 			case 'numeric':
 				$cast = DBFunctions::CAST_TYPE_INTEGER;
 				break;
@@ -2060,6 +2291,144 @@ abstract class FormatTypeObjectsBase {
 		return '(('.$sql_value.' - ('.static::VALUE_NUMERIC_MULTIPLIER.' * CASE WHEN '.$sql_value.' < 0 THEN -1 ELSE 1 END)) * '.(1 / static::VALUE_NUMERIC_MULTIPLIER).')'; // Convert multiplier to decimal for float precision purposes
 	}
 	
+	// Vector
+	
+	public static function formatToSQLVector($str, $num_dimensions_normalise = true, $do_length_normalise = false, $do_accurate = true) {
+		
+		if (!$str) {
+			return '';
+		}
+		
+		try {
+
+			$str = static::formatToVector($str);
+			$str_normalise = static::vector2VectorValid($str, $num_dimensions_normalise, $do_length_normalise, $do_accurate);
+		} catch (Exception $e) {
+			
+			error(getLabel('msg_malformed_vector'), TROUBLE_ERROR, LOG_BOTH, false, $e);
+		}
+
+		$str = gzcompress($str);
+		
+		static::addSecondaryValue($str, $str_normalise);
+
+		return $str;
+	}
+	
+	public static function vector2VectorValid($str, $num_dimensions_normalise = true, $do_length_normalise = false, $do_accurate = true) {
+		
+		$arr_vector = JSON2Value($str);
+				
+		foreach ($arr_vector as $num) {
+			
+			if (!is_float($num) && !is_integer($num)) {
+				error('Vector is not floats/integers.');
+			}
+		}
+
+		if ($num_dimensions_normalise !== null) {
+			
+			$num_dimensions = count($arr_vector);
+			
+			if ($num_dimensions_normalise === true) {
+				$num_dimensions_normalise = static::VALUE_VECTOR_DIMENSIONS;
+			}
+
+			// Reduce or pad vector
+			
+			if ($num_dimensions > $num_dimensions_normalise) {
+				
+				if ($do_accurate) {
+					$arr_vector = static::vectorArray2VectorArrayReduced($arr_vector, $num_dimensions_normalise);
+				} else {
+					$arr_vector = array_slice($arr_vector, 0, $num_dimensions_normalise); // Fast by just discarding
+				}
+			} else if ($num_dimensions < $num_dimensions_normalise) {
+				
+				$arr_vector = array_pad($arr_vector, $num_dimensions_normalise, 0.0);
+			}
+
+			if ($do_length_normalise) { // Normalise semantic similarity search: remove varying length (L2/euclidean), all equal to 1 (cosine).
+			
+				$num_normalise = sqrt(array_reduce($arr_vector, fn($num_carry, $num_value) => $num_carry + $num_value * $num_value, 0.0));
+				
+				if ($num_normalise > 0) {
+					$arr_vector = array_map(fn($num_value) => $num_value / $num_normalise, $arr_vector);
+				}
+			}
+			
+			$str = '['.implode(',', $arr_vector).']';
+		}
+			
+		return $str;
+	}
+	
+	public static function vectorArray2VectorArrayReduced($arr_vector, $num_dimensions_normalise) { // Reduce a vector by average pooling
+		
+		$num_dimensions = count($arr_vector);
+
+		$arr_reduced = [];
+		$num_ratio = ($num_dimensions / $num_dimensions_normalise);
+
+		for ($i = 0; $i < $num_dimensions_normalise; $i++) {
+			
+			$num_start = (int)floor($i * $num_ratio);
+			$num_end = (int)floor(($i + 1) * $num_ratio);
+			
+			if ($num_end <= $num_start) {
+				$num_end = $num_start + 1;
+			}
+			
+			$arr_slice = array_slice($arr_vector, $num_start, $num_end - $num_start);
+			$arr_reduced[] = array_sum($arr_slice) / count($arr_slice);
+		}
+
+		return $arr_reduced;
+	}
+	
+	public static function formatToVector($str) {
+		
+		if (!$str) {
+			return;
+		}
+		
+		if ($str[0] !== '[') {
+			
+			if ($str[0] === '\\' && $str[1] === 'x') { // Check escaped binary \x
+				$str = DBFunctions::unescapeAs($str, DBFunctions::TYPE_BINARY);
+			}
+			$str = gzuncompress($str);
+		}
+		
+		$str = str_replace(' ', '', $str);
+		
+		return $str;
+	}
+	
+	public static function formatToVectorSummary($str, $do_snippet = true) {
+		
+		$str = static::formatToVector($str);
+		
+		$num_dimensions = (substr_count($str, ',') + 1);
+		
+		/*$num_unused = substr_count($str, ',0,');
+		$num_dimensions = $num_dimensions - ($num_unused + (strEndsWith($str, ',0]') ? 1 : 0));*/
+		
+		$str_return = 'vector:'.$num_dimensions;
+		
+		if (!$do_snippet) {
+			return $str_return;
+		}
+		
+		if (strlen($str) > 100) {
+			$str = substr($str, 0, 100).'...]';
+		}
+		
+		$str_return .= ' > '.$str;
+		
+		return $str_return;
+	}
+	
 	// Chronology
 	
 	public static function formatToSQLChronology($value) {
@@ -2068,7 +2437,7 @@ abstract class FormatTypeObjectsBase {
 			return '';
 		}
 		
-		$arr_chronology = self::formatToChronology($value);
+		$arr_chronology = static::formatToChronology($value);
 		
 		$is_period = ($arr_chronology['type'] == 'period');
 		
@@ -2093,7 +2462,7 @@ abstract class FormatTypeObjectsBase {
 				$date = 0;
 			} else {
 				
-				$date = (int)self::formatToSQLValue('date', $arr['date_value']);
+				$date = (int)static::formatToSQLValue('date', $arr['date_value']);
 				
 				if (!$date) {
 					$date = false;
@@ -2139,7 +2508,7 @@ abstract class FormatTypeObjectsBase {
 				'offset_unit' => (int)$arr_time_units[$arr['offset_unit']],
 				'cycle_object_id' => (int)$arr['cycle_object_id'],
 				'cycle_direction' => (int)$arr_time_directions[$arr['cycle_direction']],
-				'date_value' => ($arr['date_value'] ? (int)self::formatToSQLValue('date', $arr['date_value']) : 'NULL'),
+				'date_value' => ($arr['date_value'] ? (int)static::formatToSQLValue('date', $arr['date_value']) : 'NULL'),
 				'date_object_sub_id' => ((int)$arr['date_object_sub_id'] ?: 'NULL'),
 				'date_direction' => (int)$arr_time_directions[$arr['date_direction']]
 			];
@@ -2180,7 +2549,7 @@ abstract class FormatTypeObjectsBase {
 	public static function formatToChronology($value) {
 		
 		if (!$value) {
-			return false;
+			return;
 		}
 		
 		if (is_array($value) || substr($value, 0, 1) == '{') { // ChronoJSON
@@ -2532,12 +2901,10 @@ abstract class FormatTypeObjectsBase {
 		$num_srid = static::GEOMETRY_SRID;
 		
 		if (static::GEOMETRY_SRID) {
-			
 			$num_srid = static::geometryToSRID($value, true);
 		}
 		
 		if (strStartsWith($value, 'SRID=')) { // Clean optional SRID prefix
-			
 			$value = preg_replace('/^SRID=\d+;?/', '', $value);
 		}
 		
@@ -2610,7 +2977,7 @@ abstract class FormatTypeObjectsBase {
 			$arr_result = $res[1]->fetchRow();
 		} else {
 			
-			$sql_value = ($is_json ? "ST_GeomFromGeoJSON('".$value."')" : "ST_GeomFromText('".$value."', ".$num_srid.")");
+			$sql_value = ($is_json ? "ST_GeomFromGeoJSON('".$value."')" : "ST_GeomFromText('".$value."', ".$num_srid.")"); // If JSON, the SRID is (has to be) included as crs value if not the default SRID
 			$sql_geojson = "ST_AsGeoJSON(vars.check, ".static::GEOMETRY_COORDINATE_DECIMALS.", ".($num_srid != static::GEOMETRY_SRID ? '2' : '0').")";
 			
 			$sql = "

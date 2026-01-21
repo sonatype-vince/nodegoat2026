@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -14,8 +14,6 @@ class CollectTypesObjectsValues extends CollectTypesObjects {
 	protected $type_id = false;
 	protected $value_type = '';
 	protected $arr_value_type_settings = [];
-	
-	protected $arr_filters = [];
 	
 	protected static $num_store_objects_buffer = 2000;
 	protected static $num_store_objects_stream = 50000;
@@ -36,9 +34,7 @@ class CollectTypesObjectsValues extends CollectTypesObjects {
 		}
 				
 		if ($arr_filters) {
-			$this->arr_filters = FilterTypeObjects::convertFilterInput($arr_filters);
-		} else {
-			$this->arr_filters = [];
+			$this->setFilter(FilterTypeObjects::convertFilterInput($arr_filters));
 		}
 		
 		if ($arr_type_network['paths']) {
@@ -53,7 +49,7 @@ class CollectTypesObjectsValues extends CollectTypesObjects {
 		}
 		
 		parent::__construct($arr_type_network_paths, $this->view);
-		$this->init($this->arr_filters, false);
+		$this->init(false);
 			
 		$arr_collect_info = $this->getResultInfo();
 		
@@ -75,7 +71,9 @@ class CollectTypesObjectsValues extends CollectTypesObjects {
 			foreach ($arr_paths as $path) {
 				
 				$source_path = $path;
+				
 				if ($source_path) { // path includes the target type id, remove it
+					
 					$source_path = explode('-', $source_path);
 					array_pop($source_path);
 					$source_path = implode('-', $source_path);
@@ -156,16 +154,32 @@ class CollectTypesObjectsValues extends CollectTypesObjects {
 	}
 		
 	public function collectToTable($sql_table_name, $source_object_sub_details_id) {
+		
+		$str_sql_insert = '';
+		$num_sql_insert = 0;
+		
+		$func_insert_sql = function() use ($sql_table_name, &$str_sql_insert, &$num_sql_insert) {
+			
+			$str_sql_insert[0] = ' '; // Remove leading ,
+		
+			$res = DB::query("INSERT INTO ".DB::getTableTemporary(DATABASE_NODEGOAT_TEMP.'.'.$sql_table_name)."
+				(identifier, object_id, object_sub_id, date_value)
+					VALUES
+				".$str_sql_insert."
+				".DBFunctions::onConflict('identifier, object_id, object_sub_id', ['object_id'])."
+			");
+			
+			$str_sql_insert = '';
+			$num_sql_insert = 0;
+		};
 
 		$this->setInitLimit(static::$num_store_objects_stream);
 
-		while ($this->init($this->arr_filters)) {
+		while ($this->init()) {
 
-			$arr_objects = $this->getPathObjects('0');
+			$arr_objects = $this->getPathObjects(CollectTypesObjects::PATH_START);
 			
 			Mediator::checkState();
-			
-			$arr_sql_insert = [];
 			
 			foreach ($arr_objects as $object_id => $arr_object) {
 				
@@ -175,7 +189,7 @@ class CollectTypesObjectsValues extends CollectTypesObjects {
 					
 					if ($source_path == (string)$this->type_id) { // Check for specific sub-object selection at the start
 				
-						if ($arr_info['in_out'] == 'out' && $arr_info['object_sub_details_id'] == $source_object_sub_details_id) {
+						if ($arr_info['in_out'] == TraceTypesNetwork::PATH_OUT && $arr_info['object_sub_details_id'] == $source_object_sub_details_id) {
 							$source_object_sub_id = $arr_info['object_sub_id'];
 						} else {
 							$source_object_sub_id = false;
@@ -278,37 +292,31 @@ class CollectTypesObjectsValues extends CollectTypesObjects {
 								}
 							}
 							
-							$arr_sql_insert[] = "(".(int)$this->arr_value_type_settings['int_identifier'].", ".$object_id.", ".$object_sub_id.", ".(int)$value_object_sub.")";
+							$str_sql_insert .= ",(".(int)$this->arr_value_type_settings['int_identifier'].", ".$object_id.", ".$object_sub_id.", ".(int)$value_object_sub.")";
+							
+							$num_sql_insert++;
+							
+							if ($num_sql_insert === static::$num_store_objects_buffer) {
+								$func_insert_sql();
+							}
 						}
 					} else if ($value_object) {
 						
-						$arr_sql_insert[] = "(".(int)$this->arr_value_type_settings['int_identifier'].", ".$object_id.", 0, ".(int)$value_object.")";
+						$str_sql_insert .= ",(".(int)$this->arr_value_type_settings['int_identifier'].", ".$object_id.", 0, ".(int)$value_object.")";
+						
+						$num_sql_insert++;
+						
+						if ($num_sql_insert === static::$num_store_objects_buffer) {
+							$func_insert_sql();
+						}
 					}
 				}
 			}
-
 			unset($arr_walked, $arr_objects);
-			
-			if ($arr_sql_insert) {
-								
-				$count = 0;
-				$arr_sql_chunk = array_slice($arr_sql_insert, $count, static::$num_store_objects_buffer);
-				
-				while ($arr_sql_chunk) {
-					
-					$res = DB::query("INSERT INTO ".DB::getTableTemporary(DATABASE_NODEGOAT_TEMP.'.'.$sql_table_name)."
-						(identifier, object_id, object_sub_id, date_value)
-							VALUES
-						".implode(',', $arr_sql_chunk)."
-						".DBFunctions::onConflict('identifier, object_id, object_sub_id', ['object_id'])."
-					");
-					
-					$count += static::$num_store_objects_buffer;
-					$arr_sql_chunk = array_slice($arr_sql_insert, $count, static::$num_store_objects_buffer);
-				}
-				
-				unset($arr_sql_insert);
-			}
+		}
+		
+		if ($num_sql_insert != 0) {
+			$func_insert_sql();
 		}
 	}
 }

@@ -299,15 +299,20 @@ CREATE TABLE `def_nodegoat_custom_project_visual_settings` (
   `geo_display` tinyint DEFAULT NULL,
   `geo_advanced` varchar(2000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `social_dot_color` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `social_dot_opacity` float DEFAULT NULL,
   `social_dot_size_min` float NOT NULL,
   `social_dot_size_max` float NOT NULL,
   `social_dot_size_start` int NOT NULL,
   `social_dot_size_stop` int NOT NULL,
   `social_dot_stroke_color` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `social_dot_stroke_opacity` float NOT NULL,
   `social_dot_stroke_width` float DEFAULT NULL,
   `social_label_show` tinyint DEFAULT NULL,
   `social_label_threshold` float DEFAULT NULL,
   `social_label_condition` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `social_label_color` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `social_label_opacity` float NOT NULL,
+  `social_label_size` float NOT NULL,
   `social_line_arrowhead_show` tinyint(1) DEFAULT NULL,
   `social_line_show` tinyint(1) DEFAULT NULL,
   `social_line_color` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -328,23 +333,6 @@ CREATE TABLE `def_nodegoat_custom_project_visual_settings` (
   `time_background_color` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `time_relative_graph` tinyint(1) DEFAULT NULL,
   `time_cumulative_graph` tinyint(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE `def_nodegoat_details` (
-  `unique_row` tinyint(1) NOT NULL DEFAULT '1',
-  `processing_memory` int NOT NULL,
-  `processing_time` int NOT NULL,
-  `limit_view` int NOT NULL,
-  `limit_import` int NOT NULL,
-  `limit_file_size` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE `def_nodegoat_import_files` (
-  `id` int NOT NULL,
-  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `filename` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `total_objects` int NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `def_nodegoat_import_templates` (
@@ -370,7 +358,7 @@ CREATE TABLE `def_nodegoat_import_template_columns` (
   `element_type_object_sub_id` int NOT NULL,
   `element_type_element_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `overwrite` tinyint(1) NOT NULL,
-  `ignore_when` tinyint(1) NOT NULL,
+  `ignore_when` tinyint NOT NULL,
   `heading_for_source_link` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `sort` int NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -389,6 +377,7 @@ CREATE TABLE `def_nodegoat_linked_data_resources` (
   `name` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `protocol` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `protocol_method` smallint NOT NULL,
   `url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `url_options` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `url_headers` varchar(5000) COLLATE utf8mb4_unicode_ci NOT NULL,

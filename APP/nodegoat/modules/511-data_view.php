@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -65,8 +65,7 @@ class data_view extends base_module {
 		$arr_selection = ['object' => ['all' => true], 'object_descriptions' => null, 'object_sub_details' => []];
 			
 		if ($arr_analyses_active) {
-			
-			$arr_selection['object']['analysis'] = $arr_analyses_active;
+			$arr_selection['object']['object_analysis'] = $arr_analyses_active;
 		}
 				
 		$filter = new FilterTypeObjects($type_id, GenerateTypeObjects::VIEW_ALL, false, $arr_type_set);			
@@ -1113,9 +1112,6 @@ class data_view extends base_module {
 		$arr_project = StoreCustomProject::getProjects($_SESSION['custom_projects']['project_id']);
 		$arr_type_set = StoreType::getTypeSet($type_id);
 		
-		$filter_reset = new FilterTypeObjects($type_id);
-		$filter_reset->clearResultInfo();
-		
 		$return = cms_general::createDataTableHeading('d:data_view:data-'.$type_id.'_'.$str_mode.'_'.$str_settings, ['filter' => ($do_filter ? 'y:data_filter:open_filter-'.$type_id : false), 'pause' => $do_pause, 'order' => true]).'
 			<thead><tr>';
 				
@@ -1190,8 +1186,9 @@ class data_view extends base_module {
 		$arr_type_set = StoreType::getTypeSet($type_id);
 		$arr_object_sub_details = $arr_type_set['object_sub_details'][$object_sub_details_id];
 		
-		$filter_reset = new FilterTypeObjects($type_id);
-		$filter_reset->clearResultInfo();
+		if (!$arr_object_sub_details) {
+			return;
+		}
 		
 		$arr_columns = [];
 		$num_column = 0;
@@ -1366,7 +1363,7 @@ class data_view extends base_module {
 					
 					COMMANDS.setData(elm_target, value);
 					COMMANDS.dataTableRefresh(elm_target);
-				});				
+				});
 			});
 			
 			SCRIPTER.dynamic('.view_type_object', 'view_type_object');
@@ -1649,8 +1646,6 @@ class data_view extends base_module {
 			$arr_filter = [];
 			$has_filter_input = false;
 			
-			$arr_set_cache = false;
-			
 			if ($arr_value['use_visualise']) {
 				
 				$arr_filter_prepare = [];
@@ -1757,6 +1752,9 @@ class data_view extends base_module {
 			if (!$arr_filter['object_versioning'] || $arr_filter['object_versioning']['version']) {
 				$filter->setVersioning(($arr_filter['object_versioning']['version'] ? GenerateTypeObjects::VERSIONING_FULL : GenerateTypeObjects::VERSIONING_ADDED));
 			}
+			
+			$arr_set_cache = null;
+			$has_set_cache = null;
 			
 			if ($has_filter_input) {
 
@@ -1934,7 +1932,11 @@ class data_view extends base_module {
 			$arr_project_type = $arr_project['types'][$type_id];
 			
 			$arr_type_set = StoreCustomProject::getTypeSetReferenced($type_id, $arr_project_type, StoreCustomProject::ACCESS_PURPOSE_ANY);
-			$arr_object_sub_details = $arr_type_set['object_sub_details'][$object_sub_details_id];
+			$arr_object_sub_details = ($arr_type_set['object_sub_details'][$object_sub_details_id] ?? null);
+			
+			if ($object_sub_details_id != 'all' && !$arr_object_sub_details) {
+				return;
+			}
 			
 			if ($object_sub_details_id != 'all' && (!data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, false, $object_sub_details_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, false, $object_sub_details_id))) {
 				return;
@@ -2177,7 +2179,7 @@ class data_view extends base_module {
 			$external = new ResourceExternal($arr_resource);
 			$arr_values = $external->getResponseValues();
 			
-			$arr_filter = false;
+			$arr_filter = null;
 			if ($arr_value['form']) {
 				$arr_filter = $arr_value['form'];
 			}
@@ -2219,13 +2221,11 @@ class data_view extends base_module {
 				$arr_results = $external->getResultValues();
 			} catch (RealTroubleThrown $e) {
 				
-				$arr_code = Trouble::parseCode($e);
-					
-				if ($arr_code['suppress'] != LOG_SYSTEM) {
+				if ($e->getTroubleSuppress() != LOG_SYSTEM) {
 					
 					Labels::setVariable('resource_name', $arr_resource['name']);
 
-					error(getLabel('msg_external_resource_error_parse').' '.$e->getMessage(), TROUBLE_ERROR, LOG_CLIENT, false, $e); // Make notice
+					error(getLabel('msg_external_resource_error_parse').' '.$e->getTroubleMessage(), TROUBLE_ERROR, LOG_CLIENT, null, $e); // Make notice
 				}
 				
 				throw($e);

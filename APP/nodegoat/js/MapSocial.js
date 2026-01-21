@@ -1,7 +1,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -35,6 +35,7 @@ function MapSocial(elm_draw, PARENT, options) {
 	elm_plot_lines = false,
 	elm_plot_dots = false,
 	elm_plot_info = false,
+	func_tooltip_stop = null,
 	arr_data = false,
 	arr_loop_object_subs = [],
 	include_location_nodes = false,
@@ -78,9 +79,15 @@ function MapSocial(elm_draw, PARENT, options) {
 	static_layout = false,
 	static_layout_interval = 0,
 	static_layout_timer = window.performance.now(),
-	font_family = 'var(--font-site)',
+	font_family = null,
 	size_text = 12,
+	size_text_min = 8,
+	num_text_scaled = null,
 	color_text = '#000000',
+	opacity_text = 1,
+	do_text_scale = true,
+	do_text_pixel = false,
+	length_text_max = 80,
 	color_highlight_node = '#d92b2b',
 	color_highlight_node_connect = '#ff7070',
 	color_highlight_link = 'rgba(255,0,0,0.4)',
@@ -90,7 +97,9 @@ function MapSocial(elm_draw, PARENT, options) {
 	size_node_start = null,
 	size_node_stop = null,
 	color_node = null,
+	opacity_node = null,
 	color_node_stroke = null,
+	opacity_node_stroke = null,
 	width_node_stroke = null,
 	
 	width_line_min = 1.5,
@@ -100,6 +109,8 @@ function MapSocial(elm_draw, PARENT, options) {
 	arr_color_line = false,
 	do_line_color_weight = false,
 	do_node_icons_weight = false,
+	use_best_quality = null,
+	use_beta_mode = false,
 	
 	pos_hover_poll = false,
 	pos_move = {x: 0, y: 0},
@@ -108,18 +119,18 @@ function MapSocial(elm_draw, PARENT, options) {
 	use_metrics = false,
 	metrics_process = false,
 		
-	geometry_shader = false,
-	geometry_lines = false,
-	geometry_mesh = false,
+	geometry_shader = null,
+	geometry_shader_uniforms = null,
 	buffer_geometry_lines_position = false,
+	buffer_geometry_lines_index = false,
 	buffer_geometry_lines_normal = false,
 	buffer_geometry_lines_color = false,
-	length_geometry_lines_position = 12,
-	length_geometry_lines_color = 12 * 2,
+	do_update_geometry_lines_index = false,
 	do_update_geometry_lines_color = false,
 	count_links = 0,
 	count_nodes = 0,
 	arr_assets_texture_icons = {},
+	num_zoom_initialise = null,
 	
 	is_weighted = false,
 	force_options = {},
@@ -141,31 +152,13 @@ function MapSocial(elm_draw, PARENT, options) {
 	size_max_elm_container = 15000,
 	
 	SocialUtilities = new MapUtilities(PARENT.obj_map);
-		
-	var parseColor = function(str) {
-		
-		if (display == DISPLAY_VECTOR) {
-			return str;
-		}
-		
-		return SocialUtilities.parseColorToHex(str);
-	};
 	
-	var parseColorLink = function(str) {
-		
-		if (display == DISPLAY_VECTOR) {
-			return str;
-		}
-		
-		return SocialUtilities.parseColor(str);
-	};
-    			
 	this.init = function() {
 		
-		var parseBool = function(value, loose) {
-			if (value == 'true') {
+		const parseBool = function(value, loose) {
+			if (value === true || value === 'true') {
 				return true;
-			} else if (value == 'false') {
+			} else if (value === false || value === 'false') {
 				return false;
 			} else if (loose) {
 				return value;
@@ -173,27 +166,47 @@ function MapSocial(elm_draw, PARENT, options) {
 				return false;
 			}
 		};
-
+		
+		const arr_setting_advanced = options.arr_visual.social.settings.social_advanced;
+		
 		display = options.arr_visual.social.settings.display;
 		static_layout = options.arr_visual.social.settings.static_layout;
 		static_layout_interval = options.arr_visual.social.settings.static_layout_interval;
 		
-		var use_capture = (options.arr_visual.capture.enable ? true : false);
+		SocialUtilities.parseColor = (display == DISPLAY_PIXEL ? SocialUtilities.parseColorToHex : SocialUtilities.parseColorToString);
+		SocialUtilities.parseColorLink = (display == DISPLAY_PIXEL ? SocialUtilities.parseColorToArray : function(str) { return str; });
+		
+		let use_capture = (options.arr_visual.capture.enable ? true : false);
+		if (typeof arr_setting_advanced.best_quality != 'undefined') {
+			use_best_quality = parseBool(arr_setting_advanced.best_quality);
+		}
+		use_best_quality = (use_best_quality != null ? use_best_quality : (use_capture ? true : false));
+		if (typeof arr_setting_advanced.beta_mode != 'undefined') {
+			use_beta_mode = parseBool(arr_setting_advanced.beta_mode);
+		}
 				
 		size_node_max = parseFloat(options.arr_visual.social.dot.size.max);
 		size_node_min = parseFloat(options.arr_visual.social.dot.size.min);
 		size_node_start = parseFloat(options.arr_visual.social.dot.size.start);
 		size_node_stop = parseFloat(options.arr_visual.social.dot.size.stop);
 		color_node = options.arr_visual.social.dot.color;
+		opacity_node = parseFloat(options.arr_visual.social.dot.opacity);
 		color_node_stroke = options.arr_visual.social.dot.stroke_color;
+		opacity_node_stroke = parseFloat(options.arr_visual.social.dot.stroke_opacity);
 		width_node_stroke = options.arr_visual.social.dot.stroke_width;
 
 		if (!options.arr_visual.social.label.show) {
-			label_threshold = 1;
+			label_threshold = 2.0; // Set above 1, the maximum
 		} else {
 			label_threshold = parseFloat(options.arr_visual.social.label.threshold);
 			label_condition = options.arr_visual.social.label.condition;
 			label_condition = (label_condition ? label_condition : false);
+			color_text = options.arr_visual.social.label.color;
+			opacity_text = parseFloat(options.arr_visual.social.label.opacity);
+			size_text = parseFloat(options.arr_visual.social.label.size);
+			if (size_text < size_text_min) {
+				size_text_min = size_text;
+			}
 		}
 		
 		width_line_max = parseFloat(options.arr_visual.social.line.width.max);
@@ -222,9 +235,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			slow_down: options.arr_visual.social.forceatlas2.slow_down,
 			optimize_theta: options.arr_visual.social.forceatlas2.optimize_theta
 		};
-		
-		const arr_setting_advanced = options.arr_visual.social.settings.social_advanced;
-		
+
 		if (typeof arr_setting_advanced.force_friction != 'undefined') {
 			force_options.friction = parseFloat(arr_setting_advanced.force_friction);
 		}
@@ -250,6 +261,15 @@ function MapSocial(elm_draw, PARENT, options) {
 		
 		if (typeof arr_setting_advanced.label_threshold != 'undefined') {
 			label_threshold = parseFloat(arr_setting_advanced.label_threshold);
+		}
+		if (typeof arr_setting_advanced.label_font != 'undefined') {
+			font_family = arr_setting_advanced.label_font;
+		}
+		if (typeof arr_setting_advanced.label_scale != 'undefined') {
+			do_text_scale = parseBool(arr_setting_advanced.label_scale);
+		}
+		if (typeof arr_setting_advanced.label_size_min != 'undefined') {
+			size_text_min = parseFloat(arr_setting_advanced.label_size_min);
 		}
 		if (typeof arr_setting_advanced.metrics != 'undefined') {
 			//use_metrics = parseBool(arr_setting_advanced.metrics, false);
@@ -281,12 +301,14 @@ function MapSocial(elm_draw, PARENT, options) {
 		
 		let arr_scripts = ['/js/support/d3-force.pack.js'];
 		if (display == DISPLAY_PIXEL) {
-			arr_scripts.push('/CMS/js/support/pixi.min.js');
+			arr_scripts.push('/CMS/js/support/pixi8.min.js');
 		}
+		
+		arr_labels = ['lbl_visualise_layout_complete', 'lbl_visualise_layout_iterations', 'lbl_nodes', 'lbl_links', 'lbl_links_out', 'lbl_links_in', 'lbl_reference', 'lbl_references', 'lbl_conditions', 'msg_no_results'];
 
 		ASSETS.fetch(elm_host, {
-			script: arr_scripts, font: ['pixel'], labels: ['lbl_visualise_layout_complete', 'lbl_visualise_layout_iterations', 'lbl_nodes', 'lbl_links']
-		}, function() {
+			script: arr_scripts, font: ['pixel'], labels: arr_labels
+		}, async function() {
 			
 			has_init = true;
 
@@ -296,7 +318,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				focus_object_id = arr_data.focus.object_id;
 			}
 			
-			ASSETS.getLabels(elm_host, ['lbl_visualise_layout_complete', 'lbl_visualise_layout_iterations', 'lbl_nodes', 'lbl_links'], (data) => {arr_labels = data});
+			ASSETS.getLabels(elm_host, arr_labels, (data) => {arr_labels = data});
 
 			var count_start = 0;
 			
@@ -346,13 +368,15 @@ function MapSocial(elm_draw, PARENT, options) {
 							
 							for (let i = 0, len = arr_media.length; i < len; i++) {
 							
-								const resource = arr_media[i];
-								const arr_medium = ASSETS.getMedia(resource);
+								const str_resource = arr_media[i];
+								const arr_medium = ASSETS.getMedia(str_resource);
 								const elm_image = arr_medium.image.cloneNode(false);
 								
-								const texture = PIXI.Texture.from(elm_image);
+								const source = new PIXI.ImageSource({resource: elm_image, width: arr_medium.width, height: arr_medium.height});
+								const texture = new PIXI.Texture(source);
+								//texture = await PIXI.Assets.load(str_resource);
 								
-								arr_assets_texture_icons[resource] = {texture: texture, width: arr_medium.width, height: arr_medium.height};
+								arr_assets_texture_icons[str_resource] = {texture: texture, width: arr_medium.width, height: arr_medium.height};
 							}
 						}
 						
@@ -363,7 +387,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				}
 			}
 			
-			var num_zoom_initialise = pos_map.level;
+			num_zoom_initialise = pos_map.level;
 				
 			if (display == DISPLAY_PIXEL) {
 									
@@ -379,14 +403,36 @@ function MapSocial(elm_draw, PARENT, options) {
 				elm_canvas.width = size_renderer.width;
 				elm_canvas.height = size_renderer.height;	
 				elm[0].appendChild(elm_canvas);
+
+				PIXI.GraphicsContextSystem.defaultOptions.bezierSmoothness = 0.5;
+				if (use_capture || use_best_quality) {
+					PIXI.GraphicsContextSystem.defaultOptions.bezierSmoothness = 1;
+				}
+
+				const func_renderer_settings = function(renderer_check) {
+					
+					renderer_check.events.autoPreventDefault = false;
+					renderer_check.canvas.style.removeProperty('touch-action');
+					
+					return renderer_check;
+				};
 				
-				PIXI.GRAPHICS_CURVES.adaptive = true;
-				PIXI.GRAPHICS_CURVES.maxLength = (use_capture ? 2 : 10); // Use higher segment resolution (shorter curve lengths) when capturing
-				PIXI.settings.SPRITE_MAX_TEXTURES = Math.min(PIXI.settings.SPRITE_MAX_TEXTURES, 16);
+				const func_stage_settings = function(stage_check) {
+					
+					stage_check.isRenderGroup = false;
+					stage_check.cullableChildren = false;
+					stage_check.interactiveChildren = false;
+					stage_check.eventMode = 'none';
+					
+					return stage_check;
+				};
+				
+				const arr_renderer_settings = {width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: size_renderer.resolution, autoDensity: true, premultipliedAlpha: true, preference: (use_beta_mode ? 'webgpu' : 'webgl')};
+				
+				renderer = func_renderer_settings(await PIXI.autoDetectRenderer(arr_renderer_settings));
+				renderer_2 = func_renderer_settings(await PIXI.autoDetectRenderer(arr_renderer_settings));
 
-				geometry_lines = new PIXI.Geometry();
-
-				var vertex_shader = `
+				const vertex_shader = `
 					precision mediump float;
 					attribute vec2 a_position;
 					//attribute vec2 a_normal;
@@ -396,7 +442,7 @@ function MapSocial(elm_draw, PARENT, options) {
 					uniform vec2 u_translation;
 					uniform vec2 u_stagetranslation;
 					uniform vec2 u_scale;
-					uniform float u_width_line;
+					//uniform float u_width_line;
 					void main(void) {
 						//vec2 delta = a_normal * u_width_line;
 					 	//vec2 pos = ((((a_position.xy + delta.xy + u_translation.xy) * u_scale.xy) + u_stagetranslation.xy) / u_bounds.xy) * 2.0 - 1.0;
@@ -406,28 +452,85 @@ function MapSocial(elm_draw, PARENT, options) {
 					}
 				`;
 					
-				var fragment_shader = `
+				const fragment_shader = `
 					precision mediump float;
 					varying vec4 v_color;
 					void main(void) {
-						gl_FragColor = v_color;
+						// Multiply RGB by Alpha before outputting
+						gl_FragColor = vec4(v_color.rgb * v_color.a, v_color.a);
+					}
+				`;
+				
+				const line_wgsl = `
+					struct GlobalUniforms {
+						u_bounds: vec2<f32>,
+						u_translation: vec2<f32>,
+						u_stagetranslation: vec2<f32>,
+						u_scale: vec2<f32>,
+					};
+
+					@group(0) @binding(0) var<uniform> my_uniforms: GlobalUniforms;
+					
+					struct VertexOutput {
+						@builtin(position) position: vec4<f32>,
+						@location(0) v_color: vec4<f32>,
+					};
+
+					@vertex
+					fn mainVertex(
+						@location(0) a_position: vec2<f32>,
+						@location(1) a_color: vec4<f32>,
+					) -> VertexOutput {
+						var output: VertexOutput;
+						
+						let shifted_pos = (a_position + my_uniforms.u_translation) * my_uniforms.u_scale;
+						let final_pos = (shifted_pos + my_uniforms.u_stagetranslation) / my_uniforms.u_bounds;
+						
+						// Map to NDC and flip Y
+						let ndc_pos = final_pos * 2.0 - 1.0;
+						output.position = vec4<f32>(ndc_pos.x, ndc_pos.y * -1.0, 0.0, 1.0);
+						
+						output.v_color = a_color;
+						return output;
+					}
+
+					@fragment
+					fn mainFragment(
+						@location(0) v_color: vec4<f32>
+					) -> @location(0) vec4<f32> {
+						// Multiply RGB by Alpha before outputting
+						return vec4<f32>(v_color.rgb * v_color.a, v_color.a);
 					}
 				`;
 
-				geometry_shader = PIXI.Shader.from(vertex_shader, fragment_shader);
+				const gl_program = PIXI.GlProgram.from({
+					vertex: vertex_shader,
+					fragment: fragment_shader
+				});
+				const gpu_program = PIXI.GpuProgram.from({
+					vertex: {source: line_wgsl, entryPoint: 'mainVertex'},
+					fragment: {source: line_wgsl, entryPoint: 'mainFragment'}
+				});				
 				
-				geometry_shader.uniforms.u_bounds = [size_renderer.width, size_renderer.height];
-				geometry_shader.uniforms.u_translation = [0, 0];
-				geometry_shader.uniforms.u_stagetranslation = [0, 0];
-				geometry_shader.uniforms.u_scale = [1.0, 1.0];
-				//geometry_shader.uniforms.u_width_line = width_line_min;
+				geometry_shader_uniforms = new PIXI.UniformGroup({
+					u_bounds: {value: [size_renderer.width, size_renderer.height], type: 'vec2<f32>'},
+					u_translation: {value: [0, 0], type: 'vec2<f32>'},
+					u_stagetranslation: {value: [0, 0], type: 'vec2<f32>'},
+					u_scale: {value: [1.0, 1.0], type: 'vec2<f32>'},
+					//u_width_line: {value: width_line_min, type: 'f32'},
+				});
 
-				renderer = PIXI.autoDetectRenderer({width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: size_renderer.resolution, autoDensity: true});
-				renderer_2 = PIXI.autoDetectRenderer({width: size_renderer.width, height: size_renderer.height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: use_capture, resolution: size_renderer.resolution, autoDensity: true});
-
-				stage = new PIXI.Container();
-				stage_2 = new PIXI.Container();
+				geometry_shader = new PIXI.Shader({
+					glProgram: gl_program,
+					gpuProgram: gpu_program,
+					resources: {
+						my_uniforms: geometry_shader_uniforms
+					}
+				});
 				
+				stage = func_stage_settings(new PIXI.Container());
+				stage_2 = func_stage_settings(new PIXI.Container());
+								
 				elm_plot_lines = new PIXI.Container();
 				elm_plot_dots = new PIXI.Container();
 				elm_plot_info = new PIXI.Container();
@@ -436,18 +539,22 @@ function MapSocial(elm_draw, PARENT, options) {
 				stage.addChild(elm_plot_dots);
 				stage_2.addChild(elm_plot_info);
 				
-				drawer = renderer.view;
+				drawer = renderer.canvas;
 				elm[0].appendChild(drawer);
-				drawer_2 = renderer_2.view;
+				drawer_2 = renderer_2.canvas;
 				elm[0].appendChild(drawer_2);
-				
-				renderer.events.autoPreventDefault = false;
-				renderer_2.events.autoPreventDefault = false;
-				drawer.style.removeProperty('touch-action');
-				drawer_2.style.removeProperty('touch-action');
-				
-				font_family = 'pixel';
-				size_text = 8;
+
+				font_family = (font_family ? font_family : 'pixel');
+				do_text_pixel = (font_family == 'pixel' ? true : false);
+
+				num_text_scaled = size_text;
+				if (do_text_scale) {
+					num_text_scaled = Math.floor(num_scale * size_text);
+					num_text_scaled = (num_text_scaled < size_text_min ? size_text_min : num_text_scaled);
+				}
+				if (do_text_pixel) { // Resize text in blocks using remainder
+					num_text_scaled = (num_text_scaled - (num_text_scaled % size_text_min));
+				}
 			} else {
 
 				size_renderer = {width: pos_map.size.width, height: pos_map.size.height};
@@ -474,15 +581,16 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				const node_style = document.createTextNode(`
 					*[data-visible="0"] { display: none; }
+					circle { paint-order: stroke; }
 				`);
 				drawer_style_body.appendChild(node_style);
-				
+							
 				if (use_capture) {
 					
 					count_start++; // Font loading
 										
-					font_family = 'pixel';
-					size_text = 8;
+					font_family = (font_family ? font_family : 'pixel');
+					size_text = (size_text - (size_text % 8));
 					
 					ASSETS.getFiles(elm_host, ['Unibody8Pro-Regular'], function(arr_files) {
 						
@@ -511,6 +619,22 @@ function MapSocial(elm_draw, PARENT, options) {
 						
 						func_start();
 					}, {}, 'blob', '/css/fonts/', '.woff');
+				}
+				
+				font_family = (font_family ? font_family : 'var(--font-site)');
+				do_text_pixel = (font_family == 'pixel' ? true : false);
+								
+				if (!do_text_scale) { // Reversed scaling as whole svg already scales
+					
+					num_text_scaled = size_text / num_scale;
+				} else {
+
+					let num_text_calculate = num_scale * size_text;
+					if (do_text_pixel) {
+						num_text_calculate = (num_text_calculate - (num_text_calculate % size_text_min));
+					}
+					
+					num_text_scaled = (num_text_calculate < size_text_min ? size_text_min / num_scale : num_text_calculate / num_scale);
 				}
 			
 				if (show_arrowhead) {
@@ -576,15 +700,15 @@ function MapSocial(elm_draw, PARENT, options) {
 		simulation.close();
 		
 		if (display == DISPLAY_PIXEL) { // Destroy WEBGL memory
+			
 			stage.destroy(true);
 			stage_2.destroy(true);
 			renderer.destroy();
 			renderer_2.destroy();
 			
-			for (var resource in arr_assets_texture_icons) {
+			for (const resource in arr_assets_texture_icons) {
 				
 				if (arr_assets_texture_icons[resource].texture) {
-					
 					arr_assets_texture_icons[resource].texture.destroy(true);
 				}
 			}
@@ -606,7 +730,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			setCheckObjectSubs(dateinta_range);
 			checkNodes();
 			setNodesLinksValues();
-			createLinkElms();
+			createLinkElements();
 			
 			for (let i = 0, len = arr_loop_nodes.length; i < len; i++) {
 				
@@ -620,7 +744,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				arr_node.index = num_index - 1;
 				
-				drawNodeElm(arr_node);
+				drawNodeElement(arr_node);
 			}
 			
 			for (let i = 0, len = arr_loop_links.length; i < len; i++) {
@@ -790,13 +914,10 @@ function MapSocial(elm_draw, PARENT, options) {
 		this.stopDraw = function() {
 			
 			SELF.step();
-			
-			// Stop drawing if force is under threshold
-			if (num_threshold < num_threshold_stop) {
-			
+
+			if (num_threshold < num_threshold_stop) { // Stop drawing if force is under threshold
 				return true;
 			} else {
-
 				return false;
 			}
 		};
@@ -1172,7 +1293,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			for (let i = 0, j = 0, len = arr_active_nodes.length; i < len; i++) {
 				
 				const arr_node = arr_active_nodes[i];
-							
+				
 				// Populating byte array
 				arr_matrix_nodes[j] = arr_node.x;
 				arr_matrix_nodes[j + 1] = arr_node.y;
@@ -1366,7 +1487,7 @@ function MapSocial(elm_draw, PARENT, options) {
 					
 					for (let i = 0, len = arr_matrix_edges.length; i < len; i += num_properties_edges) {
 				
-						var arr_edge = {
+						const arr_edge = {
 							source: arr_active_nodes[arr_matrix_edges[i]],
 							target: arr_active_nodes[arr_matrix_edges[i + 1]],
 							weight: arr_matrix_edges[i + 2]
@@ -1536,7 +1657,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				arr_matrix_nodes[j + 5] = 0;
 				arr_matrix_nodes[j + 6] = arr_node.weight;
 				arr_matrix_nodes[j + 7] = 1;
-				arr_matrix_nodes[j + 8] = arr_node.radius;
+				arr_matrix_nodes[j + 8] = arr_node.radius; // Providing radius as 'size' yields best results
 				arr_matrix_nodes[j + 9] = arr_node.fixed;
 				
 				j += num_properties_nodes;
@@ -1707,13 +1828,13 @@ function MapSocial(elm_draw, PARENT, options) {
 				for (let i = 0, len = arr_active_nodes.length; i < len; i++) {
 					
 					const arr_node = arr_active_nodes[i];
-					const dx = (((arr_node.x + pos_translation.x) * num_scale) + (stage.position ? stage.position.x : '')) - pos_hover_poll.x;
-					const dy = (((arr_node.y + pos_translation.y) * num_scale) + (stage.position ? stage.position.y : '')) - pos_hover_poll.y;
+					const num_dx = (((arr_node.x + pos_translation.x) * num_scale) + (stage.position ? stage.position.x : 0)) - pos_hover_poll.x;
+					const num_dy = (((arr_node.y + pos_translation.y) * num_scale) + (stage.position ? stage.position.y : 0)) - pos_hover_poll.y;
 					
-					const distance_squared = dx * dx + dy * dy;
-					const radius_squared = ((arr_node.radius + width_node_stroke + 2) * num_scale) * ((arr_node.radius + width_node_stroke + 2) * num_scale);
+					const num_distance_squared = num_dx * num_dx + num_dy * num_dy;
+					const num_radius_squared = ((arr_node.radius * num_scale) + 2) * ((arr_node.radius * num_scale) + 2);
 
-					if (distance_squared < radius_squared) {
+					if (num_distance_squared < num_radius_squared) {
 						
 						is_hovering = true;
 						
@@ -1754,9 +1875,32 @@ function MapSocial(elm_draw, PARENT, options) {
 					} else if (num_zoom > 0) {
 						num_scale = num_scale * Math.pow(1.4286, num_zoom);
 					}
+					
+					if (do_text_scale) {
+						
+						num_text_scaled = Math.floor(num_scale * size_text);
+						num_text_scaled = (num_text_scaled < size_text_min ? size_text_min : num_text_scaled);
+						if (do_text_pixel) {
+							num_text_scaled = (num_text_scaled - (num_text_scaled % size_text_min));
+						}
+					}
 				}
 			} else {
-				num_scale = width/size_init.width;
+				
+				num_scale = width / size_init.width;
+				
+				if (!do_text_scale) { // Reversed scaling as whole svg already scales
+					
+					num_text_scaled = size_text / num_scale;
+				} else {
+					
+					let num_text_calculate = num_scale * size_text;
+					if (do_text_pixel) {
+						num_text_calculate = (num_text_calculate - (num_text_calculate % size_text_min));
+					}
+					
+					num_text_scaled = (num_text_calculate < size_text_min ? size_text_min / num_scale : num_text_calculate / num_scale);
+				}
 			}
 
 			do_redraw = true;
@@ -1778,8 +1922,9 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				elm_canvas.width = width;
 				elm_canvas.height = height;	
-								
-				geometry_shader.uniforms.u_bounds = [width, height];	
+				
+				geometry_shader_uniforms.uniforms.u_bounds[0] = width;
+				geometry_shader_uniforms.uniforms.u_bounds[1] = height;
 				
 				simulation.resize();
 				simulation.resume();
@@ -1796,7 +1941,8 @@ function MapSocial(elm_draw, PARENT, options) {
 				pos_translation.x = pos_translation.x - ((pos_move.x - pos.x) / num_scale);
 				pos_translation.y = pos_translation.y - ((pos_move.y - pos.y) / num_scale);
 				
-				geometry_shader.uniforms.u_translation = [pos_translation.x, pos_translation.y];
+				geometry_shader_uniforms.uniforms.u_translation[0] = pos_translation.x;
+				geometry_shader_uniforms.uniforms.u_translation[1] = pos_translation.y;
 
 				pos_move.x = pos.x;
 				pos_move.y = pos.y;
@@ -1813,9 +1959,13 @@ function MapSocial(elm_draw, PARENT, options) {
 				stage.position.y = (height - (height * num_scale)) / 2;
 				stage_2.position.y = (height - (height * num_scale)) / 2;
 
-				geometry_shader.uniforms.u_stagetranslation = [stage.position.x, stage.position.y];
-				geometry_shader.uniforms.u_scale = [num_scale, num_scale];
+				geometry_shader_uniforms.uniforms.u_stagetranslation[0] = stage.position.x;
+				geometry_shader_uniforms.uniforms.u_stagetranslation[1] = stage.position.y;
+				geometry_shader_uniforms.uniforms.u_scale[0] = num_scale;
+				geometry_shader_uniforms.uniforms.u_scale[1] = num_scale;
 			}
+			
+			geometry_shader_uniforms.update();
 		} else {
 				
 			drawer.style.width = width+'px';
@@ -1832,31 +1982,57 @@ function MapSocial(elm_draw, PARENT, options) {
 		}
 	};
 	
-	var createLinkElms = function() {	
+	var createLinkElements = function() {	
 		
 		if (!show_line) {
 			return;
 		}
 		
 		if (display == DISPLAY_PIXEL) {
-
-			buffer_geometry_lines_position = new PIXI.Buffer(new Float32Array(arr_loop_links.length * length_geometry_lines_position));
-			//buffer_geometry_lines_normal = new PIXI.Buffer(new Float32Array(arr_loop_links.length * length_geometry_lines_position));
-			buffer_geometry_lines_color = new PIXI.Buffer(new Float32Array(arr_loop_links.length * length_geometry_lines_color));
-
-			geometry_lines.addAttribute('a_position', buffer_geometry_lines_position, 2);
-			//geometry_lines.addAttribute('a_normal', buffer_geometry_lines_normal, 2);
-			geometry_lines.addAttribute('a_color', buffer_geometry_lines_color, 4);
 			
-			geometry_mesh = new PIXI.Mesh(geometry_lines, geometry_shader);
-			geometry_mesh.blendMode = PIXI.BLEND_MODES.NORMAL_NPM; // Not pre-multiplied alpha
+			buffer_geometry_lines_index = new PIXI.Buffer({data: new Uint32Array(arr_loop_links.length * 6), usage: PIXI.BufferUsage.INDEX | PIXI.BufferUsage.COPY_DST});
+			buffer_geometry_lines_position = new PIXI.Buffer({data: new Float32Array(arr_loop_links.length * 4 * 2), usage: PIXI.BufferUsage.VERTEX | PIXI.BufferUsage.COPY_DST});
+			buffer_geometry_lines_color = new PIXI.Buffer({data: new Float32Array(arr_loop_links.length * 4 * 4), usage: PIXI.BufferUsage.VERTEX | PIXI.BufferUsage.COPY_DST});
+			//buffer_geometry_lines_normal = new PIXI.Buffer({data: new Float32Array(arr_loop_links.length * 4 * 2), usage: PIXI.BufferUsage.VERTEX});
+
+			const geometry_lines = new PIXI.Geometry({
+				attributes: {
+					a_position: {buffer: buffer_geometry_lines_position, size: 2, format: 'float32x2', instance: false},
+					a_color: {buffer: buffer_geometry_lines_color, size: 4, format: 'float32x4', instance: false},
+					//a_normal: {buffer: buffer_geometry_lines_normal, size: 2},
+				},
+				indexBuffer: buffer_geometry_lines_index
+			});
+
+			const geometry_mesh = new PIXI.Mesh({geometry: geometry_lines, shader: geometry_shader});
+			geometry_mesh.blendMode = 'normal';
 			
 			elm_plot_lines.addChild(geometry_mesh);
+			
+			for (let i = 0, len = arr_loop_links.length; i < len; i++) {
+				
+				const arr_link = arr_loop_links[i];
+				
+				const num_buffer_offset = arr_link.count * 6; // 6 indices per link that refer to one of the available 4 vertex positions
+				const num_index_offset = arr_link.count * 4; // The index references the 4 available vertices
+				
+				const arr_indices = buffer_geometry_lines_index.data;
+				
+				arr_indices[num_buffer_offset + 0] = num_index_offset + 0;
+				arr_indices[num_buffer_offset + 1] = num_index_offset + 1;
+				arr_indices[num_buffer_offset + 2] = num_index_offset + 2;
+				
+				arr_indices[num_buffer_offset + 3] = num_index_offset + 1;
+				arr_indices[num_buffer_offset + 4] = num_index_offset + 3;
+				arr_indices[num_buffer_offset + 5] = num_index_offset + 2;
+			}
+			
+			buffer_geometry_lines_index.update();
 		} else {
 					
-			for (var i = 0, len = arr_loop_links.length; i < len; i++) {
+			for (let i = 0, len = arr_loop_links.length; i < len; i++) {
 				
-				var arr_link = arr_loop_links[i];
+				const arr_link = arr_loop_links[i];
 				
 				arr_link.elm = stage.createElementNS(stage_ns, 'path');
 				svg_group.appendChild(arr_loop_links[i].elm);
@@ -1872,7 +2048,16 @@ function MapSocial(elm_draw, PARENT, options) {
 		}
 	};
 	
-	var drawNodeElm = function(arr_node) {
+	var drawNodeElement = function(arr_node) {
+		
+		if (arr_node.redraw_node === false && do_redraw && display == DISPLAY_VECTOR) { // Quick update
+			
+			if (arr_node.elm_text !== null) {
+				arr_node.elm_text.style.fontSize = num_text_scaled+'px';
+			}
+			
+			return;
+		}
 			
 		let elm = arr_node.elm;
 		let do_highlight = false;
@@ -1880,7 +2065,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			
 		// Set the primary color of the node
 		if (!arr_node.color) {
-						
+			
 			if (arr_node.style && arr_node.style.color) {
 				
 				// Color set by Object
@@ -1900,17 +2085,17 @@ function MapSocial(elm_draw, PARENT, options) {
 			}
 		}
 		
-		var color = arr_node.color;
+		let str_color = arr_node.color;
 		
 		if (arr_node.highlight_color) {
 			
-			color = arr_node.highlight_color;
+			str_color = arr_node.highlight_color;
 			
 			do_highlight = true;
 			arr_node.highlight_color = false;
 		}
 		
-		str_identifier += color;
+		str_identifier += str_color;
 	
 		if (!do_highlight && arr_node.has_conditions) {
 			
@@ -1928,11 +2113,11 @@ function MapSocial(elm_draw, PARENT, options) {
 			
 			if (size_node_start && num_weight_conditions < size_node_start) {
 				num_weight_conditions = size_node_start;
-			}	
+			}
 			
 			if (size_node_stop && num_weight_conditions > size_node_stop) {
 				num_weight_conditions = size_node_stop;
-			}		
+			}
 			
 			arr_node.weight = num_weight_conditions;
 		} else {
@@ -1970,15 +2155,17 @@ function MapSocial(elm_draw, PARENT, options) {
 		const num_size_radius = (num_size / 2); // Diameter to radius
 		
 		str_identifier += num_size_radius+'-'+num_scale;
-		
+				
 		if (str_identifier == arr_node.identifier) {
 
 			if (display == DISPLAY_PIXEL) {
+				
 				elm.visible = true;
-				if (arr_node.show_text) {
+				if (arr_node.show_text && num_size_radius) {
 					arr_node.elm_text.visible = true;
 				}
 			} else {
+				
 				elm.dataset.visible = 1;
 			}
 		} else {
@@ -1987,15 +2174,13 @@ function MapSocial(elm_draw, PARENT, options) {
 
 			if (display == DISPLAY_PIXEL) {
 				
-				pos_elm = false;
+				pos_elm = null;
 							
 				if (!elm) {
 					
 					if (arr_node.has_conditions) {
-						
 						elm = new PIXI.Container();
 					} else {
-						
 						elm = new PIXI.Graphics();
 					}
 					
@@ -2004,11 +2189,12 @@ function MapSocial(elm_draw, PARENT, options) {
 					
 					if (arr_node.show_text) {
 						
-						const elm_text = new PIXI.Text(arr_node.name_text, {fontSize: size_text, fontFamily: font_family});
+						const elm_text = new PIXI.Text(arr_node.name_text, {fontSize: num_text_scaled, fontFamily: font_family, fill: color_text});
+						elm_text.alpha = opacity_text;
 						
 						elm_text.anchor.x = 0;
 						elm_text.anchor.y = 0.5;
-									
+						
 						elm_plot_info.addChild(elm_text);
 
 						arr_node.elm_text = elm_text;
@@ -2016,20 +2202,22 @@ function MapSocial(elm_draw, PARENT, options) {
 				} else {
 
 					if (arr_node.has_conditions) {
-						
 						elm.children = [];
 					} else {
-						
-						elm.clear();
+						//elm.clear();
 					}
 					
 					elm.visible = true;
 					
-					if (arr_node.elm_text) {
-						arr_node.elm_text.visible = arr_node.show_text;
+					if (arr_node.elm_text !== null && do_text_scale) {
+						arr_node.elm_text.style.fontSize = num_text_scaled;
 					}
-
+					
 					pos_elm = elm.position;
+				}
+				
+				if (arr_node.elm_text !== null) {
+					arr_node.elm_text.visible = (arr_node.show_text && num_size_radius);
 				}
 				
 				if (num_size_radius) {
@@ -2041,42 +2229,22 @@ function MapSocial(elm_draw, PARENT, options) {
 						
 						if (!show_icon_as_node) {
 							
-							let elm_stroke = new PIXI.Graphics();
-							elm_stroke.lineStyle(num_width_stroke_scaled, parseColor(color_node_stroke), 1);
+							let arr_colors = arr_node.colors;
 							
-							if (arr_node.colors === false) {
+							if (arr_colors !== null && arr_colors.length == 1 && !do_highlight) {
 								
-								elm_stroke.beginFill(parseColor(color), 1);
-								elm_stroke.drawCircle(0, 0, num_size_radius_scaled + num_width_stroke_scaled / 2);
-								elm_stroke.endFill();
-							} else {
-								
-								elm_stroke.drawCircle(0, 0, num_size_radius_scaled + num_width_stroke_scaled / 2);
-								
-								if (do_highlight) {
-									arr_node.colors = [{color: color, portion: 1}];
-								}
-
-								let num_current_portion = 0; 
-								
-								for (let i = 0; i < arr_node.colors.length; i++) {
-									
-									const num_start = num_current_portion * 2 * Math.PI;
-									num_current_portion = num_current_portion + arr_node.colors[i].portion;
-									const num_end = num_current_portion * 2 * Math.PI;
-									
-									const elm_portion = new PIXI.Graphics();
-									elm_portion.beginFill(parseColor(arr_node.colors[i].color), 1);
-									elm_portion.moveTo(0, 0)
-										.lineTo(num_size_radius_scaled * Math.cos(num_start), num_size_radius_scaled * Math.sin(num_start))
-										.arc(0, 0, num_size_radius_scaled, num_start, num_end, false)
-										.lineTo(0, 0);
-									elm_portion.endFill();
-									
-									elm.addChild(elm_portion);
-								}
+								str_color = arr_colors[0].color;
+								arr_colors = null;
 							}
 							
+							let elm_stroke = null;
+
+							if (arr_colors === null || do_highlight) {
+								elm_stroke = getGraphicsElementNode(null, num_size_radius_scaled, SocialUtilities.parseColor(str_color, opacity_node), num_width_stroke_scaled, (num_width_stroke_scaled ? SocialUtilities.parseColor(color_node_stroke, opacity_node_stroke) : null));
+							} else {
+								elm_stroke = getGraphicsElementNodePie(null, num_size_radius_scaled, arr_colors, opacity_node, num_width_stroke_scaled, (num_width_stroke_scaled ? SocialUtilities.parseColor(color_node_stroke, opacity_node_stroke) : null));
+							}
+
 							elm.addChild(elm_stroke);
 						}
 		
@@ -2107,8 +2275,7 @@ function MapSocial(elm_draw, PARENT, options) {
 								if (i > 0) {
 									num_width_sum += num_spacer_dot_icons;
 								}
-								elm_icon.position.x = num_width_sum;
-								elm_icon.position.y = ((num_height_max - num_height_icon) / 2);
+								elm_icon.position.set(num_width_sum, ((num_height_max - num_height_icon) / 2));
 								num_width_sum += num_width_icon;
 
 								if (i == 0) {
@@ -2143,35 +2310,19 @@ function MapSocial(elm_draw, PARENT, options) {
 								}
 							}
 							
-							elms_icon.position.x = Math.floor(-(num_width_sum / 2));
-							elms_icon.position.y = Math.floor(num_offset);
+							elms_icon.position.set(Math.floor(-(num_width_sum / 2)), Math.floor(num_offset));
 							
 							elm.addChild(elms_icon);
 						}
 					} else {
-					
-						elm.lineStyle(num_width_stroke_scaled, parseColor(color_node_stroke), 1);
-						elm.beginFill(parseColor(color), 1);
-						elm.drawCircle(0, 0, num_size_radius_scaled + num_width_stroke_scaled / 2);
-						elm.endFill();
+						
+						getGraphicsElementNode(elm, num_size_radius_scaled, SocialUtilities.parseColor(str_color, opacity_node), num_width_stroke_scaled, (num_width_stroke_scaled ? SocialUtilities.parseColor(color_node_stroke, opacity_node_stroke) : null));
 					}
 					
 					if (pos_elm) {
-						
 						elm.position = pos_elm;
 					} else {
-						
-						elm.position.x = 0;
-						elm.position.y = 0;
-					}
-					
-					if (arr_node.elm_text) {
-						arr_node.elm_text.alpha = 1;
-					}
-				} else {
-					
-					if (arr_node.elm_text) {
-						arr_node.elm_text.alpha = 0;
+						elm.position.set(0, 0);
 					}
 				}
 			} else {
@@ -2182,13 +2333,17 @@ function MapSocial(elm_draw, PARENT, options) {
 					
 					elm = stage.createElementNS(stage_ns, 'g');
 					svg_group.appendChild(elm);
+
+					elm_circle = stage.createElementNS(stage_ns, 'circle');
+					elm.appendChild(elm_circle);
 					
 					if (arr_node.show_text) {
 						
 						const elm_text = stage.createElementNS(stage_ns, 'text');
-						elm_text.style.fontSize = size_text+'px';
+						elm_text.style.fontSize = num_text_scaled+'px';
 						elm_text.style.fontFamily = font_family;
 						elm_text.style.fill = color_text;
+						elm_text.style.fillOpacity = opacity_text;
 						elm_text.style.dominantBaseline = 'central';
 						const node_text = stage.createTextNode(arr_node.name_text);
 						elm_text.appendChild(node_text);
@@ -2196,23 +2351,23 @@ function MapSocial(elm_draw, PARENT, options) {
 						
 						arr_node.elm_text = elm_text;
 					}
-				
-					elm_circle = stage.createElementNS(stage_ns, 'circle');
-					elm.appendChild(elm_circle);
-					elm_circle.setAttribute('stroke', parseColor(color_node_stroke));
-					elm_circle.setAttribute('stroke-width', width_node_stroke);
 					
 					arr_node.elm = elm;
 				} else {
 					
-					const elms_circle = elm.getElementsByTagName('circle');
-					elm_circle = elms_circle[0];
+					elm_circle = elm.firstChild;
 					
 					elm.dataset.visible = 1;
 					
-					if (arr_node.elm_text) {
-						arr_node.elm_text.dataset.visible = (arr_node.show_text ? 1 : 0);
+					if (arr_node.elm_text !== null) {
+						arr_node.elm_text.style.fontSize = num_text_scaled+'px';
 					}
+				}
+				
+				if (arr_node.elm_text !== null) {
+					
+					arr_node.elm_text.dataset.visible = (arr_node.show_text && num_size_radius ? 1 : 0);
+					arr_node.elm_text.setAttribute('dx', (num_size_radius + width_node_stroke) + num_offset_dot_text);
 				}
 				
 				elm.dataset.node_id = arr_node.id;
@@ -2220,20 +2375,20 @@ function MapSocial(elm_draw, PARENT, options) {
 				if (arr_node.has_conditions) {
 				
 					// Remove possible previous pie and icons
-					const elm_paths = arr_node.elm.getElementsByTagName('g');
+					const elms_paths = arr_node.elm.getElementsByTagName('g');
 					
-					while (elm_paths.length) {
-						arr_node.elm.removeChild(elm_paths[elm_paths.length - 1]);
+					while (elms_paths.length) {
+						elms_paths[elms_paths.length - 1].remove();
 					}
 					
-					if (arr_node.colors !== false && !do_highlight) {
+					if (arr_node.colors !== null && !do_highlight) {
 						
 						if (arr_node.colors.length == 1) {
 							
-							color = arr_node.colors[0].color;
+							str_color = arr_node.colors[0].color;
 						} else {
 							
-							color = 'none';
+							str_color = 'none';
 							
 							if (!show_icon_as_node) {
 
@@ -2241,7 +2396,7 @@ function MapSocial(elm_draw, PARENT, options) {
 								const num_x = 0;
 								const num_y = 0;
 								const elms_pie = stage.createElementNS(stage_ns, 'g');
-			
+
 								for (let i = 0; i < arr_node.colors.length; i++) {
 
 									const num_start = num_current_portion * 2 * Math.PI;
@@ -2251,7 +2406,7 @@ function MapSocial(elm_draw, PARENT, options) {
 									const elm_path = stage.createElementNS(stage_ns, 'path');
 									
 									elm_path.setAttribute('d','M '+Math.floor(num_x)+','+Math.floor(num_y)+' L '+(Math.floor(num_x) + num_size_radius * Math.cos(num_start))+','+(Math.floor(num_y) + num_size_radius * Math.sin(num_start))+' A '+num_size_radius+','+num_size_radius+' 0 '+(num_end - num_start < Math.PI ? 0 : 1)+',1 '+(Math.floor(num_x) + num_size_radius * Math.cos(num_end))+','+(Math.floor(num_y) + num_size_radius * Math.sin(num_end))+' z');
-									elm_path.style.fill = arr_node.colors[i].color;
+									elm_path.style.fill = SocialUtilities.parseColor(arr_node.colors[i].color, opacity_node);
 									
 									elms_pie.appendChild(elm_path);
 								}
@@ -2317,26 +2472,66 @@ function MapSocial(elm_draw, PARENT, options) {
 						arr_node.elm.appendChild(elms_icon);
 					}
 				}
-
+				
 				if (arr_node.icons !== false && arr_node.icons.length && show_icon_as_node) {
-
+					
 					elm_circle.setAttribute('r', 0);
 				} else {
 					
-					elm_circle.setAttribute('r', (num_size_radius ? (num_size_radius + width_node_stroke / 2) : 0));
-				}
-				
-				elm_circle.setAttribute('fill', color);
-				
-				if (arr_node.elm_text) {
+					let elm_circle_stoke = null;
 					
-					if (num_size_radius) {
+					if (use_best_quality) {
 						
-						arr_node.elm_text.setAttribute('opacity', 1);		
-						arr_node.elm_text.setAttribute('dx', (num_size_radius + width_node_stroke) + num_offset_dot_text);
-					} else {
+						elm_circle_stoke = arr_node.elm.children[1];
+						if (elm_circle_stoke === undefined || elm_circle_stoke.tagName !== 'circle') {
+							elm_circle_stoke = null;
+						}
+					}
+
+					if (str_color === 'none') { // No need to correct for SVG's inability to add an outer stroke.
 						
-						arr_node.elm_text.setAttribute('opacity', 0);
+						elm_circle.setAttribute('r', (num_size_radius ? (num_size_radius + (width_node_stroke / 2)) : 0)); // Circle is empty and can be used for possible stroke, just make it a bit bigger
+						elm_circle.style.fill = str_color;
+						
+						if (width_node_stroke) {
+							
+							elm_circle.style.stroke = SocialUtilities.parseColor(color_node_stroke, opacity_node_stroke);
+							elm_circle.style.strokeWidth = width_node_stroke;
+							
+							if (elm_circle_stoke !== null) {
+								elm_circle_stoke.remove();
+							}
+						}
+					} else if (use_best_quality) { // Correct for SVG's inability to add an outer stroke. create new element sized just for the stroke
+						
+						elm_circle.setAttribute('r', (num_size_radius ? num_size_radius : 0));
+						elm_circle.style.fill = SocialUtilities.parseColor(str_color, opacity_node);
+						
+						if (width_node_stroke) {
+							
+							elm_circle.style.strokeWidth = 0;
+							
+							if (elm_circle_stoke === null) {
+								
+								elm_circle_stoke = stage.createElementNS(stage_ns, 'circle');
+								elm_circle.after(elm_circle_stoke); // Insert as second child
+								elm_circle_stoke.style.fill = 'none';
+							}
+							
+							elm_circle_stoke.setAttribute('r', (num_size_radius ? (num_size_radius + (width_node_stroke / 2)) : 0));
+							elm_circle_stoke.style.stroke = SocialUtilities.parseColor(color_node_stroke, opacity_node_stroke);
+							elm_circle_stoke.style.strokeWidth = width_node_stroke;
+						}
+					} else { // Correct for SVG's inability to add an outer stroke. double the stroke width, as half will be hidden behind the fill (using paint-order: stroke;)
+						
+						elm_circle.setAttribute('r', (num_size_radius ? num_size_radius : 0));
+						elm_circle.style.fill = SocialUtilities.parseColor(str_color, opacity_node);
+						
+						if (width_node_stroke) {
+							
+							elm_circle.style.stroke = SocialUtilities.parseColor(color_node_stroke, opacity_node_stroke);
+							elm_circle.style.strokeWidth = (width_node_stroke * 2);
+						}
 					}
 				}
 			}
@@ -2373,11 +2568,12 @@ function MapSocial(elm_draw, PARENT, options) {
 					
 					const arr_condition = arr_node.conditions.object_sub[i];
 				
-					if (arr_object_subs_children[arr_condition.source_id].is_active) {
-						
-						has_part_condition_object = 1;
-						break;
+					if (!arr_object_subs_children[arr_condition.source_id].is_active) {
+						continue;
 					}
+					
+					has_part_condition_object = 1;
+					break;
 				}
 			}
 			
@@ -2389,7 +2585,7 @@ function MapSocial(elm_draw, PARENT, options) {
 		if (!num_parts_total) {
 			
 			arr_node.weight_conditions = 1;
-			arr_node.colors = false;
+			arr_node.colors = null;
 			arr_node.icons = false;
 			arr_node.show_text = arr_node.has_text_threshold;
 			arr_node.identifier_condition = '';
@@ -2418,6 +2614,14 @@ function MapSocial(elm_draw, PARENT, options) {
 				continue;
 			}
 			
+			if (label_condition !== false) {
+				do_show_text = (do_show_text === true || arr_condition.identifier === label_condition);
+			}
+			
+			if (arr_condition.weight === 0) {
+				continue;
+			}
+			
 			const arr_object_definition = arr_data.objects[arr_condition.source_id].object_definitions[arr_condition.source_definition_id];
 						
 			if (arr_parts['o_'+arr_condition.source_id] === undefined) {
@@ -2436,10 +2640,6 @@ function MapSocial(elm_draw, PARENT, options) {
 			if (arr_condition.icon !== null) {
 				arr_icons_group.push([arr_condition.icon, arr_condition.weight]);
 			}
-			
-			if (label_condition !== false) {
-				do_show_text = (do_show_text === true || arr_condition.identifier === label_condition);
-			}
 		}
 		
 		// Cross referenced conditions based on referenced sub object definitions
@@ -2449,6 +2649,14 @@ function MapSocial(elm_draw, PARENT, options) {
 			const arr_condition = arr_node.conditions.object_sub_parent[i];
 			
 			if (arr_node.object_sub_parents[arr_condition.source_id] === false) {
+				continue;
+			}
+			
+			if (label_condition !== false) {
+				do_show_text = (do_show_text === true || arr_condition.identifier === label_condition);
+			}
+			
+			if (arr_condition.weight === 0) {
 				continue;
 			}
 			
@@ -2472,10 +2680,6 @@ function MapSocial(elm_draw, PARENT, options) {
 			if (arr_condition.icon !== null) {
 				arr_icons_group.push([arr_condition.icon, arr_condition.weight]);
 			}
-			
-			if (label_condition !== false) {
-				do_show_text = (do_show_text === true || arr_condition.identifier === label_condition);
-			}
 		}
 
 		if (has_part_condition_object) {
@@ -2486,6 +2690,15 @@ function MapSocial(elm_draw, PARENT, options) {
 			for (let i = 0, len = arr_node.conditions.object.length; i < len; i++) {
 				
 				const arr_condition = arr_node.conditions.object[i];
+				
+				if (label_condition !== false) {
+					do_show_text = (do_show_text === true || arr_condition.identifier === label_condition);
+				}
+				
+				if (arr_condition.weight === 0) {
+					continue;
+				}
+				
 				const arr_object = arr_data.objects[arr_node.id];
 								
 				if (arr_condition.color !== null) {
@@ -2499,10 +2712,6 @@ function MapSocial(elm_draw, PARENT, options) {
 				if (arr_condition.icon !== null) {
 					arr_icons_group.push([arr_condition.icon, arr_condition.weight]);
 				}
-				
-				if (label_condition !== false) {
-					do_show_text = (do_show_text === true || arr_condition.identifier === label_condition);
-				}
 			}
 
 			// Conditions based on object subs
@@ -2512,6 +2721,14 @@ function MapSocial(elm_draw, PARENT, options) {
 				const arr_condition = arr_node.conditions.object_sub[i];
 				
 				if (!arr_object_subs_children[arr_condition.source_id].is_active) {
+					continue;
+				}
+				
+				if (label_condition !== false) {
+					do_show_text = (do_show_text === true || arr_condition.identifier === label_condition);
+				}
+				
+				if (arr_condition.weight === 0) {
 					continue;
 				}
 				
@@ -2528,10 +2745,12 @@ function MapSocial(elm_draw, PARENT, options) {
 				if (arr_condition.icon !== null) {
 					arr_icons_group.push([arr_condition.icon, arr_condition.weight]);
 				}
+			}
+			
+			if (!arr_parts.object.colors.length) {
 				
-				if (label_condition !== false) {
-					do_show_text = (do_show_text === true || arr_condition.identifier === label_condition);
-				}
+				has_part_condition_object = 0;
+				delete arr_parts.object;
 			}
 		}
 		
@@ -2648,7 +2867,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				if (display == DISPLAY_PIXEL) {
 							
-					const num_arr_offset = arr_active_link.count * length_geometry_lines_position;
+					const num_buffer_offset = arr_active_link.count * 4 * 2; // 4 xy vertices (quad) per link to be truely updated/positioned, the actual 6 vertices are further handled by the index (buffer_geometry_lines_index)
 					
 					const node_source = arr_active_link.source;
 					const node_target = arr_active_link.target;
@@ -2665,20 +2884,18 @@ function MapSocial(elm_draw, PARENT, options) {
 					const num_source_y = node_source.y + ((-dx / dl) * num_offset);
 					const num_target_x = node_target.x + ((dy / dl) * num_offset);
 					const num_target_y = node_target.y + ((-dx / dl) * num_offset);
-
-					buffer_geometry_lines_position.data[num_arr_offset + 0] = num_source_x + (-dy_normalised * num_width);
-					buffer_geometry_lines_position.data[num_arr_offset + 1] = num_source_y + (dx_normalised * num_width);
-					buffer_geometry_lines_position.data[num_arr_offset + 2] = num_source_x + (dy_normalised * num_width);
-					buffer_geometry_lines_position.data[num_arr_offset + 3] = num_source_y + (-dx_normalised * num_width);
-					buffer_geometry_lines_position.data[num_arr_offset + 4] = num_target_x + (-dy_normalised * num_width);
-					buffer_geometry_lines_position.data[num_arr_offset + 5] = num_target_y + (dx_normalised * num_width);
 					
-					buffer_geometry_lines_position.data[num_arr_offset + 6] = num_target_x + (-dy_normalised * num_width);
-					buffer_geometry_lines_position.data[num_arr_offset + 7] = num_target_y + (dx_normalised * num_width);
-					buffer_geometry_lines_position.data[num_arr_offset + 8] = num_target_x + (dy_normalised * num_width);
-					buffer_geometry_lines_position.data[num_arr_offset + 9] = num_target_y + (-dx_normalised * num_width);
-					buffer_geometry_lines_position.data[num_arr_offset + 10] = num_source_x + (dy_normalised * num_width);
-					buffer_geometry_lines_position.data[num_arr_offset + 11] = num_source_y + (-dx_normalised * num_width);
+					const arr_positions = buffer_geometry_lines_position.data;
+
+					arr_positions[num_buffer_offset + 0] = num_source_x + (-dy_normalised * num_width);
+					arr_positions[num_buffer_offset + 1] = num_source_y + (dx_normalised * num_width);
+					arr_positions[num_buffer_offset + 2] = num_source_x + (dy_normalised * num_width);
+					arr_positions[num_buffer_offset + 3] = num_source_y + (-dx_normalised * num_width);
+					
+					arr_positions[num_buffer_offset + 4] = num_target_x + (-dy_normalised * num_width);
+					arr_positions[num_buffer_offset + 5] = num_target_y + (dx_normalised * num_width);
+					arr_positions[num_buffer_offset + 6] = num_target_x + (dy_normalised * num_width);
+					arr_positions[num_buffer_offset + 7] = num_target_y + (-dx_normalised * num_width);
 				} else {
 					
 					if (arr_active_link.elm) {
@@ -2712,8 +2929,8 @@ function MapSocial(elm_draw, PARENT, options) {
 			const pos_x = arr_node.x;
 			const pos_y = arr_node.y;
 			
-			if (arr_node.redraw_node || (do_redraw && display == DISPLAY_PIXEL)) {
-				drawNodeElm(arr_node);
+			if (arr_node.redraw_node === true || do_redraw) {
+				drawNodeElement(arr_node);
 			}
 						
 			if (display == DISPLAY_PIXEL) {
@@ -2722,7 +2939,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				arr_node.elm.position.y = (pos_y + pos_translation.y) * num_scale;
 				
 				if (arr_node.elm_text) {
-					arr_node.elm_text.position.x = arr_node.elm.position.x + (num_size_radius * num_scale) + num_offset_dot_text;
+					arr_node.elm_text.position.x = arr_node.elm.position.x + ((num_size_radius + num_offset_dot_text) * num_scale);
 					arr_node.elm_text.position.y = arr_node.elm.position.y;
 				}
 			} else {
@@ -2737,6 +2954,12 @@ function MapSocial(elm_draw, PARENT, options) {
 			
 				buffer_geometry_lines_position.update();
 				//buffer_geometry_lines_normal.update();
+				
+				if (do_update_geometry_lines_index) {
+					
+					buffer_geometry_lines_index.update();
+					do_update_geometry_lines_index = false;
+				}
 				
 				if (do_update_geometry_lines_color) {
 					
@@ -2755,81 +2978,89 @@ function MapSocial(elm_draw, PARENT, options) {
 	var addListeners = function () {
 				
 		const elm_legends = PARENT.elm_controls.find('.legends');
-		elm_search_container = $('<figure />').addClass('search-nodes').appendTo(elm_legends);
-				
-		const search_input = $('<input type="search" />').appendTo(elm_search_container),
-		elm_dropdown = $('<ul />').addClass('dropdown hide').appendTo(elm_search_container);
 		
-		search_input[0].addEventListener('focus', function() {
-			
-			searchNodes();
-		});
+		elm_layout = $('<figure class="run-layout"></figure>');
+		elm_search_container = $('<figure class="search-nodes" />');
+		elm_selected_node_container = $('<figure class="selected-node hide" />');
 		
-		search_input[0].addEventListener('keyup', function() {
-			
-			searchNodes();
-		});
+		elm_layout.appendTo(elm_legends);
+		elm_search_container.appendTo(elm_legends);
+		elm_selected_node_container.appendTo(elm_legends);
 		
-		var searchNodes = function() {
+		const elm_search_input = $('<input type="search" class="autocomplete" />').appendTo(elm_search_container);
+		
+		const func_search_request = function(str_input, callback) {
 			
-			const cur_input = search_input.val();
+			const str_input_normalised = str_input.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
 			const max_results = 10;
 			const arr_results = [];
-			elm_dropdown.empty().removeClass('hide');
 			
 			for (let i = 0; i < arr_active_nodes.length; i++) {
 				
-				if (arr_active_nodes[i].name && arr_active_nodes[i].name.toLowerCase().indexOf(cur_input.toLowerCase()) > -1) {
-					
-					cur_total = (arr_active_nodes[i].count_object_sub_parents + arr_active_nodes[i].count_object_parents);
-					arr_results.push({cur_total: cur_total, name: arr_active_nodes[i].name, id: arr_active_nodes[i].id});
+				const arr_node = arr_active_nodes[i];
+				
+				if (!arr_node.name) {
+					continue;
 				}
+				
+				if (arr_node.name_normalised === undefined) {
+					arr_node.name_normalised = arr_node.name.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+				}
+				
+				if (arr_node.name_normalised.indexOf(str_input_normalised) === -1) {
+					continue;
+				}
+				
+				const is_exact = (arr_node.name.indexOf(str_input) !== -1);
+					
+				const num_total = (arr_node.count_object_sub_parents + arr_node.count_object_parents);
+				arr_results.push({id: arr_node.id, label: arr_node.name, total: num_total, exact: is_exact});
 			}
+			
+			const arr_data = []
 			
 			if (arr_results.length > 0) {
 				
-				arr_results.sort(function(a, b) {
-					return parseFloat(b.cur_total) - parseFloat(a.cur_total);
-				});
+				arr_results.sort((a, b) => b.exact - a.exact || b.total - a.total); // Sort on exact DESC first, totals DESC second
 				
 				for (let i = 0; i < (arr_results.length > max_results ? max_results : arr_results.length); i++) {
 					
-					const elm_li = $('<li />').appendTo(elm_dropdown);
-					const elm_result = $('<a>'+arr_results[i].name+'</a>').appendTo(elm_li);
-					
-					elm_result[0].dataset.node_id = arr_results[i].id;
-					
-					elm_result[0].addEventListener('click', function() {
-						
-						hoverNode(arr_nodes[this.dataset.node_id], true);
-						elm_dropdown.addClass('hide');
-					});
-					
-					elm_result[0].addEventListener('mouseenter', function() {
-						
-						hoverNode(arr_nodes[this.dataset.node_id], true);
-						$(this).addClass('active'); 
-					});
-					
-					elm_result[0].addEventListener('mouseleave', function() {
-						
-						hoverNode(false, false);
-						$(this).removeClass('active'); 
-					});
+					arr_data.push(arr_results[i]);
 				}
 			} else {
 				
-				elm_dropdown.append('<li><a>No results.</a></li>');
+				arr_data.push({id: null, label: arr_labels.msg_no_results});
 			}
+			
+			callback(arr_data);
 		};
 		
-		elm_dropdown[0].addEventListener('mouseleave', function() {
-			
-			elm_dropdown.addClass('hide');
-			search_input.blur();
+		const autocompleter = new AutoCompleter(elm_search_input, {
+			input_clear: false,
+			call_request: func_search_request,
+			call_active: function(elm_label, arr_value) {
+				
+				if (!arr_value.id) {
+					
+					hoverNode(false, false);
+					return;
+				}
+				
+				hoverNode(arr_nodes[arr_value.id], true, true);
+			},
+			call_select: function(elm_label, arr_value) {
+				
+				return arr_value;
+			},
+			call_inactive: function() {
+				
+				hoverNode(false, false);
+			}
 		});
 		
-		elm_layout = $('<figure class="run-layout"></figure>').appendTo(elm_legends);
+		const elm_search_popout = autocompleter.getPopout();
+		elm_search_popout.classList.add('search-nodes');
+		
 		elm_layout_statistics = $('<div></div>').appendTo(elm_layout);
 		elm_layout_status = $('<div></div>').appendTo(elm_layout);
 		elm_layout_select = $('<select><option value="">D3 Force</option><option value="forceatlas2">ForceAtlas2</option></select>').appendTo(elm_layout);
@@ -2866,10 +3097,41 @@ function MapSocial(elm_draw, PARENT, options) {
 			simulation.stop();
 			do_draw = true;
 		});
-		
-		elm_selected_node_container = $('<figure />').addClass('selected-node hide').appendTo(elm_legends);
 				
-		var func_mouse_down = function(e) {
+		elm_selected_node_container[0].addEventListener('mouseover', function(e) {
+			
+			const elm_target = (e.target.dataset.node_id ? e.target : e.target.closest('[data-node_id], figure'));
+			
+			if (!elm_target.dataset.node_id) {
+				return;
+			}
+			
+			hoverNode(arr_nodes[elm_target.dataset.node_id], false, true);
+		});
+		
+		elm_selected_node_container[0].addEventListener('mouseout', function(e) {
+			
+			const elm_target = (e.target.dataset.node_id ? e.target : e.target.closest('[data-node_id], figure'));
+			
+			if (!elm_target.dataset.node_id) {
+				return;
+			}
+			
+			hoverNode(false, false);
+		});
+		
+		elm_selected_node_container[0].addEventListener('click', function(e) {
+			
+			const elm_target = (e.target.dataset.node_id ? e.target : e.target.closest('[data-node_id], figure'));
+			
+			if (!elm_target.dataset.node_id) {
+				return;
+			}
+			
+			SCRIPTER.triggerEvent(elm_host, 'review');
+		});
+				
+		const func_mouse_down = function(e) {
 						
 			if (cur_node_id === false) {
 				
@@ -2884,7 +3146,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			arr_nodes[cur_node_id].fixed = (arr_nodes[cur_node_id].fixed ? 2 : 1);
 			
 			PARENT.obj_map.onInteractDown = function() {};
-						
+			
 			PARENT.obj_map.onInteractMove = function() {
 				
 				is_dragging_node = true;
@@ -2928,9 +3190,9 @@ function MapSocial(elm_draw, PARENT, options) {
 					}
 				}
 				
-				PARENT.obj_map.onInteractDown = false;
-				PARENT.obj_map.onInteractMove = false;
-				PARENT.obj_map.onInteractUp = false;
+				PARENT.obj_map.onInteractDown = null;
+				PARENT.obj_map.onInteractMove = null;
+				PARENT.obj_map.onInteractUp = null;
 			};
 		};
 			
@@ -2958,16 +3220,21 @@ function MapSocial(elm_draw, PARENT, options) {
 		}
 	};
 	
-	var hoverNode = function (arr_node, show_box, do_highlight) {
+	var hoverNode = function(arr_node, do_show_box, is_interact_static, do_highlight) {
 		
 		elm_host.removeAttribute('title');
+		
+		if (func_tooltip_stop !== null) {
+			func_tooltip_stop();
+			func_tooltip_stop = null;
+		}
 		
 		if (do_highlight !== false) {
 			
 			while (arr_highlighted_nodes.length) {
 				
 				const node_id = arr_highlighted_nodes.pop();
-				drawNodeElm(arr_nodes[node_id]);
+				drawNodeElement(arr_nodes[node_id]);
 			}
 			
 			for (let i = 0; i < arr_loop_links.length; i++) {
@@ -2992,24 +3259,99 @@ function MapSocial(elm_draw, PARENT, options) {
 			elm_host.arr_info_box = false;
 		} else {
 				
-			const connections = {};
-			let cur_in = 0;
-			let cur_out = 0;
-			let connection_object_parents = [];
-			let connection_object_sub_parents = [];
+			const arr_connections = {};
+			let arr_connection_object_parents = [];
+			let arr_connection_object_sub_parents = [];
 
 			if (do_highlight !== false) {
 
 				arr_node.highlight_color = color_highlight_node;
-				drawNodeElm(arr_node);
+				drawNodeElement(arr_node);
 				
 				if (arr_highlighted_nodes.indexOf(arr_node.id) === -1) {
 					arr_highlighted_nodes.push(arr_node.id);
 				}
 				
-				elm_host.setAttribute('title', arr_node.name);
-			}
+				const arr_node_details = getNodeDetails(arr_node);
+				
+				let str_title = '<ul>\
+					<li>\
+						<label></label>\
+						<span>'+arr_node.name+'</span>\
+					</li>';
+				
+				if (arr_node_details.conditions) {
+					
+					let has_conditions = false;
+					
+					let str_tooltip_conditions = '<hr />\
+					<li>\
+						<label>'+arr_labels.lbl_conditions+'</label>\
+						<ul>';
 						
+						const arr_sort = [];
+						for (const str_identifier in arr_node_details.conditions) {
+							arr_sort.push([str_identifier, arr_node_details.conditions[str_identifier]]);
+						}
+						arr_sort.sort(function(a, b) {
+							return b[1] - a[1];
+						});
+					
+						for (let i = 0, len = arr_sort.length; i < len; i++) {
+							
+							const arr_condition = arr_data.legend.conditions[arr_sort[i][0]];
+							
+							if (!arr_condition.label) {
+								continue;
+							}
+							
+							has_conditions = true;
+								
+							const num_amount = arr_sort[i][1];
+							
+							str_tooltip_conditions += '<li>\
+								<label>'+arr_condition.label+'</label>\
+								<ul>';
+								
+									str_tooltip_conditions += '<li>'+num_amount+'</li>';
+							
+								str_tooltip_conditions += '</ul>\
+							</li>';
+						}
+						
+						str_tooltip_conditions += '</ul>\
+					</li>';
+					
+					if (has_conditions) {
+						str_title += str_tooltip_conditions;
+					}
+				}
+				
+				str_title += '</ul>';
+				
+				if (is_interact_static === true) {
+					
+					const elm_tooltip_static = $('<div class="tooltip label">'+str_title+'</div>').appendTo(elm);
+					
+					//const num_left = (((arr_node.x + arr_node.radius + num_offset_dot_text + pos_translation.x) * num_scale) + (stage.position ? stage.position.x : 0));
+					//const num_top = (((arr_node.y + pos_translation.y) * num_scale) + (stage.position ? stage.position.y : 0)) - (elm_tooltip_static.outerHeight() / 2);
+					const num_radius_distance = Math.sqrt(2 * ((arr_node.radius + num_offset_dot_text) * (arr_node.radius + num_offset_dot_text))) / 2;
+					const num_left = (((arr_node.x + num_radius_distance + pos_translation.x) * num_scale) + (stage.position ? stage.position.x : 0));
+					const num_top = (((arr_node.y + num_radius_distance + pos_translation.y) * num_scale) + (stage.position ? stage.position.y : 0));
+					
+					elm_tooltip_static[0].style.left = num_left+'px';
+					elm_tooltip_static[0].style.top = num_top+'px';
+					
+					func_tooltip_stop = function() {
+						
+						elm_tooltip_static[0].remove();
+					};
+				} else {
+					
+					elm_host.title = str_title;
+				}
+			}
+			
 			const arr_connect_objects = [];
 			
 			for (let i = 0, len = arr_loop_links.length; i < len; i++) {
@@ -3020,175 +3362,229 @@ function MapSocial(elm_draw, PARENT, options) {
 					continue;
 				}
 				
-				let arr_node_connected = false;
+				let arr_node_connected = null;
 				
-				if (arr_link.target.id == arr_node.id) {
-					
-					cur_in++
+				if (arr_link.target.id === arr_node.id) {
 					arr_node_connected = arr_link.source;
-				} else if (arr_link.source.id == arr_node.id) {
-					
-					cur_out++
+				} else if (arr_link.source.id === arr_node.id) {
 					arr_node_connected = arr_link.target;
 				}
 				
-				if (arr_node_connected) {
-					
-					const connected_object_id = arr_node_connected.id;
-					
-					arr_connect_objects.push({object_id: connected_object_id, type_id: arr_node_connected.type_id});
-					
-					const arr_object_parents = [arr_link.source_object_id, arr_link.target_object_id];
-					const count_object_parents = 2;
-					
-					if (!connections[connected_object_id]) {
-						
-						connections[connected_object_id] = {
-							id: connected_object_id, 
-							name: arr_node_connected.name, 
-							count: count_object_parents + arr_link.count_object_sub_parents, 
-							parents: {
-								object_parents: arr_object_parents, 
-								object_sub_parents: Object.keys(arr_link.object_sub_parents)
-							}, 
-							total: (arr_node_connected.count_in + arr_node_connected.count_out)
-						};					
-					} else {
-						
-						connections[connected_object_id].parents.object_parents = connections[connected_object_id].parents.object_parents.concat(arr_object_parents);
-						connections[connected_object_id].parents.object_sub_parents = connections[connected_object_id].parents.object_sub_parents.concat(Object.keys(arr_link.object_sub_parents));
-						connections[connected_object_id].count = (connections[connected_object_id].count + count_object_parents + arr_link.count_object_sub_parents);
-					}
-					
-					if (do_highlight !== false) {
-						
-						if (show_arrowhead && display == DISPLAY_VECTOR) {
-							arr_link.elm.setAttribute('marker-end', 'url(#end-selected)');
-						}
-						
-						setLinkColor(arr_link, color_highlight_link);
-						
-						arr_node_connected.highlight_color = color_highlight_node_connect;
-						drawNodeElm(arr_node_connected);
-						
-						if (arr_highlighted_nodes.indexOf(connected_object_id) === -1) {
-							arr_highlighted_nodes.push(connected_object_id);
-						}
-				
-					}
-					
-					connection_object_parents = connection_object_parents.concat(arr_object_parents);
-					connection_object_sub_parents = connection_object_sub_parents.concat(Object.keys(arr_link.object_sub_parents));
+				if (arr_node_connected === null) {
+					continue;
 				}
+				
+				const connected_object_id = arr_node_connected.id;
+				
+				arr_connect_objects.push({object_id: connected_object_id, type_id: arr_node_connected.type_id});
+				
+				const arr_object_parents = [arr_link.source_object_id, arr_link.target_object_id];
+				
+				if (arr_connections[connected_object_id] === undefined) {
+					
+					arr_connections[connected_object_id] = {
+						id: connected_object_id, 
+						name: arr_node_connected.name, 
+						count: arr_link.count_object_parent + arr_link.count_object_sub_parents, 
+						parents: {
+							object_parents: arr_object_parents, 
+							object_sub_parents: Object.keys(arr_link.object_sub_parents)
+						}, 
+						total: (arr_node_connected.count_in + arr_node_connected.count_out)
+					};					
+				} else {
+					
+					arr_connections[connected_object_id].parents.object_parents = arr_connections[connected_object_id].parents.object_parents.concat(arr_object_parents);
+					arr_connections[connected_object_id].parents.object_sub_parents = arr_connections[connected_object_id].parents.object_sub_parents.concat(Object.keys(arr_link.object_sub_parents));
+					arr_connections[connected_object_id].count = (arr_connections[connected_object_id].count + arr_link.count_object_parent + arr_link.count_object_sub_parents);
+				}
+				
+				if (do_highlight !== false) {
+					
+					if (show_arrowhead && display == DISPLAY_VECTOR) {
+						arr_link.elm.setAttribute('marker-end', 'url(#end-selected)');
+					}
+					
+					setLinkColor(arr_link, color_highlight_link);
+					
+					arr_node_connected.highlight_color = color_highlight_node_connect;
+					drawNodeElement(arr_node_connected);
+					
+					if (arr_highlighted_nodes.indexOf(connected_object_id) === -1) {
+						arr_highlighted_nodes.push(connected_object_id);
+					}
+				}
+				
+				arr_connection_object_parents = arr_connection_object_parents.concat(arr_object_parents);
+				arr_connection_object_sub_parents = arr_connection_object_sub_parents.concat(Object.keys(arr_link.object_sub_parents));
 			}
 			
 			elm_host.arr_link = {object_id: parseInt(arr_node.id), type_id: parseInt(arr_node.type_id), object_sub_ids: arr_node.object_sub_parents, connect_object_ids: arr_connect_objects};
 			elm_host.arr_info_box = {name: arr_node.name};
 
-			if (show_box) {
+			if (do_show_box) {
 				
-				const elm_span = $('<span class="a">'+arr_node.name+'</span>');
+				const elm_heading = $('<h2><span class="a" data-node_id="'+arr_node.id+'">'+arr_node.name+'</span></h2>');
+				elm_selected_node_container.removeClass('hide').html(elm_heading);
 				
-				elm_span[0].dataset.node_id = arr_node.id;
-									
-				elm_span[0].addEventListener('mouseenter', function() {
+				const arr_data_details = getDataDetails(arr_node.id, arr_connection_object_parents, arr_connection_object_sub_parents);
 				
-					hoverNode(arr_nodes[this.dataset.node_id], false);
-				});
-							
-				elm_span[0].addEventListener('mouseleave', function() {
-				
-					hoverNode(false, false);
-				});		
-							
-				elm_span[0].addEventListener('click', function() {
-				
-					elm.click();
-				});
-				
-				elm_selected_node_container.removeClass('hide').html(elm_span);
-				const info = [{label: 'out-Links', elm: cur_out+'/'+arr_node.count_out}];
-				const details = getDataDetails(arr_node.id, connection_object_parents, connection_object_sub_parents);
-				
-				for (const object_definition_id in details.source.object_definitions) {
-										
-					info.push({label: arr_data.info.types[arr_node.type_id].name+' '+arr_data.info.object_descriptions[object_definition_id].object_description_name, elm: details.source.object_definitions[object_definition_id]});
-				}
-							
-				for (const type_id in details.source.object_subs) {
-								
-					for (const object_sub_details_id in details.source.object_subs[type_id]) {	
-								
-						for (const object_sub_definition_id in details.source.object_subs[type_id][object_sub_details_id]) {
-							
-							const str_object_sub_details = (object_sub_details_id !== 'collapse' ? '['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+']' : '-'); // Could be collapsed and not exist
-													
-							info.push({label: arr_data.info.types[type_id].name+' '+str_object_sub_details, elm: details.source.object_subs[type_id][object_sub_details_id][object_sub_definition_id]});
-						}
-					}
-				}
-				
-				info.push({label: 'in-Links', elm: cur_in+'/'+arr_node.count_in});
-				
-				for (const type_id in details.target.object_definitions) {
+				const func_object_group = function(arr_object_ids) {
 					
-					for (const object_definition_id in details.target.object_definitions[type_id]) {
-				
-						info.push({label: arr_data.info.types[type_id].name+' '+arr_data.info.object_descriptions[object_definition_id].object_description_name, elm: details.target.object_definitions[type_id][object_definition_id]});
-					}
-				}	
-							
-				for (const type_id in details.target.object_subs) {	
-							
-					for (const object_sub_details_id in details.target.object_subs[type_id]) {
-								
-						for (const object_sub_definition_id in details.target.object_subs[type_id][object_sub_details_id]) {
-							
-							const str_object_sub_details = (object_sub_details_id !== 'collapse' ? '['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+']' : '-'); // Could be collapsed and not exist
-							
-							info.push({label: arr_data.info.types[type_id].name+' '+str_object_sub_details, elm: details.target.object_subs[type_id][object_sub_details_id][object_sub_definition_id]});
-						}
-					}
-				}				
-				
-				const arr_connections = [];
-				
-				for (const connected_object_id in connections) {
+					let arr_list = {};
 					
-					arr_connections.push(connections[connected_object_id]);
-				}
-				
-				arr_connections.sort(function(a, b) {
-					return parseFloat(b.count) - parseFloat(a.count);
-				});
-				
-				for (let i = 0; i < (arr_connections.length > 9 ? 10 : arr_connections.length); i++) {
-					
-					const elm_connection_relations = $('<span title="Number of relations between '+arr_node.name+' and '+arr_connections[i].name+' (total links of '+arr_connections[i].name+')">'+arr_connections[i].count+' ('+arr_connections[i].total+')</span>');
-					const elm_connection_name = $('<span id="y:data_view:view_type_object-'+arr_nodes[arr_connections[i].id].type_id+'_'+arr_connections[i].id+'" class="a popup">'+arr_connections[i].name+'</span>');
-					
-					elm_connection_name[0].dataset.node_id = arr_connections[i].id;
-
-					elm_connection_name[0].addEventListener('mouseenter', function() {
+					for (const object_id of arr_object_ids) {
 						
-						hoverNode(arr_nodes[this.dataset.node_id], false);
-					})
+						if (arr_list[object_id] === undefined) {
+							arr_list[object_id] = 0;
+						}
+						arr_list[object_id]++;
+					}
 					
-					elm_connection_name[0].addEventListener('mouseleave', function() {
-						
-						hoverNode(false, false);
-					});
+					arr_list = Object.entries(arr_list).sort((a, b) => b[1] - a[1]); // Will be an array with key[0]-value[1] pairs
 					
-					info.push({label: elm_connection_name, elm: elm_connection_relations});
+					return arr_list;
 				};
 				
-				const list = $('<dl />').appendTo(elm_selected_node_container);
-				
-				for (const key in info) {
+				const func_object_list = function(arr_list, num_limit) {
 					
-					const li = $('<div />').appendTo(list);
-					const dt = $('<dt />').html(info[key].label).appendTo(li);
-					const dd = $('<dd />').html(info[key].elm).appendTo(li);
+					let str_return = '<ul>';
+					
+					for (let i = 0; i < arr_list.length && i < num_limit; i++) {
+						
+						const object_id = arr_list[i][0];
+						
+						str_return += '<li><span data-node_id="'+object_id+'" title="'+arr_list[i][1]+' '+(arr_list[i][1] > 1 ? arr_labels.lbl_references : arr_labels.lbl_reference)+'" class="a">'+arr_nodes[object_id].name+'</span></li>';
+					}
+					
+					if (arr_list.length > num_limit) {
+						str_return += '<li>... '+(arr_list.length-num_limit)+'x</li>'
+					}
+					
+					str_return += '</ul>';
+					
+					return str_return;
+				};
+				
+				const arr_collect_statements = {out: [{}], in: [{}]};
+				let num_references = 0;
+				let num_statements = 0;
+
+				for (const object_definition_id in arr_data_details.source.object_definitions) {
+					
+					const arr_object_ids = arr_data_details.source.object_definitions[object_definition_id];
+					num_references += Object.keys(arr_object_ids).length;
+					
+					const arr_list = func_object_group(arr_object_ids);
+					num_statements += arr_list.length;
+					
+					arr_collect_statements.out.push({label: arr_data.info.object_descriptions[object_definition_id].object_description_name, list: arr_list});
+				}
+							
+				for (const type_id in arr_data_details.source.object_subs) {
+								
+					for (const object_sub_details_id in arr_data_details.source.object_subs[type_id]) {	
+								
+						for (const object_sub_definition_id in arr_data_details.source.object_subs[type_id][object_sub_details_id]) {
+							
+							let str_object_sub_description = '';
+							
+							if (object_sub_details_id === 'collapse') { // Could be collapsed and not exist
+								str_object_sub_description = '[~]';
+							} else {
+								str_object_sub_description = '['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+']';
+							}
+							
+							str_object_sub_description += ' '+arr_data.info.object_sub_descriptions[object_sub_definition_id].object_sub_description_name;
+							
+							const arr_object_ids = arr_data_details.source.object_subs[type_id][object_sub_details_id][object_sub_definition_id];
+							num_references += Object.keys(arr_object_ids).length;
+							
+							const arr_list = func_object_group(arr_object_ids);
+							num_statements += arr_list.length;
+							
+							arr_collect_statements.out.push({label: str_object_sub_description, list: arr_list});
+						}
+					}
+				}
+								
+				let str_value = arr_node.count_out;
+				let str_title = arr_node.count_out+' '+arr_labels.lbl_links+' ('+num_references+' '+arr_labels.lbl_references+')';
+				
+				arr_collect_statements.out[0] = {label: '<strong>'+arr_labels.lbl_links_out+'</strong>', elm: '<strong title="'+str_title+'">'+str_value+'</strong>'};
+				
+				num_references = 0;
+				
+				for (const type_id in arr_data_details.target.object_definitions) {
+					
+					for (const object_definition_id in arr_data_details.target.object_definitions[type_id]) {
+						
+						const arr_object_ids = arr_data_details.target.object_definitions[type_id][object_definition_id];
+						num_references += Object.keys(arr_object_ids).length;
+						
+						const arr_list = func_object_group(arr_object_ids);
+						num_statements += arr_list.length;
+					
+						arr_collect_statements.in.push({label: arr_data.info.object_descriptions[object_definition_id].object_description_name, list: arr_list});
+					}
+				}	
+				
+				for (const type_id in arr_data_details.target.object_subs) {	
+							
+					for (const object_sub_details_id in arr_data_details.target.object_subs[type_id]) {
+								
+						for (const object_sub_definition_id in arr_data_details.target.object_subs[type_id][object_sub_details_id]) {
+							
+							let str_object_sub_description = '';
+							
+							if (object_sub_details_id === 'collapse') { // Could be collapsed and not exist
+								str_object_sub_description = '[~]';
+							} else {
+								str_object_sub_description = '['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+']';
+							}
+							
+							str_object_sub_description += ' '+arr_data.info.object_sub_descriptions[object_sub_definition_id].object_sub_description_name;
+							
+							const arr_object_ids = arr_data_details.target.object_subs[type_id][object_sub_details_id][object_sub_definition_id];
+							num_references += Object.keys(arr_object_ids).length;
+							
+							const arr_list = func_object_group(arr_object_ids);
+							num_statements += arr_list.length;
+					
+							arr_collect_statements.in.push({label: str_object_sub_description, list: arr_list});
+						}
+					}
+				}
+				
+				str_value = arr_node.count_in;
+				str_title = arr_node.count_in+' '+arr_labels.lbl_links+' ('+num_references+' '+arr_labels.lbl_references+')';
+				
+				arr_collect_statements.in[0] = {label: '<strong>'+arr_labels.lbl_links_in+'</strong>', elm: '<strong title="'+str_title+'">'+str_value+'</strong>'};
+				
+				let num_limit_list = 20;
+				
+				if (num_statements > num_limit_list) {
+					
+					num_limit_list = Math.ceil(num_limit_list / (arr_collect_statements.out.length-1 + arr_collect_statements.in.length-1));
+					
+					if (num_limit_list < 3) {
+						num_limit_list = 3;
+					}
+				}
+
+				const elm_list = $('<dl />').appendTo(elm_selected_node_container);
+				
+				for (const key_in_out in arr_collect_statements) {
+					for (const arr_statement of arr_collect_statements[key_in_out]) {
+						
+						if (arr_statement.list !== undefined) {
+							arr_statement.elm = func_object_list(arr_statement.list, num_limit_list);
+						}
+						
+						const elm_li = $('<div />').appendTo(elm_list);
+						const elm_dt = $('<dt />').html(arr_statement.label).appendTo(elm_li);
+						const elm_dd = $('<dd />').html(arr_statement.elm).appendTo(elm_li);
+					}
 				}
 			}
 		}
@@ -3274,15 +3670,17 @@ function MapSocial(elm_draw, PARENT, options) {
 				if (size_node_stop && num_weight_conditions > size_node_stop) {
 					num_weight_conditions = size_node_stop;
 				}
-
-				if (num_weight_conditions / num_node_weight_max > label_threshold) {
+				
+				const num_weight_normalised = (num_node_weight_max != num_node_weight_min ? ((num_weight_conditions - num_node_weight_min) / (num_node_weight_max - num_node_weight_min)) : 1);
+				
+				if (num_weight_normalised >= label_threshold) {
 					arr_node.has_text_threshold = true;
 					arr_node.show_text = true;
 				}
 							
 			} else {
 				
-				if ((arr_node.count_out + arr_node.count_in) / num_node_weight_max > label_threshold) {
+				if ((arr_node.count_out + arr_node.count_in) / num_node_weight_max >= label_threshold) {
 					arr_node.has_text_threshold = true;
 					arr_node.show_text = true;
 				}
@@ -3474,7 +3872,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			
 			const object_id = arr_remove_nodes[i];
 
-			drawNodeElm(arr_nodes[object_id]);
+			drawNodeElement(arr_nodes[object_id]);
 		}
 		
 		arr_remove_nodes = [];
@@ -3603,6 +4001,7 @@ function MapSocial(elm_draw, PARENT, options) {
 					return;
 				}
 			} else {
+				
 				return;
 			}
 		}
@@ -3644,7 +4043,6 @@ function MapSocial(elm_draw, PARENT, options) {
 		} else {
 			
 			if (arr_node.elm) {
-		
 				arr_remove_nodes.push(arr_node.id);
 			}
 		}
@@ -3678,9 +4076,24 @@ function MapSocial(elm_draw, PARENT, options) {
 		if (show_line && !in_predraw) {
 			
 			if (display == DISPLAY_VECTOR) {
+				
 				arr_link.action = 'show'; 
 			} else if (display == DISPLAY_PIXEL) {
-
+				
+				const num_buffer_offset = arr_link.count * 6;
+				const num_index_offset = arr_link.count * 4;
+				
+				const arr_indices = buffer_geometry_lines_index.data;
+				
+				arr_indices[num_buffer_offset + 0] = num_index_offset + 0;
+				arr_indices[num_buffer_offset + 1] = num_index_offset + 1;
+				arr_indices[num_buffer_offset + 2] = num_index_offset + 2;
+				
+				arr_indices[num_buffer_offset + 3] = num_index_offset + 1;
+				arr_indices[num_buffer_offset + 4] = num_index_offset + 3;
+				arr_indices[num_buffer_offset + 5] = num_index_offset + 2;
+				
+				do_update_geometry_lines_index = true;
 			}
 		}
 	};
@@ -3715,35 +4128,32 @@ function MapSocial(elm_draw, PARENT, options) {
 				arr_link.elm.dataset.visible = 0;
 			} else {
 				
-				const num_offset = arr_link.count * length_geometry_lines_position;
-
-				buffer_geometry_lines_position.data[num_offset + 0] = 0;
-				buffer_geometry_lines_position.data[num_offset + 1] = 0;
-				buffer_geometry_lines_position.data[num_offset + 2] = 0;
-				buffer_geometry_lines_position.data[num_offset + 3] = 0;
-				buffer_geometry_lines_position.data[num_offset + 4] = 0;
-				buffer_geometry_lines_position.data[num_offset + 5] = 0;
-				buffer_geometry_lines_position.data[num_offset + 6] = 0;
-				buffer_geometry_lines_position.data[num_offset + 7] = 0;
-				buffer_geometry_lines_position.data[num_offset + 8] = 0;
-				buffer_geometry_lines_position.data[num_offset + 9] = 0;
-				buffer_geometry_lines_position.data[num_offset + 10] = 0;
-				buffer_geometry_lines_position.data[num_offset + 11] = 0;
+				const num_buffer_offset = arr_link.count * 6;
+				const arr_indices = buffer_geometry_lines_index.data;
+				
+				arr_indices[num_buffer_offset + 0] = 0;
+				arr_indices[num_buffer_offset + 1] = 0;
+				arr_indices[num_buffer_offset + 2] = 0;
+				arr_indices[num_buffer_offset + 3] = 0;
+				arr_indices[num_buffer_offset + 4] = 0;
+				arr_indices[num_buffer_offset + 5] = 0;
+				
+				do_update_geometry_lines_index = true;
 			}
 		}
 		
 		arr_link.is_active = false;
 	};
 	
-	var setLinkColor = function(arr_link, color) {
+	var setLinkColor = function(arr_link, str_color) {
 		
 		if (!show_line) {
 			return;
 		}
 
-		if (color) {
+		if (str_color) {
 			
-			arr_link.color = parseColorLink(color);
+			arr_link.color = SocialUtilities.parseColorLink(str_color);
 		} else {
 			
 			let num_line_ratio = 1;
@@ -3753,10 +4163,10 @@ function MapSocial(elm_draw, PARENT, options) {
 				const num_weight_ratio = 1 - ((arr_link.weight - num_link_weight_min) / (num_link_weight_max - num_link_weight_min)); // Correct the range with the minimum weight to get a 0-1 ratio
 				const arr_color = SocialUtilities.colorToBrightColor(color_line, (num_weight_ratio * 40));
 				
-				arr_link.color = parseColorLink('rgba('+arr_color.r+','+arr_color.g+','+arr_color.b+','+opacity_line+')');
+				arr_link.color = SocialUtilities.parseColorLink('rgba('+arr_color.r+','+arr_color.g+','+arr_color.b+','+opacity_line+')');
 			} else {
 				
-				arr_link.color = parseColorLink('rgba('+arr_color_line.r+','+arr_color_line.g+','+arr_color_line.b+','+opacity_line+')');
+				arr_link.color = SocialUtilities.parseColorLink('rgba('+arr_color_line.r+','+arr_color_line.g+','+arr_color_line.b+','+opacity_line+')');
 			}
 		}
 		
@@ -3767,196 +4177,229 @@ function MapSocial(elm_draw, PARENT, options) {
 				arr_link.elm.setAttribute('stroke', arr_link.color);
 			} else {
 				
-				const num_offset = arr_link.count * length_geometry_lines_color;
+				const num_buffer_offset = arr_link.count * 4 * 4; // 4 vertices (quad) per link to be truely updated/coloured, having 4 colour statemens (rgba)
 				const num_r = (arr_link.color.r / 255);
 				const num_g = (arr_link.color.g / 255);
 				const num_b = (arr_link.color.b / 255);
 				const num_a = arr_link.color.a;
 				
-				buffer_geometry_lines_color.data[num_offset + 0] = num_r;
-				buffer_geometry_lines_color.data[num_offset + 1] = num_g;
-				buffer_geometry_lines_color.data[num_offset + 2] = num_b;
-				buffer_geometry_lines_color.data[num_offset + 3] = num_a;
-				buffer_geometry_lines_color.data[num_offset + 4] = num_r;
-				buffer_geometry_lines_color.data[num_offset + 5] = num_g;
-				buffer_geometry_lines_color.data[num_offset + 6] = num_b;
-				buffer_geometry_lines_color.data[num_offset + 7] = num_a;
-				buffer_geometry_lines_color.data[num_offset + 8] = num_r;
-				buffer_geometry_lines_color.data[num_offset + 9] = num_g;
-				buffer_geometry_lines_color.data[num_offset + 10] = num_b;
-				buffer_geometry_lines_color.data[num_offset + 11] = num_a;
-
-				buffer_geometry_lines_color.data[num_offset + 12] = num_r;
-				buffer_geometry_lines_color.data[num_offset + 13] = num_g;
-				buffer_geometry_lines_color.data[num_offset + 14] = num_b;
-				buffer_geometry_lines_color.data[num_offset + 15] = num_a;
-				buffer_geometry_lines_color.data[num_offset + 16] = num_r;
-				buffer_geometry_lines_color.data[num_offset + 17] = num_g;
-				buffer_geometry_lines_color.data[num_offset + 18] = num_b;
-				buffer_geometry_lines_color.data[num_offset + 19] = num_a;
-				buffer_geometry_lines_color.data[num_offset + 20] = num_r;
-				buffer_geometry_lines_color.data[num_offset + 21] = num_g;
-				buffer_geometry_lines_color.data[num_offset + 22] = num_b;
-				buffer_geometry_lines_color.data[num_offset + 23] = num_a;
+				const arr_colors = buffer_geometry_lines_color.data;
+				
+				arr_colors[num_buffer_offset + 0] = num_r;
+				arr_colors[num_buffer_offset + 1] = num_g;
+				arr_colors[num_buffer_offset + 2] = num_b;
+				arr_colors[num_buffer_offset + 3] = num_a;
+				arr_colors[num_buffer_offset + 4] = num_r;
+				arr_colors[num_buffer_offset + 5] = num_g;
+				arr_colors[num_buffer_offset + 6] = num_b;
+				arr_colors[num_buffer_offset + 7] = num_a;
+				
+				arr_colors[num_buffer_offset + 8] = num_r;
+				arr_colors[num_buffer_offset + 9] = num_g;
+				arr_colors[num_buffer_offset + 10] = num_b;
+				arr_colors[num_buffer_offset + 11] = num_a;
+				arr_colors[num_buffer_offset + 12] = num_r;
+				arr_colors[num_buffer_offset + 13] = num_g;
+				arr_colors[num_buffer_offset + 14] = num_b;
+				arr_colors[num_buffer_offset + 15] = num_a;
 				
 				do_update_geometry_lines_color = true;
 			}
 		}
 	}
 
-	var getDataDetails = function (object_id, arr_object_parents, arr_object_sub_parents) {
+	var getDataDetails = function(object_id, arr_object_parents, arr_object_sub_parents) {
 		
-		let object = null;
+		let arr_object = null;
 		
 		if (arr_data.objects[object_id]) {
-			
-			object = arr_data.objects[object_id];
-			
+			arr_object = arr_data.objects[object_id];
 		} else {
-			
-			object = {object_definitions: {}};
-			
-		}
-		arr_object_parents = arrUnique(arr_object_parents),
-		arr_object_sub_parents = arrUnique(arr_object_sub_parents),
-		details = {source: {object_definitions: {}, object_subs: {}}, target: {object_definitions: {}, object_subs: {}}};
-		
-		//count all relations FROM context object
-		for (const object_definition_id in object.object_definitions) {
-			
-			if (object.object_definitions[object_definition_id] && object.object_definitions[object_definition_id].ref_object_id.length) {
-				details.source.object_definitions[object_definition_id] = object.object_definitions[object_definition_id].ref_object_id.length;
-			}
+			arr_object = {object_definitions: {}};
 		}
 		
-		//count all relations FROM context object sub objects based on object_sub_parents
-		for (let i = 0; i < arr_object_sub_parents.length; i++) {
+		var arr_object_parents = arrUnique(arr_object_parents); // Could have doubles (bidirectional)
+		var arr_object_sub_parents = arrUnique(arr_object_sub_parents); // Could have doubles (bidirectional)
+		const arr_details = {source: {object_definitions: {}, object_subs: {}}, target: {object_definitions: {}, object_subs: {}}};
+		
+		// Count all relations REFERENCING/OUT context object
+		
+		for (const object_definition_id in arr_object.object_definitions) {
 			
-			if (arr_data.object_subs[arr_object_sub_parents[i]].object_id == object_id) {
-				
-				const object_sub = arr_data.object_subs[arr_object_sub_parents[i]];
-				
-				if (object_sub.object_sub_definitions) {
-					
-					for (const object_sub_definition_id in object_sub.object_sub_definitions) {
-						
-						const arr_object_sub_definition = object_sub.object_sub_definitions[object_sub_definition_id];
-						
-						if (arr_object_sub_definition && arr_object_sub_definition.ref_object_id.length) {
-							
-							for (let j = 0; j < arr_object_sub_definition.ref_object_id.length; j++) {
-								
-								if (arr_object_sub_definition.ref_object_id[j] != object_id) {
-									
-									const type_id = arr_data.objects[object_sub.object_id].type_id;
-									
-									if (!details.source.object_subs[type_id]) {
-										details.source.object_subs[type_id] = {};
-									}
-									
-									const object_sub_details_id = object_sub.object_sub_details_id; // Could be collapsed
-									
-									if (!details.source.object_subs[type_id][object_sub_details_id]) {
-										details.source.object_subs[type_id][object_sub_details_id] = {};
-									}
-									
-									if (!details.source.object_subs[type_id][object_sub_details_id][object_sub_definition_id]) {
-										details.source.object_subs[type_id][object_sub_details_id][object_sub_definition_id] = 1;
-									} else {
-										details.source.object_subs[type_id][object_sub_details_id][object_sub_definition_id]++;
-									}
-								}
-							}
-						}
-					}
-				}					
+			const arr_object_definition = arr_object.object_definitions[object_definition_id];
+			
+			if (!arr_object_definition || !arr_object_definition.ref_object_id.length) {
+				continue;
 			}
-		}
-								
-		//count all relations TOWARDS context object based on object_parents
-		for (let i = 0; i < arr_object_parents.length; i++) {
 			
-			if (arr_object_parents[i] != object_id) {
+			for (let j = 0; j < arr_object_definition.ref_object_id.length; j++) {
 				
-				let ref_object = null;
+				const referencing_object_id = arr_object_definition.ref_object_id[j]+''; // IDs are generally collected as strings
 				
-				if (arr_data.objects[arr_object_parents[i]]) {
-					ref_object = arr_data.objects[arr_object_parents[i]];
-				} else {
-					ref_object = {object_definitions: {}};
+				if (referencing_object_id === object_id) {
+					continue;
 				}
 				
-				for (const object_definition_id in ref_object.object_definitions) {
-					
-					const arr_object_definition = ref_object.object_definitions[object_definition_id];
-					
-					if (arr_object_definition && arr_object_definition.ref_object_id.length) {
-						
-						for (let j = 0; j < arr_object_definition.ref_object_id.length; j++) {
-							
-							if (arr_object_definition.ref_object_id == object_id) {
-								
-								if (!details.target.object_definitions[ref_object.type_id]) {
-									details.target.object_definitions[ref_object.type_id] = {};
-								}
-								
-								if (!details.target.object_definitions[ref_object.type_id][object_definition_id]) {
-									details.target.object_definitions[ref_object.type_id][object_definition_id] = 1;
-								} else {
-									details.target.object_definitions[ref_object.type_id][object_definition_id]++;
-								}								
-							}
-						}
-					}
+				if (!arr_object_parents.includes(referencing_object_id)) {
+					continue;
 				}
+				
+				if (arr_details.source.object_definitions[object_definition_id] === undefined) {
+					arr_details.source.object_definitions[object_definition_id] = [];
+				}
+				
+				arr_details.source.object_definitions[object_definition_id].push(referencing_object_id);
 			}
 		}
 		
-		//count all relations TOWARDS context object based on object_sub_parents
+		// Count all relations REFERENCING/OUT context object sub objects based on object_sub_parent
+		
 		for (let i = 0; i < arr_object_sub_parents.length; i++) {
 			
 			if (arr_data.object_subs[arr_object_sub_parents[i]].object_id != object_id) {
+				continue;
+			}
+			
+			const arr_object_sub = arr_data.object_subs[arr_object_sub_parents[i]];
+			
+			if (!arr_object_sub.object_sub_definitions) {
+				continue;
+			}
+			
+			for (const object_sub_definition_id in arr_object_sub.object_sub_definitions) {
 				
-				const object_sub = arr_data.object_subs[arr_object_sub_parents[i]];
+				const arr_object_sub_definition = arr_object_sub.object_sub_definitions[object_sub_definition_id];
 				
-				if (object_sub.object_sub_definitions) {
+				if (!arr_object_sub_definition || !arr_object_sub_definition.ref_object_id.length) {
+					continue;
+				}
 					
-					for (const object_sub_definition_id in object_sub.object_sub_definitions) {
-						
-						const arr_object_sub_definition = object_sub.object_sub_definitions[object_sub_definition_id];
-						
-						if (arr_object_sub_definition && arr_object_sub_definition.ref_object_id.length) {
-							
-							for (let j = 0; j < arr_object_sub_definition.ref_object_id.length; j++) {
-								
-								if (arr_object_sub_definition.ref_object_id[j] == object_id) {
-									
-									const type_id = arr_data.objects[arr_data.object_subs[arr_object_sub_parents[i]].object_id].type_id;
-									
-									if (!details.target.object_subs[type_id]) {
-										details.target.object_subs[type_id] = {};
-									}
-									
-									const object_sub_details_id = object_sub.object_sub_details_id;
-									
-									if (!details.target.object_subs[type_id][object_sub_details_id]) {
-										details.target.object_subs[type_id][object_sub_details_id] = {};
-									}
-									
-									if (!details.target.object_subs[type_id][object_sub_details_id][object_sub_definition_id]) {
-										details.target.object_subs[type_id][object_sub_details_id][object_sub_definition_id] = 1;
-									} else {
-										details.target.object_subs[type_id][object_sub_details_id][object_sub_definition_id]++;
-									}
-								}
-							}
-						}
+				for (let j = 0; j < arr_object_sub_definition.ref_object_id.length; j++) {
+					
+					const referencing_object_id = arr_object_sub_definition.ref_object_id[j]+''; // IDs are generally collected as strings
+					
+					if (referencing_object_id === object_id) {
+						continue;
 					}
-				}					
+					
+					const type_id = arr_data.objects[arr_object_sub.object_id].type_id;
+					
+					if (arr_details.source.object_subs[type_id] === undefined) {
+						arr_details.source.object_subs[type_id] = {};
+					}
+					
+					const object_sub_details_id = arr_object_sub.object_sub_details_id; // Could be collapsed
+					
+					if (arr_details.source.object_subs[type_id][object_sub_details_id] === undefined) {
+						arr_details.source.object_subs[type_id][object_sub_details_id] = {};
+					}
+					
+					if (arr_details.source.object_subs[type_id][object_sub_details_id][object_sub_definition_id] === undefined) {
+						arr_details.source.object_subs[type_id][object_sub_details_id][object_sub_definition_id] = [];
+					}
+					
+					arr_details.source.object_subs[type_id][object_sub_details_id][object_sub_definition_id].push(referencing_object_id);
+				}
+			}
+		}
+								
+		// Count all relations REFERENCED/IN context object based on object_parents
+		
+		for (let i = 0; i < arr_object_parents.length; i++) {
+			
+			const referenced_object_id = arr_object_parents[i];
+			
+			if (referenced_object_id === object_id) {
+				continue;
+			}
+			
+			let arr_referenced_object = null;
+			
+			if (arr_data.objects[referenced_object_id]) {
+				arr_referenced_object = arr_data.objects[referenced_object_id];
+			} else {
+				arr_referenced_object = {object_definitions: {}};
+			}
+			
+			for (const object_definition_id in arr_referenced_object.object_definitions) {
+				
+				const arr_object_definition = arr_referenced_object.object_definitions[object_definition_id];
+				
+				if (!arr_object_definition || !arr_object_definition.ref_object_id.length) {
+					continue;
+				}
+					
+				for (let j = 0; j < arr_object_definition.ref_object_id.length; j++) {
+				
+					if (arr_object_definition.ref_object_id[j] != object_id) {
+						continue;
+					}
+					
+					if (arr_details.target.object_definitions[arr_referenced_object.type_id] === undefined) {
+						arr_details.target.object_definitions[arr_referenced_object.type_id] = {};
+					}
+					
+					if (arr_details.target.object_definitions[arr_referenced_object.type_id][object_definition_id] === undefined) {
+						arr_details.target.object_definitions[arr_referenced_object.type_id][object_definition_id] = [];
+					}
+					
+					arr_details.target.object_definitions[arr_referenced_object.type_id][object_definition_id].push(referenced_object_id);
+				}
+			}
+		}
+		
+		// Count all relations REFERENCED/IN context object based on object_sub_parents
+		
+		for (let i = 0; i < arr_object_sub_parents.length; i++) {
+			
+			const referenced_object_id = arr_data.object_subs[arr_object_sub_parents[i]].object_id+'';// IDs are generally collected as strings
+			
+			if (referenced_object_id === object_id) {
+				continue;
+			}
+				
+			const arr_object_sub = arr_data.object_subs[arr_object_sub_parents[i]];
+			
+			if (!arr_object_sub.object_sub_definitions) {
+				continue;
+			}
+				
+			for (const object_sub_definition_id in arr_object_sub.object_sub_definitions) {
+				
+				const arr_object_sub_definition = arr_object_sub.object_sub_definitions[object_sub_definition_id];
+				
+				if (!arr_object_sub_definition || !arr_object_sub_definition.ref_object_id.length) {
+					continue;
+				}
+				
+				for (let j = 0; j < arr_object_sub_definition.ref_object_id.length; j++) {
+					
+					if (arr_object_sub_definition.ref_object_id[j] != object_id) {
+						continue;
+					}
+
+					const type_id = arr_data.objects[referenced_object_id].type_id;
+					
+					if (arr_details.target.object_subs[type_id] === undefined) {
+						arr_details.target.object_subs[type_id] = {};
+					}
+					
+					const object_sub_details_id = arr_object_sub.object_sub_details_id;
+					
+					if (arr_details.target.object_subs[type_id][object_sub_details_id] === undefined) {
+						arr_details.target.object_subs[type_id][object_sub_details_id] = {};
+					}
+					
+					if (arr_details.target.object_subs[type_id][object_sub_details_id][object_sub_definition_id] === undefined) {
+						arr_details.target.object_subs[type_id][object_sub_details_id][object_sub_definition_id] = [];
+					}
+					
+					arr_details.target.object_subs[type_id][object_sub_details_id][object_sub_definition_id].push(referenced_object_id);
+				}
 			}
 		}
 	
-		return details;
+		return arr_details;
 	}
 		
 	var parseData = function() {
@@ -4009,23 +4452,29 @@ function MapSocial(elm_draw, PARENT, options) {
 			for (const object_definition_id in arr_object.object_definitions) {
 				
 				const arr_object_definition = arr_object.object_definitions[object_definition_id];
+				
+				if (!arr_object_definition || !arr_object_definition.ref_object_id.length) {
+					continue;
+				}
 
-				if (arr_object_definition && arr_object_definition.ref_object_id.length) {
+				let has_conditions = false;
+				
+				const has_weight_zero = (arr_object_definition.style.weight === 0);
+				
+				for (let i = 0, len = arr_object_definition.ref_object_id.length; i < len; i++) {
 					
-					let has_conditions = false;
+					const target_object_id = setNodeProperties(arr_data.info.object_descriptions[object_definition_id].object_description_ref_type_id, arr_object_definition.ref_object_id[i], arr_object_definition.value[i]);
 					
-					for (let i = 0, len = arr_object_definition.ref_object_id.length; i < len; i++) {
+					if (object_id == target_object_id) {
+						continue;
+					}
 						
-						const target_object_id = setNodeProperties(arr_data.info.object_descriptions[object_definition_id].object_description_ref_type_id, arr_object_definition.ref_object_id[i], arr_object_definition.value[i]);
-						
-						if (object_id == target_object_id) {
-							continue;
-						}
-							
-						const arr_target_node = arr_nodes[target_object_id];
-						
-						arr_node.child_nodes.push(target_object_id);	
-							
+					const arr_target_node = arr_nodes[target_object_id];
+					
+					arr_node.child_nodes.push(target_object_id);
+					
+					if (!has_weight_zero) {
+
 						const link_id = makeLink(object_id, target_object_id);
 						const arr_link = arr_links[link_id];
 						
@@ -4033,32 +4482,32 @@ function MapSocial(elm_draw, PARENT, options) {
 						arr_link.count_object_parent++;
 							
 						arr_node.child_links.push(link_id);	
-
-						// Weight and other conditions of object applied to target node
-						
-						if (arr_object_definition.style.weight !== null) {
-
-							arr_target_node.weight_conditions += arr_object_definition.style.weight;
-							arr_target_node.weight_total += arr_object_definition.style.weight;
-						}
-						
-						const arr_conditions = setCondition(arr_object_definition.style, object_id, object_definition_id);
-						
-						if (arr_conditions) {
-							
-							arr_target_node.has_conditions = true;
-							arr_target_node.conditions.object_parent = arr_target_node.conditions.object_parent.concat(arr_conditions);
-							
-							has_conditions = true;
-						}
 					}
 					
-					if (has_conditions) {
+					// Weight and other conditions of object applied to target node
+					
+					if (arr_object_definition.style.weight !== null) {
+
+						arr_target_node.weight_conditions += arr_object_definition.style.weight;
+						arr_target_node.weight_total += arr_object_definition.style.weight;
+					}
+					
+					const arr_conditions = setCondition(arr_object_definition.style, object_id, object_definition_id);
+					
+					if (arr_conditions) {
 						
-						for (const str_identifier_condition in arr_object.style.conditions) {
-							
-							arr_node.conditions.object_definition.push({identifier: str_identifier_condition, source_id: object_id});
-						}
+						arr_target_node.has_conditions = true;
+						arr_target_node.conditions.object_parent = arr_target_node.conditions.object_parent.concat(arr_conditions);
+						
+						has_conditions = true;
+					}
+				}
+				
+				if (has_conditions) {
+					
+					for (const str_identifier_condition in arr_object.style.conditions) {
+						
+						arr_node.conditions.object_definition.push({identifier: str_identifier_condition, source_id: object_id});
 					}
 				}
 			}			
@@ -4071,66 +4520,10 @@ function MapSocial(elm_draw, PARENT, options) {
 			const object_id = arr_object_sub.object_id+'';
 			
 			const arr_object_sub_children = {child_nodes: [object_id], child_links: [], is_active: false};
-
+			
+			arr_object_subs_children[object_sub_id] = arr_object_sub_children;
+			
 			const arr_node = arr_nodes[object_id];
-
-			if (arr_object_sub.object_sub_definitions) {
-				
-				for (const object_sub_definition_id in arr_object_sub.object_sub_definitions) {
-					
-					const arr_object_sub_definition = arr_object_sub.object_sub_definitions[object_sub_definition_id];
-					
-					if (arr_object_sub_definition && arr_object_sub_definition.ref_object_id.length) {
-						
-						let has_conditions = false;
-						
-						for (let i = 0, len = arr_object_sub_definition.ref_object_id.length; i < len; i++) {
-							
-							const target_object_id = setNodeProperties(arr_data.info.object_sub_descriptions[object_sub_definition_id].object_sub_description_ref_type_id, arr_object_sub_definition.ref_object_id[i], arr_object_sub_definition.value[i]);	
-							
-							if (object_id == target_object_id) {
-								continue;
-							}
-							
-							const arr_target_node = arr_nodes[target_object_id];
-							
-							arr_object_sub_children.child_nodes.push(target_object_id);
-								
-							const link_id = makeLink(object_id, target_object_id);
-							
-							arr_links[link_id].has_object_sub_parents = true;
-							
-							arr_object_sub_children.child_links.push(link_id);
-
-							// Cross Referencing weight and other conditions added to target node
-							
-							if (arr_object_sub_definition.style.weight !== null) {
-
-								arr_target_node.weight_conditions += arr_object_sub_definition.style.weight;
-								arr_target_node.weight_total += arr_object_sub_definition.style.weight;
-							}	
-							
-							const arr_conditions = setCondition(arr_object_sub_definition.style, object_sub_id, object_sub_definition_id);
-							
-							if (arr_conditions) {
-								
-								arr_target_node.has_conditions = true;
-								arr_target_node.conditions.object_sub_parent = arr_target_node.conditions.object_sub_parent.concat(arr_conditions);
-								
-								has_conditions = true;
-							}
-						}
-						
-						if (has_conditions) {
-							
-							for (const str_identifier_condition in arr_object_sub.style.conditions) {
-								
-								arr_node.conditions.object_sub_definition.push({identifier: str_identifier_condition, source_id: object_sub_id});
-							}
-						}
-					}
-				}
-			} 
 			
 			// Weight and other conditions of sub-object applied to current node
 			
@@ -4139,7 +4532,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				arr_node.weight_conditions += arr_object_sub.style.weight;
 				arr_node.weight_total += arr_object_sub.style.weight;
 			}
-										
+			
 			const arr_conditions = setCondition(arr_object_sub.style, object_sub_id);
 			
 			if (arr_conditions) {
@@ -4148,29 +4541,98 @@ function MapSocial(elm_draw, PARENT, options) {
 				arr_node.conditions.object_sub = arr_node.conditions.object_sub.concat(arr_conditions);
 			}
 			
+			let has_sub_weight_zero = (arr_object_sub.style.weight === 0);
+			
 			if (include_location_nodes && arr_object_sub.location_object_id) {
 				
-				var target_object_id = setNodeProperties(arr_object_sub.location_type_id, arr_object_sub.location_object_id, arr_object_sub.location_name);
+				const target_object_id = setNodeProperties(arr_object_sub.location_type_id, arr_object_sub.location_object_id, arr_object_sub.location_name);
 				
 				if (object_id != target_object_id) {
 							
 					arr_object_sub_children.child_nodes.push(target_object_id);
 					
-					var link_id = makeLink(object_id, target_object_id);
-					
-					arr_links[link_id].has_object_sub_parents = true;
-					
-					arr_object_sub_children.child_links.push(link_id);
+					if (!has_sub_weight_zero) {
+						
+						const link_id = makeLink(object_id, target_object_id);
+						
+						arr_links[link_id].has_object_sub_parents = true;
+						
+						arr_object_sub_children.child_links.push(link_id);
+						
+					}
 				}
 			}
-			
-			arr_object_subs_children[object_sub_id] = arr_object_sub_children;
+
+			if (!arr_object_sub.object_sub_definitions) {
+				continue;
+			}
+				
+			for (const object_sub_definition_id in arr_object_sub.object_sub_definitions) {
+				
+				const arr_object_sub_definition = arr_object_sub.object_sub_definitions[object_sub_definition_id];
+				
+				if (!arr_object_sub_definition || !arr_object_sub_definition.ref_object_id.length) {
+					continue;
+				}
+				
+				let has_conditions = false;
+				
+				const has_weight_zero = (arr_object_sub_definition.style.weight === 0);
+				
+				for (let i = 0, len = arr_object_sub_definition.ref_object_id.length; i < len; i++) {
+					
+					const target_object_id = setNodeProperties(arr_data.info.object_sub_descriptions[object_sub_definition_id].object_sub_description_ref_type_id, arr_object_sub_definition.ref_object_id[i], arr_object_sub_definition.value[i]);	
+					
+					if (object_id == target_object_id) {
+						continue;
+					}
+					
+					const arr_target_node = arr_nodes[target_object_id];
+					
+					arr_object_sub_children.child_nodes.push(target_object_id);
+					
+					if (!has_sub_weight_zero && !has_weight_zero) {
+												
+						const link_id = makeLink(object_id, target_object_id);
+						
+						arr_links[link_id].has_object_sub_parents = true;
+						
+						arr_object_sub_children.child_links.push(link_id);
+					}
+
+					// Cross Referencing weight and other conditions added to target node
+					
+					if (arr_object_sub_definition.style.weight !== null) {
+
+						arr_target_node.weight_conditions += arr_object_sub_definition.style.weight;
+						arr_target_node.weight_total += arr_object_sub_definition.style.weight;
+					}	
+					
+					const arr_conditions = setCondition(arr_object_sub_definition.style, object_sub_id, object_sub_definition_id);
+					
+					if (arr_conditions) {
+						
+						arr_target_node.has_conditions = true;
+						arr_target_node.conditions.object_sub_parent = arr_target_node.conditions.object_sub_parent.concat(arr_conditions);
+						
+						has_conditions = true;
+					}
+				}
+				
+				if (has_conditions) {
+					
+					for (const str_identifier_condition in arr_object_sub.style.conditions) {
+						
+						arr_node.conditions.object_sub_definition.push({identifier: str_identifier_condition, source_id: object_sub_id});
+					}
+				}
+			}
 		}
 	}
 	
 	var setCondition = function(arr_style, source_id, source_definition_id) {
 		
-		if (!arr_style || (!arr_style.color && !arr_style.icon)) {
+		if (!arr_style || (!arr_style.color && !arr_style.icon && arr_style.weight == null)) {
 			return false;
 		}
 
@@ -4187,15 +4649,17 @@ function MapSocial(elm_draw, PARENT, options) {
 			
 			const arr_legend_condition = arr_legend_conditions[str_identifier_condition];
 			
-			let num_weight = arr_style.conditions[str_identifier_condition];
+			const arr_condition_value = arr_style.conditions[str_identifier_condition];
 			
-			if (num_weight === null) {
+			if (arr_condition_value === null) {
 				continue;
 			}
 			
+			const num_weight = arr_condition_value.weight;
+
 			num_weight_conditions += num_weight;
-			let color = null;
-			let icon = null;
+			let str_color_style = null;
+			let str_icon_style = null;
 
 			if (arr_legend_condition.color) {
 				
@@ -4207,15 +4671,15 @@ function MapSocial(elm_draw, PARENT, options) {
 							continue;
 						}
 							
-						color = arr_style.color[i];
+						str_color_style = arr_style.color[i];
 						break;
 					}
 				} else if (arr_legend_condition.color === arr_style.color) {
 					
-					color = arr_style.color;
+					str_color_style = arr_style.color;
 				}
 			}
-			
+
 			if (arr_legend_condition.icon) {
 				
 				if (is_array_icon) {
@@ -4226,20 +4690,22 @@ function MapSocial(elm_draw, PARENT, options) {
 							continue;
 						}
 						
-						icon = arr_style.icon[i];
+						str_icon_style = arr_style.icon[i];
 						break;
 					}
 				} else if (arr_legend_condition.icon === arr_style.icon) {
 					
-					icon = arr_style.icon;
+					str_icon_style = arr_style.icon;
 				}
 			}
 			
-			if (color === null && icon === null && num_weight_style === null) {
+			if (str_color_style === null && str_icon_style === null && num_weight_style === null) {
 				continue;
 			}
 			
-			arr_conditions.push({identifier: str_identifier_condition, source_id: source_id, source_definition_id: source_definition_id, weight: num_weight, color: color, icon: icon});
+			const str_color = (str_color_style !== null && arr_condition_value.color != null ? arr_condition_value.color : str_color_style); // Calculated color only when style color is applied
+			
+			arr_conditions.push({identifier: str_identifier_condition, source_id: source_id, source_definition_id: source_definition_id, weight: num_weight, color: str_color, icon: str_icon_style});
 		}
 		
 		// Adjust the individual condition weights to scale within the overall calculated weight
@@ -4251,7 +4717,16 @@ function MapSocial(elm_draw, PARENT, options) {
 			for (let i = 0, len = arr_conditions.length; i < len; i++) {
 				
 				const arr_condition = arr_conditions[i];
-				arr_condition.weight = arr_condition.weight * num_scale;
+				
+				if (arr_condition.weight == 0) {
+					continue;
+				}
+				
+				if (num_scale < 1) {
+					arr_condition.weight = Math.ceil(arr_condition.weight * num_scale); // Make sure to keep integer
+				} else {
+					arr_condition.weight = Math.round(arr_condition.weight * num_scale); // Make sure to keep integer
+				}
 			}
 		}
 		
@@ -4293,13 +4768,88 @@ function MapSocial(elm_draw, PARENT, options) {
 		return false;
 	}
 	
-	var setNodeProperties = function(type_id, object_id, name) {
+	var getNodeDetails = function(arr_node) {
+		
+		const arr_details = {conditions: null};
+		const arr_conditions = arr_node.conditions;
+		
+		const arr_details_conditions = {};
+		let has_conditions = false;
+		
+		for (let i = 0, len = arr_conditions.object.length; i < len; i++) {
+
+			const arr_condition = arr_conditions.object[i];
+			
+			if (arr_details_conditions[arr_condition.identifier] === undefined) {
+				arr_details_conditions[arr_condition.identifier] = 0;
+			}
+			
+			arr_details_conditions[arr_condition.identifier] += arr_condition.weight;
+			has_conditions = true;
+		}
+		
+		for (let i = 0, len = arr_conditions.object_sub.length; i < len; i++) {
+			
+			const arr_condition = arr_conditions.object_sub[i];
+			
+			if (!arr_object_subs_children[arr_condition.source_id].is_active) {
+				continue;
+			}
+			
+			if (arr_details_conditions[arr_condition.identifier] === undefined) {
+				arr_details_conditions[arr_condition.identifier] = 0;
+			}
+			
+			arr_details_conditions[arr_condition.identifier] += arr_condition.weight;
+			has_conditions = true;
+		}
+		
+		for (let i = 0, len = arr_conditions.object_parent.length; i < len; i++) {
+			
+			const arr_condition = arr_conditions.object_parent[i];
+			
+			if (arr_node.object_parents[arr_condition.source_id] === false) {
+				continue;
+			}
+			
+			if (arr_details_conditions[arr_condition.identifier] === undefined) {
+				arr_details_conditions[arr_condition.identifier] = 0;
+			}
+			
+			arr_details_conditions[arr_condition.identifier] += arr_condition.weight;
+			has_conditions = true;
+		}
+		
+		for (let i = 0, len = arr_conditions.object_sub_parent.length; i < len; i++) {
+			
+			const arr_condition = arr_conditions.object_sub_parent[i];
+			
+			if (arr_node.object_sub_parents[arr_condition.source_id] === false) {
+				continue;
+			}
+			
+			if (arr_details_conditions[arr_condition.identifier] === undefined) {
+				arr_details_conditions[arr_condition.identifier] = 0;
+			}
+			
+			arr_details_conditions[arr_condition.identifier] += arr_condition.weight;
+			has_conditions = true;
+		}
+		
+		if (has_conditions) {
+			arr_details.conditions = arr_details_conditions;
+		}
+		
+		return arr_details;
+	}
+	
+	var setNodeProperties = function(type_id, object_id, str_name) {
 		
 		var object_id = object_id+''; // Make string so all IDs have same format
 	
 		if (!arr_nodes[object_id]) {
 			
-			var arr_node = {};
+			const arr_node = {};
 			
 			arr_node.id = object_id;
 			arr_node.count = count_nodes;
@@ -4316,21 +4866,24 @@ function MapSocial(elm_draw, PARENT, options) {
 			arr_node.conditions = {object: [], object_sub: [], object_parent: [], object_sub_parent: [], object_definition: [], object_sub_definition: []};
 			arr_node.identifier_condition = '';
 			arr_node.identifier_condition_self = '';
-			arr_node.colors = false;
+			arr_node.colors = null;
 			arr_node.icons = false;
 			arr_node.weight_conditions = 1;
 			arr_node.weight_total = null;
 			
 			if (arr_data.objects[object_id]) { // Object is present in objects in arr_data
 				
-				var arr_object = arr_data.objects[object_id];
-				var name = arr_object.name;
+				const arr_object = arr_data.objects[object_id];
+				var str_name = arr_object.name;
 				var type_id = arr_object.type_id;
 				
 				if (arr_object.style.weight !== null) {
 					
 					arr_node.weight_conditions += arr_object.style.weight;
 					arr_node.weight_total += arr_object.style.weight;
+				} else {
+					
+					arr_node.weight_total = 1;
 				}
 				
 				const arr_conditions = setCondition(arr_object.style, false);
@@ -4344,8 +4897,12 @@ function MapSocial(elm_draw, PARENT, options) {
 			
 			arr_node.type_id = type_id;
 			
-			arr_node.name = name;
-			arr_node.name_text = stripHTMLTags(name);
+			arr_node.name = str_name;
+			var str_name = stripHTMLTags(str_name);
+			if (str_name.length > length_text_max) {
+				str_name = str_name.substr(0, length_text_max)+'...';
+			}
+			arr_node.name_text = str_name;
 							
 			arr_node.child_links = [];
 			arr_node.child_nodes = [];
@@ -4364,7 +4921,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			arr_node.is_checked = false;
 			arr_node.identifier = '';
 			arr_node.elm = false;
-			arr_node.elm_text = false;
+			arr_node.elm_text = null;
 			arr_node.color = false;
 			arr_node.redraw_node = false;
 			arr_node.show_text = false;
@@ -4388,4 +4945,82 @@ function MapSocial(elm_draw, PARENT, options) {
 	
 		return object_id;
 	}
+	
+	const arr_cache_graphics_nodes = new Map();
+	const arr_cache_graphics_nodes_pie = new Map();
+
+	var getGraphicsElementNode = function(elm, num_radius, color, num_stroke, color_stroke) {
+		
+		var num_radius = (num_radius < 0.5 ? 0.5 : Math.round(num_radius * 2) / 2); // 0.5 rounding
+		const str_identifier = num_radius+'|'+num_stroke+'|'+color_stroke+'|'+color;
+		
+		let context = arr_cache_graphics_nodes.get(str_identifier);
+		
+		if (context === undefined) {
+			
+			context = new PIXI.GraphicsContext();
+			context.circle(0, 0, num_radius);
+			if (color_stroke !== null) {
+				context.stroke({width: num_stroke, color: color_stroke, alignment: 0});
+			}
+			context.fill(color);
+			
+			arr_cache_graphics_nodes.set(str_identifier, context);
+		}
+
+		if (elm === null) {
+			return new PIXI.Graphics(context);	
+		}
+		
+		elm.context = context;
+	};
+	
+	var getGraphicsElementNodePie = function(elm, num_radius, arr_colors, num_opacity, num_stroke, color_stroke) {
+		
+		var num_radius = (num_radius < 0.5 ? 0.5 : Math.round(num_radius * 2) / 2);  // 0.5 rounding
+		let str_identifier = num_radius+'|'+num_stroke+'|'+color_stroke+'|'+num_opacity+'|';
+		
+		for (let i = 0; i < arr_colors.length; i++) {
+			
+			const num_portion = Math.round(arr_colors[i].portion * 100) / 100;
+			
+			str_identifier += arr_colors[i].color+'-'+num_portion+',';
+		}
+		
+		let context = arr_cache_graphics_nodes_pie.get(str_identifier);
+		
+		if (context === undefined) {
+			
+			context = new PIXI.GraphicsContext();
+			context.circle(0, 0, num_radius);
+			if (color_stroke !== null) {
+				context.stroke({width: num_stroke, color: color_stroke, alignment: 0});
+			}
+			
+			let num_current_portion = 0; 
+			
+			for (let i = 0; i < arr_colors.length; i++) {
+				
+				const num_portion = Math.round(arr_colors[i].portion * 100) / 100;
+				
+				const num_start = num_current_portion * 2 * Math.PI;
+				num_current_portion = num_current_portion + num_portion;
+				const num_end = num_current_portion * 2 * Math.PI;
+				
+				context.moveTo(0, 0)
+					.lineTo(num_radius * Math.cos(num_start), num_radius * Math.sin(num_start))
+					.arc(0, 0, num_radius, num_start, num_end, false)
+					.lineTo(0, 0);
+				context.fill(SocialUtilities.parseColor(arr_colors[i].color, num_opacity));
+			}
+			
+			arr_cache_graphics_nodes_pie.set(str_identifier, context);
+		}
+
+		if (elm === null) {
+			return new PIXI.Graphics(context);	
+		}
+		
+		elm.context = context;
+	};
 };

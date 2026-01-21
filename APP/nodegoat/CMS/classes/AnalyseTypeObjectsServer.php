@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -11,7 +11,7 @@
 
 class AnalyseTypeObjectsServer extends AnalyseTypeObjects {
 	
-	protected $str_host = false;
+	protected $str_host = null;
 	
 	protected $timeout_request = (60 * 10); // Seconds
 	
@@ -210,6 +210,65 @@ class AnalyseTypeObjectsServer extends AnalyseTypeObjects {
 		];
 		
 		return $this->doAnalysis('run_pagerank', $arr_post);
+	}
+	
+	protected $arr_nodes_start = null;
+	protected $arr_nodes_end = null;
+	
+	protected function prepareShortestPath() {
+		
+		$arr_filter = FilterTypeObjects::convertFilterInput($this->arr_analyse['settings']['filter_start']);
+
+		$filter = new FilterTypeObjects($this->type_id, GenerateTypeObjects::VIEW_ID);
+		$filter->setScope($this->collect->getScope());
+		$filter->setFilter($arr_filter);
+		
+		$arr_limit_filters = $this->collect->getLimitTypeFilters($this->type_id);
+		
+		if ($arr_limit_filters) {
+				
+			foreach ($arr_limit_filters as &$arr_limit_type_filter) {
+				$arr_limit_type_filter = $arr_limit_type_filter['filter'];
+			}
+			unset($arr_limit_type_filter);
+			
+			$filter->setFilter($arr_limit_filters);
+		}
+		
+		$arr_objects = $filter->init();
+		
+		if (!$arr_objects) {
+			return false;
+		}
+		
+		$this->arr_nodes_start = [];
+		
+		foreach ($arr_objects as $object_id => $arr_object) {
+			$this->arr_nodes_start[] = $this->type_id.'-'.$object_id;
+		}
+		
+		if ($this->arr_analyse['settings']['filter_end']) {
+			
+			$arr_filter = FilterTypeObjects::convertFilterInput($this->arr_analyse['settings']['filter_end']);
+
+			$filter = new FilterTypeObjects($this->type_id, GenerateTypeObjects::VIEW_ID);
+			$filter->setScope($this->collect->getScope());
+			$filter->setFilter($arr_filter);
+			
+			if ($arr_limit_filters) {
+				$filter->setFilter($arr_limit_filters);
+			}
+			
+			$arr_objects = $filter->init();
+			
+			$this->arr_nodes_end = [];
+			
+			foreach ($arr_objects as $object_id => $arr_object) {
+				$this->arr_nodes_end[] = $this->type_id.'-'.$object_id;
+			}
+		}
+		
+		$this->runShortestPath();
 	}
 	
 	protected function runShortestPath() {

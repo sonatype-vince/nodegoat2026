@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -37,15 +37,20 @@ class CollectTypesObjects {
 	protected $arr_filter_type_filters = [];
 	protected $arr_type_options = [];
 	protected $arr_path_options = [];
+	protected $arr_filters = [];
 	protected $arr_scope = [];
 	protected $conditions = null;
 	protected $func_conditions = null;
 	protected $func_generate = null;
 	
 	protected $arr_depth_filters = [];
-	protected $arr_path_collapse = [];	
+	protected $arr_path_collapse = [];
+	protected $arr_definitions_found = [];
 	protected $arr_types_found = [];
-
+	protected $arr_conditions_found = [];
+	
+	const PATH_START = 0;
+	
 	public function __construct($arr_type_network_paths, $view = GenerateTypeObjects::VIEW_ALL) {
 		
 		$this->arr_type_network_paths = $arr_type_network_paths;
@@ -58,20 +63,20 @@ class CollectTypesObjects {
 		$this->num_limit = $limit;
 	}
 	
-	public function init($arr_filter = [], $do_collect = true) {
+	public function init($do_collect = true) {
 		
 		$this->arr_type_filters = $this->arr_types = [];
 		
 		$this->arr_path_objects = $this->arr_path_objects_referenced = $this->arr_path_objects_dates = [];
 		$this->has_collected_referenced = false;
 		
-		$this->collectObjects($this->arr_type_network_paths, $arr_filter, false, $do_collect);
+		$this->collectObjects($this->arr_type_network_paths, $this->arr_filters, false, $do_collect);
 		
 		if ($do_collect) {
 			$this->is_generating = true;
 		}
 		
-		if ($this->arr_path_objects[0]['start']) {
+		if ($this->arr_path_objects[static::PATH_START][TraceTypesNetwork::PATH_START]) {
 			return true;
 		} else {
 			return false;
@@ -80,12 +85,12 @@ class CollectTypesObjects {
 	
 	public function getPathObjects($path, $in_out = false) {
 		
-		return $this->arr_path_objects[$path][($in_out ?: 'start')];
+		return $this->arr_path_objects[$path][($in_out ?: TraceTypesNetwork::PATH_START)];
 	}
 	
 	public function getPathObject($path, $in_out, $object_id, $ref_object_id, $do_unprocessed = false) {
 		
-		$arr_object = $this->arr_path_objects[$path][($in_out ?: 'start')][$object_id];
+		$arr_object = $this->arr_path_objects[$path][($in_out ?: TraceTypesNetwork::PATH_START)][$object_id];
 		
 		if (!$arr_object) {
 			return [];
@@ -238,7 +243,9 @@ class CollectTypesObjects {
 			'collapse' => $this->arr_path_collapse,
 			'filters' => $this->arr_type_filters,
 			'conditions' => $this->arr_type_conditions,
-			'types_found' => $this->arr_types_found
+			'definitions_found' => $this->arr_definitions_found,
+			'types_found' => $this->arr_types_found,
+			'conditions_found' => $this->arr_conditions_found
 		];
 	}
 	
@@ -248,8 +255,8 @@ class CollectTypesObjects {
 		
 		if ($in_out) {
 			
-			if ($in_out == 'start') {
-				return $arr_filters[$in_out][0];
+			if ($in_out == TraceTypesNetwork::PATH_START) {
+				return $arr_filters[$in_out][static::PATH_START];
 			} else {
 				return $arr_filters[$in_out];
 			}
@@ -288,22 +295,24 @@ class CollectTypesObjects {
 		
 		foreach ($arr_type_connections as $in_out => $arr_in_out) {
 			
-			if ($in_out == 'connections') {
+			if ($in_out == TraceTypesNetwork::PATH_CONNECTIONS) {
 				continue;
 			}
 			
 			foreach ($arr_in_out as $target_type_id => $arr_type_object_connections) {
-				
-				$path = implode('-', $arr_type_object_connections['path']);
-				if ($in_out == 'start') {
-					$path = '0';
+			
+				if ($in_out == TraceTypesNetwork::PATH_START) {
+					
+					$path = static::PATH_START;
 				} else {
+					
+					$path = implode('-', $arr_type_object_connections['path']);
 					$path = $path.'-'.$target_type_id;
 				}
 				
-				if ($in_out == 'in') {
+				if ($in_out == TraceTypesNetwork::PATH_IN) {
 					
-					foreach ($this->arr_path_objects[$path]['in'] as $object_id => $arr_object) {
+					foreach ($this->arr_path_objects[$path][TraceTypesNetwork::PATH_IN] as $object_id => $arr_object) {
 						
 						if ($arr_type_object_connections['object_descriptions']) {
 								
@@ -460,8 +469,8 @@ class CollectTypesObjects {
 					}
 				}
 								
-				if ($arr_type_connections['connections'][$target_type_id]) {
-					$this->collectReferenced($arr_type_connections['connections'][$target_type_id]);
+				if ($arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id]) {
+					$this->collectReferenced($arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id]);
 				}
 			}
 		}
@@ -478,7 +487,7 @@ class CollectTypesObjects {
 
 		foreach ($arr_type_connections as $in_out => $arr_in_out) {
 			
-			if ($in_out == 'connections') {
+			if ($in_out == TraceTypesNetwork::PATH_CONNECTIONS) {
 				continue;
 			}
 			
@@ -486,15 +495,17 @@ class CollectTypesObjects {
 
 				$arr_info = [];
 				
-				$path = implode('-', $arr_type_object_connections['path']); // Source path for general use
-				
-				if ($in_out == 'start') {
+				if ($in_out == TraceTypesNetwork::PATH_START) {
 					
-					$arr_info['identifier'] = 'start';
+					$path = static::PATH_START;
+					
+					$arr_info['identifier'] = TraceTypesNetwork::PATH_START;
 				} else {
 					
+					$path = implode('-', $arr_type_object_connections['path']); // Source path for general use
+					
 					$path_new = $path.'-'.$target_type_id; // Use objects found down the tree
-					$path_source = (count($arr_type_object_connections['path']) == 1 ? '0' : $path); // Use objects found back up the tree (source path for interal use)
+					$path_source = (count($arr_type_object_connections['path']) == 1 ? 0 : $path); // Use objects found back up the tree (source path for interal use)
 					
 					$do_collapse = ($this->arr_path_options[$path_new]['collapse'] ?: ($this->arr_type_options[$target_type_id]['collapse'] ?: false));
 					$do_collapsed_source = ($path_source && ($this->arr_path_options[$path_source]['collapse'] ?: ($this->arr_type_options[$arr_source_info['type_id']]['collapse'] ?: false)));
@@ -512,9 +523,9 @@ class CollectTypesObjects {
 					$arr_info['identifier_source'] = $arr_source_info['identifier'];
 				}
 			
-				if ($in_out == 'start') {
+				if ($in_out == TraceTypesNetwork::PATH_START) {
 
-					$arr_info['in_out'] = 'start';
+					$arr_info['in_out'] = TraceTypesNetwork::PATH_START;
 					
 					if ($this->do_collect_walk_depth) {
 						$arr_pass = &$arr[$object_id];
@@ -522,7 +533,7 @@ class CollectTypesObjects {
 					
 					$arr_new =& $func_call($object_id, $arr_pass, $path, $path, $target_type_id, $arr_info, $this);
 					
-					$arr_new =& $this->walkObject($object_id, $arr_new, $arr_info, $func_call, $arr_type_connections['connections'][$target_type_id]);
+					$arr_new =& $this->walkObject($object_id, $arr_new, $arr_info, $func_call, $arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id]);
 					
 					return $arr; // Return the original referenced array to getWalkedObject()
 				} else {
@@ -535,9 +546,9 @@ class CollectTypesObjects {
 
 							$arr_ref_object_ids = [];
 							
-							if ($in_out == 'out') {
+							if ($in_out == TraceTypesNetwork::PATH_OUT) {
 								
-								$do_trace_check = ($arr_source_info['in_out'] == 'in' && $arr_source_info['object_description_id'] == $object_description_id); // If the object description is tracing back to the same object's path, and the source of this object is in/referenced, do not include this object
+								$do_trace_check = ($arr_source_info['in_out'] == TraceTypesNetwork::PATH_IN && $arr_source_info['object_description_id'] == $object_description_id); // If the object description is tracing back to the same object's path, and the source of this object is in/referenced, do not include this object
 								
 								if ($arr_connection['mutable']) {
 									
@@ -660,7 +671,7 @@ class CollectTypesObjects {
 									
 									unset($arr_ref_object_ids[$key]);
 									continue;
-								}								
+								}
 							}
 							
 							if ($this->do_force_walk && !$arr_ref_object_ids) {
@@ -689,7 +700,7 @@ class CollectTypesObjects {
 															
 								$arr_new =& $func_call($ref_object_id, $arr_pass, $path, $path_new, $target_type_id, $arr_info_use, $this);
 
-								$arr_new =& $this->walkObject($ref_object_id, $arr_new, $arr_info_use, $func_call, $arr_type_connections['connections'][$target_type_id]);
+								$arr_new =& $this->walkObject($ref_object_id, $arr_new, $arr_info_use, $func_call, $arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id]);
 							}
 						}
 					}
@@ -706,7 +717,7 @@ class CollectTypesObjects {
 
 								if ($object_sub_connection_id === 'object_sub_location') {
 									
-									if ($in_out == 'out') {
+									if ($in_out == TraceTypesNetwork::PATH_OUT) {
 																				
 										foreach ($this->arr_path_objects[$path_source] as $use_in_out => $arr_objects) { // The target references are sourced from both/any previous incoming and outgoing objects
 											
@@ -723,7 +734,7 @@ class CollectTypesObjects {
 												}
 												
 												// If the sub-object is part of the object path, and the source of this object is in/referenced, do not include sub-objects that are not part of this path (other sub-objects of the same type could be part other objects' paths)
-												if ($arr_source_info['in_out'] == 'in' && $arr_source_info['object_sub_details_id'] == $object_sub_details_id && !$arr_source_info['object_sub_location'] && $arr_source_info['object_sub_id'] != $object_sub_id) {
+												if ($arr_source_info['in_out'] == TraceTypesNetwork::PATH_IN && $arr_source_info['object_sub_details_id'] == $object_sub_details_id && !$arr_source_info['object_sub_location'] && $arr_source_info['object_sub_id'] != $object_sub_id) {
 													continue;
 												}
 
@@ -759,7 +770,7 @@ class CollectTypesObjects {
 									$arr_info_use += ['type_id' => $type_id, 'object_id' => $object_id, 'object_sub_details_id' => $object_sub_details_id, 'object_sub_location' => true, 'in_out' => $in_out, 'identifier' => $arr_source_info['identifier'].'_'.$arr_connection['identifier']];
 								} else {
 									
-									if ($in_out == 'out') {
+									if ($in_out == TraceTypesNetwork::PATH_OUT) {
 										
 										foreach ($this->arr_path_objects[$path_source] as $use_in_out => $arr_objects) { // The target references are sourced from both/any previous incoming and outgoing objects
 											
@@ -776,7 +787,7 @@ class CollectTypesObjects {
 												}
 												
 												// If the sub-object is part of the object path, and the source of this object is in/referenced, do not include sub-objects that are not part of this path (other sub-objects of the same type could be part other objects' paths)
-												if ($arr_source_info['in_out'] == 'in' && $arr_source_info['object_sub_details_id'] == $object_sub_details_id && $arr_source_info['object_sub_description_id'] != $object_sub_connection_id && $arr_source_info['object_sub_id'] != $object_sub_id) {
+												if ($arr_source_info['in_out'] == TraceTypesNetwork::PATH_IN && $arr_source_info['object_sub_details_id'] == $object_sub_details_id && $arr_source_info['object_sub_description_id'] != $object_sub_connection_id && $arr_source_info['object_sub_id'] != $object_sub_id) {
 													continue;
 												}
 															
@@ -900,7 +911,7 @@ class CollectTypesObjects {
 										
 										$arr_new =& $func_call($ref_object_id, $arr_pass, $path, $path_new, $target_type_id, $arr_info_use, $this);
 
-										$arr_new =& $this->walkObject($ref_object_id, $arr_new, $arr_info_use, $func_call, $arr_type_connections['connections'][$target_type_id]);
+										$arr_new =& $this->walkObject($ref_object_id, $arr_new, $arr_info_use, $func_call, $arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id]);
 									}
 								}					
 							}
@@ -940,11 +951,11 @@ class CollectTypesObjects {
 				return false;
 			}
 			/*
-			if ($arr_connection['in_out'] == 'out') {
-				$use_in_out = ($arr_source_info['in_out'] == 'start' ? 'start' : 'out');
+			if ($arr_connection['in_out'] == TraceTypesNetwork::PATH_OUT) {
+				$use_in_out = ($arr_source_info['in_out'] == TraceTypesNetwork::PATH_START ? TraceTypesNetwork::PATH_START : TraceTypesNetwork::PATH_OUT);
 				$arr_object_sub = $this->arr_path_objects[$path_source][$use_in_out][$source_object_id]['object_subs'][$object_sub_id]['object_sub'];
 			} else {
-				$arr_object_sub = $this->arr_path_objects[$path_new]['in'][$target_object_id]['object_subs'][$object_sub_id]['object_sub'];
+				$arr_object_sub = $this->arr_path_objects[$path_new][TraceTypesNetwork::PATH_IN][$target_object_id]['object_subs'][$object_sub_id]['object_sub'];
 			}
 			$num_date_start = ($arr_object_sub['object_sub_date_start'] ?: FormatTypeObjects::DATE_INT_MIN);
 			$num_date_end = ($arr_object_sub['object_sub_date_end'] ?: FormatTypeObjects::DATE_INT_MAX);
@@ -1073,21 +1084,24 @@ class CollectTypesObjects {
 
 		foreach ($arr_type_connections as $in_out => $arr_in_out) {
 			
-			if ($in_out == 'connections') {
+			if ($in_out == TraceTypesNetwork::PATH_CONNECTIONS) {
 				continue;
 			}
 			
 			foreach ($arr_in_out as $target_type_id => $arr_type_object_connections) {
 
-				$path = implode('-', $arr_type_object_connections['path']); // Source path for general use
 				$source_type_id = end($arr_type_object_connections['path']);
 				
-				if ($in_out == 'start') {
+				if ($in_out == TraceTypesNetwork::PATH_START) {
+					
+					$path = static::PATH_START;
 					$path_new = $path;
 					$path_source = false;
 				} else {
+					
+					$path = implode('-', $arr_type_object_connections['path']); // Source path for general use
 					$path_new = $path.'-'.$target_type_id; // Use objects found down the tree
-					$path_source = (count($arr_type_object_connections['path']) == 1 ? '0' : $path); // Use objects found back up the tree (source path for interal use)
+					$path_source = (count($arr_type_object_connections['path']) == 1 ? 0 : $path); // Use objects found back up the tree (source path for interal use)
 				}
 				
 				if (!isset($this->arr_path_objects[$path_new][$in_out])) {
@@ -1110,7 +1124,7 @@ class CollectTypesObjects {
 							continue;
 						}
 						
-						if ($in_out != 'start' && isset($this->arr_path_connection_dates[$path_source])) {
+						if ($in_out != TraceTypesNetwork::PATH_START && isset($this->arr_path_connection_dates[$path_source])) {
 							
 							foreach ($this->arr_path_connection_dates[$path_source] as $source_target => $arr_date_statements) {
 
@@ -1129,13 +1143,17 @@ class CollectTypesObjects {
 						}
 
 						$arr_result = $filter_generating->getProcessedResultInfo();
+						$this->arr_definitions_found = array_merge_recursive($this->arr_definitions_found, $arr_result['definitions_found']);
 						$this->arr_types_found = array_merge_recursive($this->arr_types_found, $arr_result['types_found']);
-							
+						if ($arr_result['conditions_found']) {
+							$this->arr_conditions_found = array_merge_recursive($this->arr_conditions_found, $arr_result['conditions_found']);
+						}
+						
 						$has_objects = true;
 					}
 					
-					if ($has_objects && isset($arr_type_connections['connections'][$target_type_id])) {
-						$this->collectObjects($arr_type_connections['connections'][$target_type_id], false, false);
+					if ($has_objects && isset($arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id])) {
+						$this->collectObjects($arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id], false, false);
 					}
 				} else {
 					
@@ -1159,9 +1177,9 @@ class CollectTypesObjects {
 						
 						$this->arr_path_generate[$path_new][$in_out][] = $filter; // The source could itself be the result of both an incoming and outgoing path
 						
-						if ($in_out != 'start' && $filter_source) {
+						if ($in_out != TraceTypesNetwork::PATH_START && $filter_source) {
 							
-							if ($in_out == 'out') {
+							if ($in_out == TraceTypesNetwork::PATH_OUT) {
 								$arr_path_filter['query_dependent'][] = $filter_source->format2SQLObjectReferencing($arr_type_object_connections, $target_type_id);
 							} else {
 								$arr_path_filter['query_dependent'][] = $filter->format2SQLObjectReferenced($arr_type_object_connections, $filter_source->storeResultTemporarily(true, true));
@@ -1169,11 +1187,11 @@ class CollectTypesObjects {
 						}
 					}
 					
-					if ($in_out != 'start') {
+					if ($in_out != TraceTypesNetwork::PATH_START) {
 					
 						foreach (($arr_type_object_connections['object_descriptions'] ?? []) as $object_description_id => $arr_connection) {
 							
-							if ($in_out == 'out') {
+							if ($in_out == TraceTypesNetwork::PATH_OUT) {
 								
 								$s_arr_new = &$arr_path_filter['object_filter'][];
 
@@ -1234,7 +1252,7 @@ class CollectTypesObjects {
 								
 								if ($object_sub_connection_id === 'object_sub_location') {
 									
-									if ($in_out == 'out') {
+									if ($in_out == TraceTypesNetwork::PATH_OUT) {
 										
 										$s_arr_new = &$arr_path_filter['object_filter'][];
 										
@@ -1268,7 +1286,7 @@ class CollectTypesObjects {
 										
 										if ($filter_source) {
 											// Already in filter (as object query), but do filter the sub-objects if they are not needed as a followup connection
-											if ($arr_source_filters && !isset($arr_type_connections['connections'][$target_type_id]['out'][$arr_connection['ref_type_id']]['object_sub_details'][$object_sub_details_id]['object_sub_location'])) {
+											if ($arr_source_filters && !isset($arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id][TraceTypesNetwork::PATH_OUT][$arr_connection['ref_type_id']]['object_sub_details'][$object_sub_details_id]['object_sub_location'])) {
 												$s_arr[]['query_dependent'] = $filter_source->format2SQLObject();
 											} else {
 												$s_arr_new['any'] = true;
@@ -1291,7 +1309,7 @@ class CollectTypesObjects {
 									$this->arr_path_connections[$path_new]['object_sub_details'][$object_sub_details_id]['object_sub_location'] = true;
 								} else {
 									
-									if ($in_out == 'out') {
+									if ($in_out == TraceTypesNetwork::PATH_OUT) {
 										
 										$s_arr_new = &$arr_path_filter['object_filter'][];
 										
@@ -1322,7 +1340,7 @@ class CollectTypesObjects {
 										
 										if ($filter_source) {
 											// Already in filter (as object query), but do filter the sub-objects if they are not needed as a followup connection
-											if ($arr_source_filters && !isset($arr_type_connections['connections'][$target_type_id]['out'][$arr_connection['ref_type_id']]['object_sub_details'][$object_sub_details_id][$object_sub_connection_id])) {
+											if ($arr_source_filters && !isset($arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id][TraceTypesNetwork::PATH_OUT][$arr_connection['ref_type_id']]['object_sub_details'][$object_sub_details_id][$object_sub_connection_id])) {
 												$s_arr[]['query_dependent'] = $filter_source->format2SQLObject();
 											} else {
 												$s_arr_new['any'] = true;
@@ -1353,7 +1371,7 @@ class CollectTypesObjects {
 								
 								if ($cur_use !== 'all') {
 										
-									$this->arr_path_connections[$path_new]['object_sub_details'][$object_sub_details_id]['use'] = ($in_out == 'in' ? 'solo' : 'all');
+									$this->arr_path_connections[$path_new]['object_sub_details'][$object_sub_details_id]['use'] = ($in_out == TraceTypesNetwork::PATH_IN ? 'solo' : 'all');
 									
 									// When the sub-object is used as both in/referenced and out in the same path, all sub-objects are available to generate the path
 									if (isset($this->arr_path_connections[$path_source]['object_sub_details'][$object_sub_details_id]['object_sub_descriptions'][$object_sub_connection_id])) {
@@ -1363,14 +1381,14 @@ class CollectTypesObjects {
 							}
 						}
 						
-						if (!isset($arr_type_connections['connections'][$target_type_id])) {
+						if (!isset($arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id])) {
 							$this->arr_path_connections[$path_new]['end'] = true;
 						}
 					}
 					
 					if ($arr_selection) { // Collect values from referenced objects originally not in selection but needed for collection
 						
-						foreach (($arr_type_connections['connections'][$target_type_id]['out'] ?? []) as $user_type_id => $arr_target_type_object_connections) {
+						foreach (($arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id][TraceTypesNetwork::PATH_OUT] ?? []) as $user_type_id => $arr_target_type_object_connections) {
 							
 							foreach (($arr_target_type_object_connections['object_descriptions'] ?? []) as $object_description_id => $arr_connection) {
 								$arr_selection_required = $this->collectConnectionSelection($arr_connection, $arr_selection_required, $arr_selection);
@@ -1385,7 +1403,7 @@ class CollectTypesObjects {
 						}
 					}
 					
-					if ($in_out == 'start') {
+					if ($in_out == TraceTypesNetwork::PATH_START) {
 						$arr_collect_filters['all'] = array_merge($arr_collect_filters['all'], $arr_source_filters);
 					}
 					
@@ -1393,7 +1411,7 @@ class CollectTypesObjects {
 						
 						$arr_collect_filters['all'][] = $arr_path_filter;
 						
-						if ($in_out == 'in') {
+						if ($in_out == TraceTypesNetwork::PATH_IN) {
 							$arr_collect_filters['filter'][] = $arr_path_filter;
 						} else {
 							$arr_collect_filters['query'][] = $arr_path_filter;
@@ -1457,7 +1475,7 @@ class CollectTypesObjects {
 						$arr_filtering = ($this->arr_path_options[$path_new]['arr_filtering'] ?? ($this->arr_type_options[$target_type_id]['arr_filtering'] ?? []));
 						$has_filtering = (array_filter(arrValuesRecursive('arr_filtering', array_merge($this->arr_path_options, $this->arr_type_options))) ? true : false);
 						
-						if ($in_out == 'start') {
+						if ($in_out == TraceTypesNetwork::PATH_START) {
 							
 							$filter_depth = new FilterTypeObjects($target_type_id, $this->view, false, false);
 							$filter_depth->setScope($this->arr_scope);
@@ -1550,37 +1568,46 @@ class CollectTypesObjects {
 						if ($this->conditions !== null) {
 							
 							if ($this->func_conditions) {
-								
 								$filter->setConditions($this->conditions, $this->arr_type_conditions[$target_type_id]);
 							} else {
-								
 								$filter->setConditions($this->conditions);
 							}
 						}
 						
-						if ($this->func_generate !== null) {
-							
-							$function = $this->func_generate;
-							$function($filter, $target_type_id);
-						}
-						
-						if ($in_out == 'start' && $this->num_limit) {
+						if ($in_out == TraceTypesNetwork::PATH_START && $this->num_limit) {
 							$filter->setInitLimit($this->num_limit);
 						}
 						
-						//$filter->debug();
-						$table_name = $filter->storeResultTemporarily(uniqid(), true);
+						$do_init = true;
+						
+						if ($this->func_generate !== null) {
+							
+							$function = $this->func_generate;
+							$do_init = ($function($filter, $target_type_id, $path_new) ?? true);
+						}
+						
+						if ($do_init) {
+							
+							if (Settings::get('debug', 'nodegoat_collect')) {
+								$filter->debug();
+							}
+							$table_name = $filter->storeResultTemporarily(uniqid(), true);
 
-						$arr_objects = $filter->init();
-						
-						$this->arr_path_objects[$path_new][$in_out] += $arr_objects;
-						
-						$arr_result = $filter->getProcessedResultInfo();
-						$this->arr_types_found = array_merge_recursive($this->arr_types_found, $arr_result['types_found']);
+							$arr_objects = $filter->init();
+							
+							$this->arr_path_objects[$path_new][$in_out] += $arr_objects;
+							
+							$arr_result = $filter->getProcessedResultInfo();
+							$this->arr_definitions_found = array_merge_recursive($this->arr_definitions_found, $arr_result['definitions_found']);
+							$this->arr_types_found = array_merge_recursive($this->arr_types_found, $arr_result['types_found']);
+							if ($arr_result['conditions_found']) {
+								$this->arr_conditions_found = array_merge_recursive($this->arr_conditions_found, $arr_result['conditions_found']);
+							}
+						}
 					
 						// Post-collect source connection values
 
-						if ($in_out != 'start' && isset($this->arr_path_connection_dates[$path_source])) {
+						if ($in_out != TraceTypesNetwork::PATH_START && isset($this->arr_path_connection_dates[$path_source])) {
 
 							foreach ($this->arr_path_connection_dates[$path_source] as $source_target => $arr_date_statements) {
 								
@@ -1601,8 +1628,8 @@ class CollectTypesObjects {
 					
 					// Next round of connections
 					
-					if (isset($arr_type_connections['connections'][$target_type_id])) {
-						$this->collectObjects($arr_type_connections['connections'][$target_type_id], $arr_collect_filters['all'], $filter, $do_collect);
+					if (isset($arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id])) {
+						$this->collectObjects($arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id], $arr_collect_filters['all'], $filter, $do_collect);
 					}
 				}
 			}
@@ -1736,28 +1763,33 @@ class CollectTypesObjects {
 		
 		$arr = [];
 
-		foreach (['start' => ($arr_type_connections['start'] ?? []), 'in' => ($arr_type_connections['in'] ?? []), 'out' => ($arr_type_connections['out'] ?? [])] as $in_out => $arr_in_out) {
+		foreach ([TraceTypesNetwork::PATH_START => ($arr_type_connections[TraceTypesNetwork::PATH_START] ?? []), TraceTypesNetwork::PATH_IN => ($arr_type_connections[TraceTypesNetwork::PATH_IN] ?? []), TraceTypesNetwork::PATH_OUT => ($arr_type_connections[TraceTypesNetwork::PATH_OUT] ?? [])] as $in_out => $arr_in_out) {
 			foreach ($arr_in_out as $target_type_id => $arr_type_object_connections) {
 				
-				$arr_source_filters = $this->collectFilters($arr_type_connections['connections'][$target_type_id]);
+				$arr_source_filters = $this->collectFilters($arr_type_connections[TraceTypesNetwork::PATH_CONNECTIONS][$target_type_id]);
 				
 				foreach (($this->arr_filter_type_filters[$target_type_id] ?? []) as $arr_filter) {
 					$arr_source_filters[] = $arr_filter;
 				}
 				
-				$path = implode('-', $arr_type_object_connections['path']);
-				if ($in_out == 'start') {
+				if ($in_out == TraceTypesNetwork::PATH_START) {
+					
+					$path = static::PATH_START;
+					
 					$arr_filters = $arr_source_filters;
 				} else {
-					$arr_filters = [];
+					
+					$path = implode('-', $arr_type_object_connections['path']);
 					$path = $path.'-'.$target_type_id;
+					
+					$arr_filters = [];
 				}
 				
 				$arr_filter = [];
 				
 				foreach (($arr_type_object_connections['object_descriptions'] ?? []) as $object_description_id => $arr_connection) {
 					
-					if ($in_out == 'out') {
+					if ($in_out == TraceTypesNetwork::PATH_OUT) {
 						
 						if ($arr_connection['mutable']) {
 							
@@ -1782,7 +1814,7 @@ class CollectTypesObjects {
 						
 						if ($object_sub_connection_id === 'object_sub_location') {
 							
-							if ($in_out == 'out') {
+							if ($in_out == TraceTypesNetwork::PATH_OUT) {
 								
 								$arr_source_filters['mode'] = 'self'; // Use Object's own reference, not the resolved reference (default)
 								$arr_filter['object_filter'][]['object_subs'][$object_sub_details_id]['object_sub_locations'][] = ['object_sub_location_ref_type_id' => $arr_connection['ref_type_id'], 'object_sub_location_reference' => $arr_source_filters];
@@ -1792,7 +1824,7 @@ class CollectTypesObjects {
 							}
 						} else {
 							
-							if ($in_out == 'out') {
+							if ($in_out == TraceTypesNetwork::PATH_OUT) {
 								
 								if ($arr_connection['mutable']) {
 									
@@ -1822,7 +1854,29 @@ class CollectTypesObjects {
 		
 		return $arr;
 	}
+	
+	public function setFilter($arr_filters) {
 		
+		$this->arr_filters = $arr_filters;
+	}
+	
+	public function setConditions($conditions, $function = false) {
+		
+		$this->conditions = $conditions;
+		
+		$this->func_conditions = $function;
+	}
+	
+	public function setScope($arr_scope) {
+		
+		$this->arr_scope = $arr_scope;
+	}
+	
+	public function getScope() {
+		
+		return $this->arr_scope;
+	}
+
 	public function addLimitTypeFilters($type_id, $arr_filter, $filter_object_subs = false) {
 		
 		$this->arr_limit_type_filters[$type_id][] = ['filter' => $arr_filter, 'filter_object_subs' => $filter_object_subs];
@@ -1861,23 +1915,6 @@ class CollectTypesObjects {
 		} else {
 			return $this->arr_path_options;
 		}
-	}
-	
-	public function setScope($arr_scope) {
-		
-		$this->arr_scope = $arr_scope;
-	}
-	
-	public function getScope() {
-		
-		return $this->arr_scope;
-	}
-	
-	public function setConditions($conditions, $function = false) {
-		
-		$this->conditions = $conditions;
-		
-		$this->func_conditions = $function;
 	}
 	
 	public function setGenerateCallback($function) { // Apply any other stuff to a collecting GenerateTypeObjects

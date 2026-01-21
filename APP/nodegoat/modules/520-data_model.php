@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -35,6 +35,7 @@ class data_model extends base_module {
 	const SYMBOL_OUT = '🡫';
 	const SYMBOL_MUTABLE = '~';
 	const SYMBOL_DYNAMIC = '*';
+	const SYMBOL_COLLAPSED = '~';
 	
 	function __construct() {
 		
@@ -238,7 +239,7 @@ class data_model extends base_module {
 					
 					$return .= '<li>
 						<label>'.getLabel('lbl_color').'</label>
-						<input name="color" type="text" value="'.$arr_type_set['type']['color'].'" class="colorpicker" title="'.getLabel('inf_type_color').'" />
+						'.cms_general::createPickColor($arr_type_set['type']['color'], 'color', ['info' => getLabel('inf_type_color')]).'
 					</li>';
 					
 					if ($num_type_class != StoreType::TYPE_CLASS_REVERSAL) {
@@ -315,16 +316,22 @@ class data_model extends base_module {
 									<div class="object-descriptions">';
 										
 										$arr_value_types = StoreType::getValueTypesBase();
-										unset($arr_value_types['object_description']);
 										Settings::get('hook_data_model_value_types', false, [&$arr_value_types, 'object_description']);
 										
-										foreach ($arr_value_types as &$arr_value_type) {
+										foreach ($arr_value_types as $str_value_type => &$arr_value_type) {
+											
+											if ($str_value_type == 'object_description' || $arr_value_type['support'] === false) {
+												unset($arr_value_types[$str_value_type]);
+											}
 											
 											if ($arr_value_type['has_support_multi']) {
 												$arr_value_type['attr']['data-has_support_multi'] = '1';
 											}
 											if ($arr_value_type['has_support_identifier']) {
 												$arr_value_type['attr']['data-has_support_identifier'] = '1';
+											}
+											if ($arr_value_type['has_support_text'] === false) {
+												$arr_value_type['attr']['data-has_support_text'] = '0';
 											}
 										}
 										unset($arr_value_type);
@@ -360,7 +367,7 @@ class data_model extends base_module {
 											
 											$str_html_reference_mutable = cms_general::createSorter($arr_sorter_reference_mutable, 'append', false, ['auto_add' => true, 'auto_clean' => true, 'limit' => StoreType::$num_mutable_references]);
 											
-											$has_default_value = (bool)$arr_object_description['object_description_value_type_settings']['default']['value'];
+											$has_default_value = isset($arr_object_description['object_description_value_type_settings']['default']['value']);
 											
 											$arr_sorter[] = ['source' => ($key == 0 ? true : false), 'value' => [
 												'<input type="text" name="object_descriptions['.$unique.'][object_description_name]" value="'.strEscapeHTML($arr_object_description['object_description_name']).'" />'
@@ -724,6 +731,18 @@ class data_model extends base_module {
 									
 									$arr_value_types = StoreType::getValueTypesBase();
 									Settings::get('hook_data_model_value_types', false, [&$arr_value_types, 'object_sub_description']);
+									
+									foreach ($arr_value_types as $str_value_type => &$arr_value_type) {
+										
+										if ($arr_value_type['support'] === false) {
+											unset($arr_value_types[$str_value_type]);
+										}
+										
+										if ($arr_value_type['has_support_text'] === false) {
+											$arr_value_type['attr']['data-has_support_text'] = '0';
+										}
+									}
+									unset($arr_value_type);
 																		
 									if (!$arr_object_sub_descriptions) {
 										$arr_object_sub_descriptions[] = [];
@@ -753,7 +772,7 @@ class data_model extends base_module {
 										
 										$str_html_reference_mutable = cms_general::createSorter($arr_sorter_reference_mutable, 'append', false, ['auto_add' => true, 'auto_clean' => true, 'limit' => StoreType::$num_mutable_references]);
 										
-										$has_default_value = (bool)$arr_object_sub_description['object_sub_description_value_type_settings']['default']['value'];
+										$has_default_value = isset($arr_object_sub_description['object_sub_description_value_type_settings']['default']['value']);
 										
 										$arr_sorter[] = ['source' => ($key == 0 ? true : false), 'attr' => ['data-group_iterator' => $unique2], 'value' => [
 											'<input type="text" name="object_sub_details['.$unique.'][object_sub_descriptions]['.$unique2.'][object_sub_description_name]" value="'.strEscapeHTML($arr_object_sub_description['object_sub_description_name']).'" />'
@@ -910,7 +929,7 @@ class data_model extends base_module {
 		
 		if ($has_default_value) {
 				
-			$value_value = ($arr_value_type_settings['default']['value'] ?: '');
+			$value_value = ($arr_value_type_settings['default']['value'] ?? null);
 			$value_reference = false;
 			$arr_format_extra = ['has_multi' => $has_multi, 'ref_type_id' => $ref_type_id];
 			$str_name_default = $str_name_settings.'[default][value]';
@@ -1041,12 +1060,10 @@ class data_model extends base_module {
 			$arr_type_set_flat_separated['object_values'][$str_id] = $arr_type_set_flat[$str_id];
 			
 			if ($arr_object_description['object_description_ref_type_id']) {
-					
 				$arr_type_set_flat_separated['object_nodes_referencing'][$str_id] = $arr_type_set_flat[$str_id];
 			}
 			
-			if ($arr_object_description['object_description_value_type'] == 'int' || $arr_object_description['object_description_value_type'] == 'numeric') {
-				
+			if ($arr_object_description['object_description_value_type'] == 'integer' || $arr_object_description['object_description_value_type'] == 'numeric') {
 				$this->arr_object_descriptions_numbers[$str_id] = $arr_type_set_flat[$str_id];
 			}
 		}
@@ -1077,11 +1094,10 @@ class data_model extends base_module {
 				$arr_type_set_flat_separated['object_values'][$str_id] = $arr_type_set_flat[$str_id];
 				
 				if ($arr_object_sub_description['object_sub_description_ref_type_id']) {
-					
 					$arr_type_set_flat_separated['object_nodes_referencing'][$str_id] = $arr_type_set_flat[$str_id];
 				}
 				
-				if ($arr_object_sub_description['object_sub_description_value_type'] == 'int' || $arr_object_sub_description['object_sub_description_value_type'] == 'numeric') {
+				if ($arr_object_sub_description['object_sub_description_value_type'] == 'integer' || $arr_object_sub_description['object_sub_description_value_type'] == 'numeric') {
 					
 					$this->arr_object_descriptions_numbers[$str_id] = $arr_type_set_flat[$str_id];
 					$this->arr_object_descriptions_numbers[$str_id]['attr']['data-group_identifier'] = $str_id_object_sub_details;
@@ -1096,10 +1112,8 @@ class data_model extends base_module {
 			foreach ($arr_condition['object'] as $arr_condition_setting) {
 				
 				if ($arr_condition_setting['condition_in_object_name']) {
-					
 					$arr_condition_separated['object_name']['id'][] = $arr_condition_setting;
 				} else {
-					
 					$arr_condition_separated['object_nodes_object']['id'][] = $arr_condition_setting;
 				}
 			}
@@ -1124,10 +1138,8 @@ class data_model extends base_module {
 					}
 					
 					if ($arr_condition_setting['condition_in_object_nodes_referencing']) {
-						
 						$arr_condition_separated['object_nodes_referencing'][$str_id][] = $arr_condition_setting;
 					} else {
-						
 						$arr_condition_separated['object_values'][$str_id][] = $arr_condition_setting;
 					}
 				}
@@ -1167,10 +1179,8 @@ class data_model extends base_module {
 						}
 						
 						if ($arr_condition_setting['condition_in_object_nodes_referencing']) {
-							
 							$arr_condition_separated['object_nodes_referencing'][$str_id][] = $arr_condition_setting;
 						} else {
-							
 							$arr_condition_separated['object_values'][$str_id][] = $arr_condition_setting;
 						}
 					}
@@ -1206,10 +1216,11 @@ class data_model extends base_module {
 					
 					$arr_sorter[$object_or_object_sub_details][] = ['source' => $is_source, 'value' => [
 						'<select name="condition['.$unique.'][id]">'.Labels::parseTextVariables(cms_general::createDropdown($arr_type_set_flat_separate, $id, true)).'</select>'
+						.'<input type="hidden" name="condition['.$unique.'][condition_in_'.$object_or_object_sub_details.']" value="1" />'
 						.'<input type="hidden" name="condition['.$unique.'][condition_filter]" value="'.($arr_condition_setting['condition_filter'] ? strEscapeHTML(value2JSON($arr_condition_setting['condition_filter'])) : '').'" />'
 						.'<button type="button" id="y:data_filter:configure_application_filter-'.$type_id.'" title="'.getLabel('inf_application_filter').'" class="data edit popup"><span>filter</span></button>'
-						.($is_node  ? '<input type="hidden" name="condition['.$unique.'][condition_scope]" value="'.($arr_condition_setting['condition_scope'] ? strEscapeHTML(value2JSON($arr_condition_setting['condition_scope'])) : '').'" />' : '')
-						.'<input type="hidden" name="condition['.$unique.'][condition_in_'.$object_or_object_sub_details.']" value="1" />'
+						.'<input type="text" name="condition['.$unique.'][condition_function]" title="'.getLabel('inf_condition_function').'" placeholder="function:parameter" value="'.strEscapeHTML(ParseTypeFeatures::parseSettingAdvancedOutput($arr_condition_setting['condition_function'], ',')).'" />'
+						.($is_node ? '<input type="text" name="condition['.$unique.'][condition_scope]" title="'.getLabel('inf_condition_scope').'" placeholder="path:true" value="'.strEscapeHTML(ParseTypeFeatures::parseSettingAdvancedOutput($arr_condition_setting['condition_scope'], ',')).'" />' : '')
 						.($is_node ? '<input type="text" name="condition['.$unique.'][condition_label]" title="'.getLabel('inf_condition_label').'" value="'.$arr_condition_setting['condition_label'].'" />' : '')
 						, $return_actions
 					]];
@@ -1377,40 +1388,44 @@ class data_model extends base_module {
 	
 		foreach ($arr_condition_actions[$action]['value'] as $value) {
 			
+			$str_type = $value;
+			$str_name = $str_type;
+			$str_info = null;
+			
 			if (is_array($value)) {
-				$type = $value['type'];
-				$info = $value['info'];
-			} else {
-				$type = $value;
-				$info = false;
+				
+				$str_type = $value['type'];
+				$str_name = ($value['name'] ?: $str_type);
+				$str_info = $value['info'];
 			}
 			
-			$name = ($arr_options['name'] ? $arr_options['name'].'['.$action.']['.$type.']' : $action.'['.$unique.']['.$type.']');
+			$str_form_name = ($arr_options['name'] ? $arr_options['name'].'['.$action.']['.$str_name.']' : $action.'['.$unique.']['.$str_name.']');
+			$value_selected = ($arr_selected[$str_name] ?? null);
 			
-			switch ($type) {
+			switch ($str_type) {
 				case 'value':
-					$return .= '<input type="text" name="'.$name.'" value="'.strEscapeHTML($arr_selected['value']).'"'.($info ? ' title="'.strEscapeHTML($info).'"' : '').' />';
+					$return .= '<input type="text" name="'.$str_form_name.'" value="'.strEscapeHTML($value_selected).'"'.($str_info ? ' title="'.strEscapeHTML($str_info).'"' : '').' />';
 					break;
 				case 'number':
-					$return .= '<input type="number" name="'.$name.'" value="'.strEscapeHTML($arr_selected['number']).'"'.($info ? ' title="'.strEscapeHTML($info).'"' : '').' />';
+					$return .= '<input type="number" name="'.$str_form_name.'" value="'.strEscapeHTML($value_selected).'"'.($str_info ? ' title="'.strEscapeHTML($str_info).'"' : '').' />';
 					break;
 				case 'emphasis':
-					$return .= cms_general::createSelector([['id' => 'bold', 'name' => getLabel('lbl_text_bold')], ['id' => 'italic', 'name' => getLabel('lbl_text_italic')], ['id' => 'strikethrough', 'name' => getLabel('lbl_text_strikethrough')]], $name, (array)$arr_selected['emphasis']);
+					$return .= cms_general::createSelector([['id' => 'bold', 'name' => getLabel('lbl_text_bold')], ['id' => 'italic', 'name' => getLabel('lbl_text_italic')], ['id' => 'strikethrough', 'name' => getLabel('lbl_text_strikethrough')]], $str_form_name, (array)$value_selected);
 					break;
 				case 'color':
-					$return .= '<input name="'.$name.'" type="text" value="'.$arr_selected['color'].'" class="colorpicker"'.($info ? ' title="'.strEscapeHTML($info).'"' : '').' />';
+					$return .= cms_general::createPickColor($value_selected, $str_form_name, ['info' => $str_info, 'alpha' => (is_array($value) && $value['option_alpha'] ? true : false)]);
 					break;
 				case 'opacity':
-					$return .= '<input type="number" name="'.$name.'" step="0.01" min="0" max="1" value="'.strEscapeHTML($arr_selected['opacity']).'" title="'.getLabel('lbl_opacity').'" />';
+					$return .= '<input type="number" name="'.$str_form_name.'" step="0.01" min="0" max="1" value="'.strEscapeHTML($value_selected).'" title="'.getLabel('lbl_opacity').'" />';
 					break;
 				case 'check':
-					$return .= '<input type="checkbox" name="'.$name.'" value="1"'.($arr_selected['check'] ? ' checked="checked"' : '').($info ? ' title="'.strEscapeHTML($info).'"' : '').' />';
+					$return .= '<input type="checkbox" name="'.$str_form_name.'" value="1"'.($value_selected ? ' checked="checked"' : '').($str_info ? ' title="'.strEscapeHTML($str_info).'"' : '').' />';
 					break;
 				case 'regex':
 					
-					$html = cms_general::createRegularExpressionReplaceEditor($arr_selected['regex'], $name, false, ['info' => $info]);
+					$html = cms_general::createRegularExpressionReplaceEditor((array)$value_selected, $str_form_name, false, ['info' => $str_info]);
 
-					if (!$arr_selected['regex']) {
+					if (!$value_selected) {
 						
 						$return .= '<div class="hide-edit hide">'
 							.$html
@@ -1421,23 +1436,23 @@ class data_model extends base_module {
 					}
 					break;
 				case 'number_use_object_description_id':
-					$return .= '<select name="'.$name.'"'.($info ? ' title="'.strEscapeHTML($info).'"' : '').'>'.Labels::parseTextVariables(cms_general::createDropdown($this->arr_object_descriptions_numbers, $arr_selected['number_use_object_description_id'], true)).'</select>';
+					$return .= '<select name="'.$str_form_name.'"'.($str_info ? ' title="'.strEscapeHTML($str_info).'"' : '').'>'.Labels::parseTextVariables(cms_general::createDropdown($this->arr_object_descriptions_numbers, $value_selected, true)).'</select>';
 					break;
 				case 'number_use_object_analysis_id':
-					$return .= '<select name="'.$name.'"'.($info ? ' title="'.strEscapeHTML($info).'"' : '').'>'.Labels::parseTextVariables(cms_general::createDropdown($this->arr_object_analyses, $arr_selected['number_use_object_analysis_id'], true, 'label')).'</select>';
+					$return .= '<select name="'.$str_form_name.'"'.($str_info ? ' title="'.strEscapeHTML($str_info).'"' : '').'>'.Labels::parseTextVariables(cms_general::createDropdown($this->arr_object_analyses, $value_selected, true, 'label')).'</select>';
 					break;
 				case 'image':
 					
-					$has_file = ($arr_selected['image'] && isPath(DIR_HOME_CUSTOM_PROJECT_WORKSPACE.$arr_selected['image']));
+					$has_file = ($value_selected && isPath(DIR_HOME_CUSTOM_PROJECT_WORKSPACE.$value_selected));
 					
 					if ($has_file) {
-						$return .= '<input type="hidden" name="'.$name.'[url]" value="'.strEscapeHTML($arr_selected['image']).'" />'
-						.'<img src="/'.strEscapeHTML(DIR_CUSTOM_PROJECT_WORKSPACE.$arr_selected['image']).'" />'
+						$return .= '<input type="hidden" name="'.$str_form_name.'[url]" value="'.strEscapeHTML($value_selected).'" />'
+						.'<img src="/'.strEscapeHTML(DIR_CUSTOM_PROJECT_WORKSPACE.$value_selected).'" />'
 						.'<input type="button" class="data del" value="del" />';
 					}
 					
 					$return .= '<div class="hide-edit hide">'
-						.cms_general::createFileBrowser(false, $name.'[file]')
+						.cms_general::createFileBrowser(false, $str_form_name.'[file]')
 					.'</div>'
 					.'<input type="button" class="data neutral'.($has_file ? ' hide' : '').'" value="file" />';
 					
@@ -1542,7 +1557,7 @@ class data_model extends base_module {
 				
 				$str_id = 'object_sub_details_'.$object_sub_details_id.'_';
 				
-				if ($_SESSION['NODEGOAT_CLEARANCE'] < $arr_object_sub_details['object_sub_details']['object_sub_details_clearance_view'] || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, false, $object_sub_details_id)) {
+				if (!data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, false, $object_sub_details_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, false, $object_sub_details_id)) {
 					
 					unset($arr_type_set['object_sub_details'][$object_sub_details_id]);
 					
@@ -1599,7 +1614,7 @@ class data_model extends base_module {
 					
 					$str_id = 'object_sub_description_'.$object_sub_description_id;
 					
-					if ($_SESSION['NODEGOAT_CLEARANCE'] < $arr_object_sub_description['object_sub_description_clearance_view'] || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, false, $object_sub_details_id, $object_sub_description_id)) {
+					if (!data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, false, $object_sub_details_id, $object_sub_description_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, false, $object_sub_details_id, $object_sub_description_id)) {
 
 						unset($arr_type_set['object_sub_details'][$object_sub_details_id]['object_sub_descriptions'][$object_sub_description_id]);
 						
@@ -1639,14 +1654,14 @@ class data_model extends base_module {
 			$arr_target_type_set_date_flat = [];
 			
 			$arr_in_out_type_object_connections = [];
-			$arr_in_out_type_object_connections['in'] = (array)$arr_network_connections['in'];
-			$arr_in_out_type_object_connections['out'] = (array)$arr_network_connections['out'];
+			$arr_in_out_type_object_connections[TraceTypesNetwork::PATH_IN] = (array)$arr_network_connections[TraceTypesNetwork::PATH_IN];
+			$arr_in_out_type_object_connections[TraceTypesNetwork::PATH_OUT] = (array)$arr_network_connections[TraceTypesNetwork::PATH_OUT];
 						
 			foreach ($arr_in_out_type_object_connections as $in_out => $arr_type_object_connections) {
 				
 				foreach ($arr_type_object_connections as $ref_type_id => $arr_object_connections) {
 					
-					$use_type_id = ($in_out == 'out' ? $type_id : $ref_type_id);						
+					$use_type_id = ($in_out == TraceTypesNetwork::PATH_OUT ? $type_id : $ref_type_id);						
 					$arr_use_type_set = StoreType::getTypeSet($use_type_id); // Use the type set matching the reference direction (in or out)
 				
 					foreach ((array)$arr_object_connections['object_sub_details'] as $object_sub_details_id => $arr_object_sub_descriptions) {
@@ -1656,13 +1671,16 @@ class data_model extends base_module {
 						if ($_SESSION['NODEGOAT_CLEARANCE'] < $arr_object_sub_details['object_sub_details']['object_sub_details_clearance_view'] || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_use_type_set, false, $object_sub_details_id)) {
 							continue;
 						}
-												
+						
 						foreach ($arr_object_sub_descriptions as $object_sub_description_id => $arr_connection) {
 							
-							$arr_object_sub_description = $arr_object_sub_details['object_sub_descriptions'][$object_sub_description_id];
+							if ($object_sub_description_id !== 'object_sub_location') {
+								
+								$arr_object_sub_description = $arr_object_sub_details['object_sub_descriptions'][$object_sub_description_id];
 
-							if ($_SESSION['NODEGOAT_CLEARANCE'] < $arr_object_sub_description['object_sub_description_clearance_view'] || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_use_type_set, false, $object_sub_details_id, $object_sub_description_id)) {
-								continue;
+								if ($_SESSION['NODEGOAT_CLEARANCE'] < $arr_object_sub_description['object_sub_description_clearance_view'] || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_use_type_set, false, $object_sub_details_id, $object_sub_description_id)) {
+									continue;
+								}
 							}
 							
 							if ($arr_connection['use_object_description_id']) {
@@ -1676,14 +1694,14 @@ class data_model extends base_module {
 							
 							$str_name_path = $arr_options['name'].'[paths]['.$path.']';
 							
-							if ($object_sub_description_id == 'object_sub_location') {
+							if ($object_sub_description_id === 'object_sub_location') {
 								
 								if ($arr_connection['mutable']) {
 									
 									$arr_checked = $arr_options['value']['paths'][$path]['object_sub_locations'][$object_sub_details_id][$in_out][$ref_type_id];
 									$str_name_path_connection = ($do_compact ? 'object_sub_locations-'.$object_sub_details_id.'-'.$in_out.'-'.$ref_type_id : '[object_sub_locations]['.$object_sub_details_id.']['.$in_out.']['.$ref_type_id.']');
 									
-									if ($in_out == 'out') {
+									if ($in_out == TraceTypesNetwork::PATH_OUT) {
 										$arr_type_set_mutable_referencing['object_sub_locations'][$object_sub_details_id][$ref_type_id] = $ref_type_id;
 									}
 								} else {
@@ -1700,7 +1718,7 @@ class data_model extends base_module {
 									$arr_checked = $arr_options['value']['paths'][$path]['object_sub_descriptions'][$object_sub_description_id][$in_out][$ref_type_id];
 									$str_name_path_connection = ($do_compact ? 'object_sub_descriptions-'.$object_sub_description_id.'-'.$in_out.'-'.$ref_type_id : '[object_sub_descriptions]['.$object_sub_description_id.']['.$in_out.']['.$ref_type_id.']');
 									
-									if ($in_out == 'out') {
+									if ($in_out == TraceTypesNetwork::PATH_OUT) {
 										$arr_type_set_mutable_referencing['object_sub_descriptions'][$object_sub_description_id][$ref_type_id] = $ref_type_id;
 									}
 								} else {
@@ -1716,7 +1734,7 @@ class data_model extends base_module {
 							
 							if ($do_compact) {
 								
-								$str_name_reference = ($in_out == 'in' ? getLabel('lbl_referenced') : getLabel('lbl_referencing')).cms_general::OPTION_GROUP_SEPARATOR.' '.($in_out == 'in' ? static::SYMBOL_IN : static::SYMBOL_OUT).' ['.Labels::parseTextVariables($arr_use_type_set['object_sub_details'][$object_sub_details_id]['object_sub_details']['object_sub_details_name']).'] '.Labels::parseTextVariables($str_name).($arr_connection['dynamic'] ? static::SYMBOL_DYNAMIC : ($arr_connection['mutable'] ? static::SYMBOL_MUTABLE : ''));
+								$str_name_reference = ($in_out == TraceTypesNetwork::PATH_IN ? getLabel('lbl_referenced') : getLabel('lbl_referencing')).cms_general::OPTION_GROUP_SEPARATOR.' '.($in_out == TraceTypesNetwork::PATH_IN ? static::SYMBOL_IN : static::SYMBOL_OUT).' ['.Labels::parseTextVariables($arr_use_type_set['object_sub_details'][$object_sub_details_id]['object_sub_details']['object_sub_details_name']).'] '.Labels::parseTextVariables($str_name).($arr_connection['dynamic'] ? static::SYMBOL_DYNAMIC : ($arr_connection['mutable'] ? static::SYMBOL_MUTABLE : ''));
 								
 								$arr_return_paths[$ref_type_id]['html']['options'][$in_out][] = [
 									'id' => $str_name_path_connection,
@@ -1733,7 +1751,7 @@ class data_model extends base_module {
 										.'<span class="sub-name">'.Labels::parseTextVariables($arr_use_type_set['object_sub_details'][$object_sub_details_id]['object_sub_details']['object_sub_details_name']).'</span> <span'.($arr_connection['dynamic'] ? ' class="dynamic-references-name"' : '').'>'.Labels::parseTextVariables($str_name).'</span>'
 									.'</span>'
 									.'<input type="checkbox" name="'.$str_name_path.$str_name_path_connection.'" value="1"'.($arr_checked ? ' checked="checked"' : '').' />'
-									.'<span class="icon" data-category="direction">'.getIcon(($in_out == 'in' ? 'updown-up' : 'updown-down')).'</span>'
+									.'<span class="icon" data-category="direction">'.getIcon(($in_out == TraceTypesNetwork::PATH_IN ? 'updown-up' : 'updown-down')).'</span>'
 								.'</label>';
 							}
 						}
@@ -1758,7 +1776,7 @@ class data_model extends base_module {
 							$arr_checked = $arr_options['value']['paths'][$path]['object_descriptions'][$object_description_id][$in_out][$ref_type_id];
 							$str_name_path_connection = ($do_compact ? 'object_descriptions-'.$object_description_id.'-'.$in_out.'-'.$ref_type_id : '[object_descriptions]['.$object_description_id.']['.$in_out.']['.$ref_type_id.']');
 							
-							if ($in_out == 'out') {
+							if ($in_out == TraceTypesNetwork::PATH_OUT) {
 								$arr_type_set_mutable_referencing['object_descriptions'][$object_description_id][$ref_type_id] = $ref_type_id;
 							}
 						} else {
@@ -1772,7 +1790,7 @@ class data_model extends base_module {
 						
 						if ($do_compact) {
 							
-							$str_name_reference = ($in_out == 'in' ? getLabel('lbl_referenced') : getLabel('lbl_referencing')).cms_general::OPTION_GROUP_SEPARATOR.' '.($in_out == 'in' ? static::SYMBOL_IN : static::SYMBOL_OUT).' '.Labels::parseTextVariables($arr_use_type_set['object_descriptions'][$object_description_id]['object_description_name']).($arr_connection['dynamic'] ? static::SYMBOL_DYNAMIC : ($arr_connection['mutable'] ? static::SYMBOL_MUTABLE : ''));
+							$str_name_reference = ($in_out == TraceTypesNetwork::PATH_IN ? getLabel('lbl_referenced') : getLabel('lbl_referencing')).cms_general::OPTION_GROUP_SEPARATOR.' '.($in_out == TraceTypesNetwork::PATH_IN ? static::SYMBOL_IN : static::SYMBOL_OUT).' '.Labels::parseTextVariables($arr_use_type_set['object_descriptions'][$object_description_id]['object_description_name']).($arr_connection['dynamic'] ? static::SYMBOL_DYNAMIC : ($arr_connection['mutable'] ? static::SYMBOL_MUTABLE : ''));
 							
 							$arr_return_paths[$ref_type_id]['html']['options'][$in_out][] = [
 								'id' => $str_name_path_connection,
@@ -1787,7 +1805,7 @@ class data_model extends base_module {
 							$arr_return_paths[$ref_type_id]['html'] .= '<label>'
 								.'<span'.($arr_connection['dynamic'] ? ' class="dynamic-references-name"' : '').'>'.Labels::parseTextVariables($arr_use_type_set['object_descriptions'][$object_description_id]['object_description_name']).'</span>'
 								.'<input type="checkbox" name="'.$str_name_path.$str_name_path_connection.'" value="1"'.($arr_checked ? ' checked="checked"' : '').' />'
-								.'<span class="icon" data-category="direction">'.getIcon(($in_out == 'in' ? 'updown-up' : 'updown-down')).'</span>'
+								.'<span class="icon" data-category="direction">'.getIcon(($in_out == TraceTypesNetwork::PATH_IN ? 'updown-up' : 'updown-down')).'</span>'
 							.'</label>';
 						}
 					}
@@ -2184,14 +2202,14 @@ class data_model extends base_module {
 					
 					if ($num_steps) {
 						
-						$return_deep = $func_connection($arr_network_connections['connections'][$ref_type_id], $ref_type_id, $arr_return_path['path']);
+						$return_deep = $func_connection($arr_network_connections[TraceTypesNetwork::PATH_CONNECTIONS][$ref_type_id], $ref_type_id, $arr_return_path['path']);
 					} else {
 						
 						if ($arr_return_path['checked']) {
 							
 							$trace->run($ref_type_id, false, 1, $arr_options['references']);
 							$arr_type_network_paths = $trace->getTypeNetworkPaths();
-							$return_deep = $func_connection($arr_type_network_paths['connections'][$ref_type_id], $ref_type_id, $arr_return_path['path']);
+							$return_deep = $func_connection($arr_type_network_paths[TraceTypesNetwork::PATH_CONNECTIONS][$ref_type_id], $ref_type_id, $arr_return_path['path']);
 						} else {
 							
 							$arr_ref_type_set = StoreType::getTypeSet($ref_type_id);
@@ -2201,8 +2219,8 @@ class data_model extends base_module {
 					
 					if ($do_compact) {
 						
-						$num_in = count($arr_return_path['html']['options']['in'] ?: []);
-						$num_out = count($arr_return_path['html']['options']['out'] ?: []);
+						$num_in = count($arr_return_path['html']['options'][TraceTypesNetwork::PATH_IN] ?: []);
+						$num_out = count($arr_return_path['html']['options'][TraceTypesNetwork::PATH_OUT] ?: []);
 						$str_summary = ($num_in ? $num_in.' '.static::SYMBOL_IN : '').''.($num_out ? static::SYMBOL_OUT.' '.$num_out : '');
 						
 						$arr_date_rows = [];
@@ -2217,7 +2235,7 @@ class data_model extends base_module {
 							}
 						}
 						
-						$arr_rows = arrMerge(($arr_return_path['html']['options']['out'] ?? []), ($arr_return_path['html']['options']['in'] ?? []));
+						$arr_rows = arrMerge(($arr_return_path['html']['options'][TraceTypesNetwork::PATH_OUT] ?? []), ($arr_return_path['html']['options'][TraceTypesNetwork::PATH_IN] ?? []));
 						$has_multiple = (count($arr_rows) > 1);				
 						
 						$arr_sorter_path = [];
@@ -2295,16 +2313,18 @@ class data_model extends base_module {
 		];
 
 		$return = '<div class="network type"'.($num_steps === false ? ' id="y:data_model:get_type_network_hop-0"' : '').' data-options="'.strEscapeHTML(value2JSON($arr_options_hop)).'"><div class="node">
-			'.$func_connection($arr_type_network_paths['connections'][$from_type_id], $from_type_id, ($arr_options['source_path'] ?: 0)).'
+			'.$func_connection($arr_type_network_paths[TraceTypesNetwork::PATH_CONNECTIONS][$from_type_id], $from_type_id, ($arr_options['source_path'] ?: 0)).'
 		</div></div>';
 
 		return $return;
 	}
-	
+
 	public static function css() {
 	
 		$return = '
-			.data_model .definition > fieldset .sorter textarea { width: 450px; height: 100px; }
+			.data_model .definition > fieldset > ul > li > label:first-child + [name=label] { width: 120px; }
+			.data_model .definition > fieldset > ul > li > div > ul.sorter input[type=text] { width: 400px;}
+			.data_model .definition > fieldset > ul > li > div > ul.sorter textarea { width: 400px; height: 100px; }
 			.data_model .object-descriptions > ul.sorter > li + li,
 			.data_model .object-sub-descriptions > ul.sorter > li + li { margin-top: 25px; }
 			.data_model .object-sub-details > .sorter > li > div > fieldset { margin: 0px; }
@@ -2316,10 +2336,14 @@ class data_model extends base_module {
 			.data_model .object-description-options fieldset > ul > li > label:first-child + div > input[name$="[separator]"] { width: 75px; }
 			
 			.data_model .object-sub-details fieldset .tabs > div > div > fieldset { margin-left: 0px; } 
-			
-			.data_model .definition > fieldset > ul > li > label:first-child + [name=label] { width: 120px; }
-			
+
 			.condition fieldset > ul > li > label:first-child + * input[name$="[image][url]"] + img { max-height: 20px; }
+			.condition fieldset > ul > li > label:first-child + * input[name$="[condition_scope]"],
+			.condition fieldset > ul > li > label:first-child + * input[name$="[condition_function]"] { width: 100px; }
+			.condition fieldset > ul > li > label:first-child + * input[name$="[condition_scope]"][value=""],
+			.condition fieldset > ul > li > label:first-child + * input[name$="[condition_function]"][value=""] { width: 0px; padding: 0px; border: 0px; }
+			.condition fieldset > ul > li > label:first-child + * input[name$="[condition_scope]"][value=""] + input,
+			.condition fieldset > ul > li > label:first-child + * input[name$="[condition_function]"][value=""] + input { margin-left: 0px; }
 			
 			.network.type { margin: 0px auto; padding-bottom: 14px; }
 			.network.type .node > h4 + div { display: inline-block; text-align: left; }
@@ -2446,10 +2470,11 @@ class data_model extends base_module {
 				var elm_parent = elm_value_type.closest('ul');
 				var str_value_type = elm_value_type.val();
 				var elm_value_type_option = elm_value_type.children('option:selected');
-				var has_support_multi = elm_value_type_option[0].dataset.has_support_multi;
-				var has_support_identifier = elm_value_type_option[0].dataset.has_support_identifier;
+				var has_support_multi = (elm_value_type_option[0].dataset.has_support_multi === '1');
+				var has_support_identifier = (elm_value_type_option[0].dataset.has_support_identifier === '1');
+				var has_support_text = (elm_value_type_option[0].dataset.has_support_text !== '0');
 				
-				var elm_targets = elm_parent.find('input[name*=description_has_multi], input[name*=description_is_required], input[name*=description_has_default_value], input[name*=object_description_is_unique], input[name*=object_description_is_identifier]');
+				var elm_targets = elm_parent.find('input[name*=description_has_multi], input[name*=description_is_required], input[name*=description_has_default_value], input[name*=description_in_name], input[name*=description_in_search], input[name*=object_description_is_unique], input[name*=object_description_is_identifier]');
 				elm_targets.prop('disabled', false);
 				
 				var elm_target = elm_parent.find('> li > select[name*=description_ref_type_id], > li > div.reference_mutable').addClass('hide');
@@ -2479,10 +2504,17 @@ class data_model extends base_module {
 					} else {
 						elm_parent.find('input[name*=description_has_multi]').prop('disabled', true);
 					}
+					
 					if (has_support_identifier) { // API identifier
 					
 					} else {
 						elm_parent.find('input[name*=object_description_is_identifier]').prop('disabled', true);
+					}
+					
+					if (has_support_text) { // Textual name/quicksearch
+
+					} else {
+						elm_parent.find('input[name*=description_in_name], input[name*=description_in_search]').prop('disabled', true);
 					}
 				}
 				
@@ -2664,37 +2696,52 @@ class data_model extends base_module {
 		
 		SCRIPTER.dynamic('.condition', function(elm_scripter) {
 		
-			var func_update_condition_object_nodes_values = function(elm) {
+			const func_update_conditions = function(elm) {
 			
-				elm.find('select[name$=\"[id]\"]').each(function() {
+				const elms_condition_identifier = getElementSelector(elm, 'select[name$=\"[id]\"]');
+			
+				for (let i = 0, len = elms_condition_identifier.length; i < len; i++) {
 				
-					var cur = $(this);
-				
-					var value = cur.val();
-					var elm_select = cur.closest('ul').find('select[name$=\"[number_use_object_description_id]\"]');
-					var elm_target = elm_select.children('[data-group_identifier]');
+					const cur = elms_condition_identifier[i];
+					const str_selected_id = cur.value;
+					const elm_condition = $(cur.closest('ul'));
 					
-					if (value) {
-						elm_target.filter('[data-group_identifier=\"'+value+'\"]').prop('hidden', false);
-						elm_target.not('[data-group_identifier=\"'+value+'\"]').prop('selected', false).prop('hidden', true);
+					const elm_select_use_object_description_id = elm_condition.find('select[name$=\"[number_use_object_description_id]\"]');
+					const elm_select_use_object_analysis_id = elm_condition.find('select[name$=\"[number_use_object_analysis_id]\"]');
+					
+					const elms_target_group = elm_select_use_object_description_id.children('[data-group_identifier]');
+					
+					if (str_selected_id) {
+						elms_target_group.filter('[data-group_identifier=\"'+str_selected_id+'\"]').prop('hidden', false);
+						elms_target_group.not('[data-group_identifier=\"'+str_selected_id+'\"]').prop('selected', false).prop('hidden', true);
 					} else {
-						elm_target.prop('selected', false).prop('hidden', true);
+						elms_target_group.prop('selected', false).prop('hidden', true);
 					}
-				});
+					
+					const elm_color_secondary = elm_condition.find('[name$=\"[color_secondary]\"]').parent('.pickcolor');
+				
+					if (elm_select_use_object_description_id[0].value || elm_select_use_object_analysis_id[0].value) {
+						elm_color_secondary[0].classList.remove('hide');
+					} else {
+						elm_color_secondary[0].classList.add('hide');
+					}
+				};
 			};
 
-			func_update_condition_object_nodes_values(elm_scripter.find('div.identifiers'));
-			
 			elm_scripter.on('ajaxloaded scripter', function() {
+			
+				func_update_conditions(elm_scripter.find('div.identifiers'));
 				
 				runElementSelectorFunction(elm_scripter, '.condition-model-conditions [name$=\"[condition_use_current]\"]', function(elm_found) {
 					SCRIPTER.triggerEvent(elm_found, 'update_condition_model_conditions');
 				});
 			}).on('change update_condition_model_conditions', '.condition-model-conditions [name$=\"[condition_use_current]\"]', function() {
 				$(this).prev('select').prop('disabled', $(this).is(':checked'));
-			}).on('change', 'div.identifiers select[name$=\"[id]\"]', function() {
+			}).on('change', 'div.identifiers select', function(e) {
 				
-				func_update_condition_object_nodes_values($(this).parent());
+				const elm_condition = $(e.target).closest('ul.sorter > li');
+				
+				func_update_conditions(elm_condition);
 			}).on('click', 'fieldset > ul > li > div > img + .del', function() {
 				var cur = $(this);
 				cur.nextAll('input[type=button].hide').removeClass('hide');
@@ -2929,7 +2976,7 @@ class data_model extends base_module {
 				SiteEndEnvironment::setFeedback('condition_id', false, true);
 			} else {
 				
-				$arr_files = ($_FILES['condition'] ? arrRearrangeParams($_FILES['condition']) : []);
+				$arr_files = ($_FILES['condition'] ? arrRearrangeKeysValues($_FILES['condition']) : []);
 				
 				$arr_condition_self = self::parseTypeCondition($type_id, $_POST['condition'], $arr_files);
 				$arr_model_conditions = ParseTypeFeatures::parseTypeModelConditions($type_id, $_POST['model_conditions']);
@@ -2945,7 +2992,7 @@ class data_model extends base_module {
 			
 			SiteEndEnvironment::setFeedback('condition', ($arr_condition_self ? true : false));
 			SiteEndEnvironment::setFeedback('condition_model_conditions', ($arr_model_conditions ? true : false));
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "store_condition") {
@@ -3303,7 +3350,7 @@ class data_model extends base_module {
 			
 			$this->html = $this->createAddType($_POST['class']);
 			$this->refresh_table = true;
-			$this->msg = true;
+			$this->message = true;
 		}
 	
 		if ($method == "empty" && (int)$id) {
@@ -3328,7 +3375,7 @@ class data_model extends base_module {
 				
 				$storage->clearTypeObjects();
 									
-				$this->msg = true;
+				$this->message = true;
 			}
 		}
 		
@@ -3355,7 +3402,7 @@ class data_model extends base_module {
 				$store_type->delType();
 				
 				$this->refresh_table = true;			
-				$this->msg = true;
+				$this->message = true;
 			}
 		}
 	}
@@ -3393,5 +3440,136 @@ class data_model extends base_module {
 		$has_clearance = StoreType::checkTypeConfigurationUserClearance($arr_type_set, ($_SESSION['NODEGOAT_CLEARANCE'] ?? 0), $object_description_id, $object_sub_details_id, $object_sub_description_id, $type);
 		
 		return $has_clearance;
+	}
+	
+	public static function getTypeObjectDescriptionsByValueType($type_id, $arr_value_types, $arr_other = []) {
+		
+		if ($arr_value_types !== null && !is_array($arr_value_types)) {
+			$arr_value_types = [$arr_value_types => true];
+		}
+		
+		$arr_type_set = StoreType::getTypeSet($type_id);
+		$arr_type_set_flat = StoreType::getTypeSetFlatMap($type_id, ['object_id' => true, 'object_name' => true, 'references' => true, 'reversals' => true]);
+		$arr_project = StoreCustomProject::getProjects($_SESSION['custom_projects']['project_id']);
+
+		$arr_type_set_filtered = [];
+		
+		if ($arr_other['name']) {
+			$arr_type_set_filtered['object-name'] = $arr_type_set_flat['object-name'];
+		}
+		if ($arr_type_set_flat['object-name_plain'] && $arr_other['name_plain']) {
+			$arr_type_set_filtered['object-name_plain'] = $arr_type_set_flat['object-name_plain'];
+		}
+	
+		foreach ($arr_type_set['object_descriptions'] as $object_description_id => $arr_object_description) {
+			
+			$str_value_type = $arr_object_description['object_description_value_type'];
+			
+			if ($arr_value_types !== null && empty($arr_value_types[$str_value_type])) {
+				continue;
+			}
+			
+			if (!data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, $object_description_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, $object_description_id)) {
+				continue;
+			}
+			
+			$str_id = 'object_description-'.$object_description_id;
+			
+			$arr_type_set_filtered[$str_id] = $arr_type_set_flat[$str_id];
+		}
+		
+		foreach ($arr_type_set['object_sub_details'] as $object_sub_details_id => $arr_object_sub_details) {
+			
+			if (!data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, false, $object_sub_details_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, false, $object_sub_details_id)) {
+				continue;
+			}
+			
+			foreach ($arr_object_sub_details['object_sub_descriptions'] as $object_sub_description_id => $arr_object_sub_description) {
+				
+				$str_value_type = $arr_object_sub_description['object_sub_description_value_type'];
+			
+				if ($arr_value_types !== null && empty($arr_value_types[$str_value_type])) {
+					continue;
+				}
+				
+				if (!data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, false, $object_sub_details_id, $object_sub_description_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, false, $object_sub_details_id, $object_sub_description_id)) {
+					continue;
+				}
+				
+				$str_id = 'object_sub_details-'.$object_sub_details_id.'-object_sub_description-'.$object_sub_description_id;
+
+				$arr_type_set_filtered[$str_id] = $arr_type_set_flat[$str_id];
+			}
+		}
+		
+		return $arr_type_set_filtered;
+	}
+	
+	public static function getTypeObjectDescriptionsByTypeReference($type_id, $test_type_id) {
+		
+		$arr_type_set = StoreType::getTypeSet($type_id);
+		$arr_type_set_flat = StoreType::getTypeSetFlatMap($type_id, ['object_id' => false, 'references' => true]);
+		$arr_project = StoreCustomProject::getProjects($_SESSION['custom_projects']['project_id']);
+		
+		$arr_type_set_filtered = [];
+	
+		foreach ($arr_type_set['object_descriptions'] as $object_description_id => $arr_object_description) {
+			
+			if (!StoreType::hasReferenceTypeID($arr_object_description['object_description_ref_type_id'], $test_type_id)) {
+				continue;
+			}
+			
+			if (!data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, $object_description_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, $object_description_id)) {
+				continue;
+			}
+			
+			$str_id = 'object_description-'.$object_description_id;
+			
+			$arr_type_set_filtered[$str_id] = $arr_type_set_flat[$str_id];
+		}
+		
+		foreach ($arr_type_set['object_sub_details'] as $object_sub_details_id => $arr_object_sub_details) {
+			
+			if (!data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, false, $object_sub_details_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, false, $object_sub_details_id)) {
+				continue;
+			}
+			
+			$str_identifier = 'object_sub_details-'.$object_sub_details_id;
+			
+			$str_id = false;
+			
+			if (!$arr_object_sub_details['object_sub_details']['object_sub_details_location_ref_type_id_locked']) {
+				
+				$str_id = $str_identifier.'-location_ref_type_id';
+			} else if ($arr_object_sub_details['object_sub_details']['object_sub_details_location_ref_type_id_locked'] && $arr_object_sub_details['object_sub_details']['object_sub_details_location_ref_type_id'] == $test_type_id) {
+				
+				if ($arr_object_sub_details['object_sub_details']['object_sub_details_location_ref_object_sub_details_id_locked']) {
+					$str_id = $str_identifier.'-location_ref_type_id-object_sub_details_lock';
+				} else if ($arr_object_sub_details['object_sub_details']['object_sub_details_location_ref_type_id_locked']) {
+					$str_id = $str_identifier.'-location_ref_type_id-type_lock-'.$test_type_id;
+				}
+			}
+			
+			if ($arr_type_set_flat[$str_id]) {
+				$arr_type_set_filtered[$str_id] = $arr_type_set_flat[$str_id];
+			}
+			
+			foreach ($arr_object_sub_details['object_sub_descriptions'] as $object_sub_description_id => $arr_object_sub_description) {
+				
+				if (!StoreType::hasReferenceTypeID($arr_object_sub_description['object_sub_description_ref_type_id'], $test_type_id)) {
+					continue;
+				}
+				
+				if (!data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, false, $object_sub_details_id, $object_sub_description_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, false, $object_sub_details_id, $object_sub_description_id)) {
+					continue;
+				}
+				
+				$str_id = $str_identifier.'-object_sub_description-'.$object_sub_description_id;
+
+				$arr_type_set_filtered[$str_id] = $arr_type_set_flat[$str_id];
+			}
+		}
+		
+		return $arr_type_set_filtered;
 	}
 }

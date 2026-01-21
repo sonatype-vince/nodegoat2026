@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -74,7 +74,7 @@ class IndexTypeObjectsInformationRetrieval {
 			SELECT DISTINCT
 				nodegoat_to.id
 					FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to
-					JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')." nodegoat_to_status ON (nodegoat_to_status.object_id = nodegoat_to.id AND nodegoat_to_status.date > '".DBFunctions::str2Date($date_after)."' AND nodegoat_to_status.date <= '".DBFunctions::str2Date($date_to)."')
+					JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')." nodegoat_to_status ON (nodegoat_to_status.object_id = nodegoat_to.id AND nodegoat_to_status.date > '".DBFunctions::str2DateTime($date_after)."' AND nodegoat_to_status.date <= '".DBFunctions::str2DateTime($date_to)."')
 				WHERE ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ACTIVE, 'object', 'nodegoat_to')."
 		";
 		
@@ -88,7 +88,7 @@ class IndexTypeObjectsInformationRetrieval {
 					LIMIT 1
 				) AS type_id
 					FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')." nodegoat_to_status
-				WHERE nodegoat_to_status.date > '".DBFunctions::str2Date($date_after)."' AND nodegoat_to_status.date <= '".DBFunctions::str2Date($date_to)."'
+				WHERE nodegoat_to_status.date > '".DBFunctions::str2DateTime($date_after)."' AND nodegoat_to_status.date <= '".DBFunctions::str2DateTime($date_to)."'
 					AND NOT EXISTS (SELECT TRUE
 						FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to
 						WHERE nodegoat_to.id = nodegoat_to_status.object_id
@@ -102,7 +102,7 @@ class IndexTypeObjectsInformationRetrieval {
 			CREATE TEMPORARY TABLE ".$this->table_name_objects." (
 				id INT,
 					PRIMARY KEY (id)
-			) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
+			) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
 				".(DB::ENGINE_IS_MYSQL ? "AS (".$sql_query.")"
 				:
 				"; INSERT INTO ".$this->table_name_objects."
@@ -116,7 +116,7 @@ class IndexTypeObjectsInformationRetrieval {
 				id INT,
 				type_id INT,
 					PRIMARY KEY (id)
-			) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
+			) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
 				".(DB::ENGINE_IS_MYSQL ? "AS (".$sql_query_deleted.")"
 				:
 				"; INSERT INTO ".$this->table_name_objects_deleted."
@@ -258,7 +258,7 @@ class IndexTypeObjectsInformationRetrieval {
 				type_id INT,
 				id INT,
 				name VARCHAR(255)
-			) ".DBFunctions::sqlTableOptions(($this->use_table_memory ? DBFunctions::TABLE_OPTION_MEMORY : false))."
+			) ".DBFunctions::tableOptions(($this->use_table_memory ? DBFunctions::TABLE_OPTION_MEMORY : false))."
 				".(DB::ENGINE_IS_MYSQL ? "AS (".$sql_query.")"
 				:
 				"; INSERT INTO ".$table_name_temp."
@@ -336,7 +336,7 @@ class IndexTypeObjectsInformationRetrieval {
 				id INT,
 				object_description_id INT,
 				value LONGTEXT
-			) ".DBFunctions::sqlTableOptions(($this->use_table_memory ? DBFunctions::TABLE_OPTION_MEMORY : false))."
+			) ".DBFunctions::tableOptions(($this->use_table_memory ? DBFunctions::TABLE_OPTION_MEMORY : false))."
 				".(DB::ENGINE_IS_MYSQL ? "AS (".$sql_query.")"
 				:
 				"; INSERT INTO ".$table_name_temp."
@@ -418,7 +418,7 @@ class IndexTypeObjectsInformationRetrieval {
 				object_sub_id INT,
 				object_sub_description_id INT,
 				value LONGTEXT
-			) ".DBFunctions::sqlTableOptions(($this->use_table_memory ? DBFunctions::TABLE_OPTION_MEMORY : false))."
+			) ".DBFunctions::tableOptions(($this->use_table_memory ? DBFunctions::TABLE_OPTION_MEMORY : false))."
 				".(DB::ENGINE_IS_MYSQL ? "AS (".$sql_query.")"
 				:
 				"; INSERT INTO ".$table_name_temp."

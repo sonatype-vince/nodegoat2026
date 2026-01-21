@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -347,9 +347,8 @@ class ui extends base_module {
 					.ui menu.buttons button.in-selection { color: #fff; background-color: #0096e4; }
 					.ui menu.buttons button:hover { color: #fff; background-color: #0096e4; text-decoration: none; }
 					
-					.ui .labmap.soc .legends > figure.selected-node dl span { pointer-events: none; }
-
 					.ui.fullscreen > * { display: none; }	
+					.ui.fullscreen > .toolbox,
 					.ui.fullscreen > .overlay { display: block; }
 					.ui.fullscreen > .project-dynamic-data { display: flex; }	
 					.ui.fullscreen > .project-dynamic-data > .tools { display: none; }	
@@ -839,10 +838,7 @@ class ui extends base_module {
 						.ui.responsive-layout-enabled > .project-dynamic-data > .data div.head > h1 { font-size: 17px; }		
 
 						.ui.responsive-layout-enabled > .project-dynamic-data > .data .explore-object > div { height: calc(var(--view-height) - 100px);  } 	
-						
-						.ui.responsive-layout-enabled > .project-dynamic-data > .data .objects .labmap > .controls .timeline { bottom: 0px } 
-						.ui.responsive-layout-enabled > .project-dynamic-data > .data .objects .labmap > .controls .timeline > div { max-width: 100%; width: 100%; box-sizing: border-box; } 
-						
+												
 						.ui.responsive-layout-enabled > input:checked + nav + div + .selections-container { display: none; }
 						.ui.responsive-layout-enabled > .selections-container.view { position: absolute; left: 0; top: 0px; right: 0px; width: 100%; }													
 						.ui.responsive-layout-enabled > .selections-container.list { bottom: 5px; left: 5px; }		
@@ -859,9 +855,6 @@ class ui extends base_module {
 						.ui.responsive-layout-enabled > .selections-container.list { bottom: 5px; left: 0px; width: auto; min-width: auto; }
 						.ui.responsive-layout-enabled > .selections-container.list > div > span { width: auto; }
 						.ui.responsive-layout-enabled > .selections-container.list > div > span:first-child { display: none; }
-						
-						.ui.responsive-layout-enabled > .project-dynamic-data > .data .objects .labmap > .controls .timeline > div input.date,
-						.ui.responsive-layout-enabled > .project-dynamic-data > .data .objects .labmap > .controls .timeline > div span.split { display: none; } 
 					}';
 	
 		return $return;

@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -283,7 +283,7 @@ class QueryTypeObjectsInformationRetrieval {
 		$res = DB::query("
 			CREATE TEMPORARY TABLE IF NOT EXISTS ".$this->getSQLTableName()." (
 				".$this->getSQLColumns()."
-			) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
+			) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
 		");
 	
 		$res = DB::query("

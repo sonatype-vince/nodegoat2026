@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -18,11 +18,11 @@ class header extends base_module {
 	
 	public static function moduleVariables() {
 		
-		$return = '<select name="directory_id" title="Directory">';
-		$return .= directories::createDirectoriesDropdown(directories::getDirectories(), false, true);
-		$return .= '</select>';
+		$str_html = '<select name="directory_id" title="Directory">'
+			.directories::createDirectoriesDropdown(directories::getDirectories(), false, true)
+		.'</select>';
 		
-		return $return;
+		return $str_html;
 	}
 	
 	function __construct() {

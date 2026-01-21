@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -584,7 +584,7 @@ class cms_nodegoat_custom_projects extends base_module {
 		$res = DB::query("INSERT INTO ".DB::getTable('DEF_NODEGOAT_CUSTOM_PROJECT_VISUAL_SETTINGS')."
 			(project_id, user_id, id, name, description,
 				capture_enable, capture_settings, dot_show, dot_color, dot_opacity, dot_color_condition, dot_size_min, dot_size_max, dot_size_start, dot_size_stop, dot_stroke_color, dot_stroke_opacity, dot_stroke_width, location_show, location_color, location_opacity, location_size, location_threshold, location_offset, location_position, location_condition, line_show, line_color, line_opacity, line_width_min, line_width_max, line_offset, visual_hints_show, visual_hints_color, visual_hints_opacity, visual_hints_size, visual_hints_stroke_color, visual_hints_stroke_opacity, visual_hints_stroke_width, visual_hints_duration, visual_hints_delay, geometry_show, geometry_color, geometry_opacity, geometry_stroke_color, geometry_stroke_opacity, geometry_stroke_width, map_show, map_layers, geo_info_show, geo_background_color, geo_mode, geo_display, geo_advanced,
-				social_dot_color, social_dot_size_min, social_dot_size_max, social_dot_size_start, social_dot_size_stop, social_dot_stroke_color, social_dot_stroke_width, social_label_show, social_label_threshold, social_label_condition, social_line_show, social_line_color, social_line_opacity, social_line_width_min, social_line_width_max, social_line_arrowhead_show, social_force, social_forceatlas2, social_disconnected_dot_show, social_include_location_references, social_background_color, social_display, social_static_layout, social_static_layout_interval, social_advanced,
+				social_dot_color, social_dot_opacity, social_dot_size_min, social_dot_size_max, social_dot_size_start, social_dot_size_stop, social_dot_stroke_color, social_dot_stroke_opacity, social_dot_stroke_width, social_label_show, social_label_threshold, social_label_condition, social_label_color, social_label_opacity, social_label_size, social_line_show, social_line_color, social_line_opacity, social_line_width_min, social_line_width_max, social_line_arrowhead_show, social_force, social_forceatlas2, social_disconnected_dot_show, social_include_location_references, social_background_color, social_display, social_static_layout, social_static_layout_interval, social_advanced,
 				time_bar_color, time_bar_opacity, time_background_color, time_relative_graph, time_cumulative_graph
 			)
 				VALUES 
@@ -648,15 +648,20 @@ class cms_nodegoat_custom_projects extends base_module {
 					".((string)$arr_visual_settings['settings']['geo_display'] !== '' && (int)$arr_visual_settings['settings']['geo_display'] != $arr_default['settings']['geo_display'] ? (int)$arr_visual_settings['settings']['geo_display'] : 'NULL').",
 					'".($arr_visual_settings['settings']['geo_advanced'] && $arr_visual_settings['settings']['geo_advanced'] !== $arr_default['settings']['geo_advanced'] ? DBFunctions::strEscape(value2JSON($arr_visual_settings['settings']['geo_advanced'])) : '')."',
 					'".(str2Color($arr_visual_settings['social']['dot']['color']) != $arr_default['social']['dot']['color'] ? str2Color($arr_visual_settings['social']['dot']['color']) : '')."',
+					".((string)$arr_visual_settings['social']['dot']['opacity'] !== '' && (float)$arr_visual_settings['social']['dot']['opacity'] != $arr_default['social']['dot']['opacity'] ? (float)$arr_visual_settings['social']['dot']['opacity'] : 'NULL').",
 					".(float)((float)$arr_visual_settings['social']['dot']['size']['min'] != $arr_default['social']['dot']['size']['min'] ? $arr_visual_settings['social']['dot']['size']['min'] : '').",
 					".(float)((float)$arr_visual_settings['social']['dot']['size']['max'] != $arr_default['social']['dot']['size']['max'] ? $arr_visual_settings['social']['dot']['size']['max'] : '').",
 					".(int)((int)$arr_visual_settings['social']['dot']['size']['start'] != $arr_default['social']['dot']['size']['start'] ? $arr_visual_settings['social']['dot']['size']['start'] : '').",
 					".(int)((int)$arr_visual_settings['social']['dot']['size']['stop'] != $arr_default['social']['dot']['size']['stop'] ? $arr_visual_settings['social']['dot']['size']['stop'] : '').",
 					'".(str2Color($arr_visual_settings['social']['dot']['stroke_color']) != $arr_default['social']['dot']['stroke_color'] ? str2Color($arr_visual_settings['social']['dot']['stroke_color']) : '')."',
+					".(float)((float)$arr_visual_settings['social']['dot']['stroke_opacity'] != $arr_default['social']['dot']['stroke_opacity'] ? $arr_visual_settings['social']['dot']['stroke_opacity'] : '').",
 					".((string)$arr_visual_settings['social']['dot']['stroke_width'] !== '' && (float)$arr_visual_settings['social']['dot']['stroke_width'] != $arr_default['social']['dot']['stroke_width'] ? (float)$arr_visual_settings['social']['dot']['stroke_width'] : 'NULL').",
 					".((string)$arr_visual_settings['social']['label']['show'] !== '' && (int)$arr_visual_settings['social']['label']['show'] != $arr_default['social']['label']['show'] ? (int)$arr_visual_settings['social']['label']['show'] : 'NULL').",
 					".((string)$arr_visual_settings['social']['label']['threshold'] !== '' && (float)$arr_visual_settings['social']['label']['threshold'] != $arr_default['social']['label']['threshold'] ? (float)$arr_visual_settings['social']['label']['threshold'] : 'NULL').",
 					'".($arr_visual_settings['social']['label']['condition'] != $arr_default['social']['label']['condition'] ? DBFunctions::strEscape($arr_visual_settings['social']['label']['condition']) : '')."',
+					'".(str2Color($arr_visual_settings['social']['label']['color']) != $arr_default['social']['label']['color'] ? str2Color($arr_visual_settings['social']['label']['color']) : '')."',
+					".(float)((float)$arr_visual_settings['social']['label']['opacity'] != $arr_default['social']['label']['opacity'] ? $arr_visual_settings['social']['label']['opacity'] : '').",
+					".(float)((float)$arr_visual_settings['social']['label']['size'] != $arr_default['social']['label']['size'] ? $arr_visual_settings['social']['label']['size'] : '').",
 					".((string)$arr_visual_settings['social']['line']['show'] !== '' && (int)$arr_visual_settings['social']['line']['show'] != $arr_default['social']['line']['show'] ? (int)$arr_visual_settings['social']['line']['show'] : 'NULL').",
 					'".(str2Color($arr_visual_settings['social']['line']['color']) != $arr_default['social']['line']['color'] ? str2Color($arr_visual_settings['social']['line']['color']) : '')."',
 					".(float)((float)$arr_visual_settings['social']['line']['opacity'] != $arr_default['social']['line']['opacity'] ? $arr_visual_settings['social']['line']['opacity'] : '').",
@@ -680,13 +685,12 @@ class cms_nodegoat_custom_projects extends base_module {
 			)
 			".DBFunctions::onConflict('project_id, user_id, id', ['name', 'description',
 				'capture_enable', 'capture_settings', 'dot_show', 'dot_color', 'dot_opacity', 'dot_color_condition', 'dot_size_min', 'dot_size_max', 'dot_size_start', 'dot_size_stop', 'dot_stroke_color', 'dot_stroke_opacity', 'dot_stroke_width', 'location_show', 'location_color', 'location_opacity', 'location_size', 'location_threshold', 'location_offset', 'location_position', 'location_condition', 'line_show', 'line_color', 'line_opacity', 'line_width_min', 'line_width_max', 'line_offset', 'visual_hints_show', 'visual_hints_color', 'visual_hints_opacity', 'visual_hints_size', 'visual_hints_stroke_color', 'visual_hints_stroke_opacity', 'visual_hints_stroke_width', 'visual_hints_duration', 'visual_hints_delay', 'geometry_show', 'geometry_color', 'geometry_opacity', 'geometry_stroke_color', 'geometry_stroke_opacity', 'geometry_stroke_width', 'map_show', 'map_layers', 'geo_info_show', 'geo_background_color', 'geo_mode', 'geo_display', 'geo_advanced',
-				'social_dot_color', 'social_dot_size_min', 'social_dot_size_max', 'social_dot_size_start', 'social_dot_size_stop', 'social_dot_stroke_color', 'social_dot_stroke_width', 'social_label_show', 'social_label_threshold', 'social_label_condition', 'social_line_show', 'social_line_color', 'social_line_opacity', 'social_line_width_min', 'social_line_width_max', 'social_line_arrowhead_show', 'social_force', 'social_forceatlas2', 'social_disconnected_dot_show', 'social_include_location_references', 'social_background_color', 'social_display', 'social_static_layout', 'social_static_layout_interval', 'social_advanced',
+				'social_dot_color', 'social_dot_opacity', 'social_dot_size_min', 'social_dot_size_max', 'social_dot_size_start', 'social_dot_size_stop', 'social_dot_stroke_color', 'social_dot_stroke_opacity', 'social_dot_stroke_width', 'social_label_show', 'social_label_threshold', 'social_label_condition', 'social_label_color', 'social_label_opacity', 'social_label_size', 'social_line_show', 'social_line_color', 'social_line_opacity', 'social_line_width_min', 'social_line_width_max', 'social_line_arrowhead_show', 'social_force', 'social_forceatlas2', 'social_disconnected_dot_show', 'social_include_location_references', 'social_background_color', 'social_display', 'social_static_layout', 'social_static_layout_interval', 'social_advanced',
 				'time_bar_color', 'time_bar_opacity', 'time_background_color', 'time_relative_graph', 'time_cumulative_graph'
 			])."
 		");
 		
 		if ($is_user_default) {
-			
 			return $res->getAffectedRowCount();
 		}
 		
@@ -1470,7 +1474,7 @@ class cms_nodegoat_custom_projects extends base_module {
 						
 						error(__METHOD__.' ERROR:'.PHP_EOL
 							.'	Type = '.$type_id.' Custom Project = '.$project_id.' Filter = '.$filter_id
-						, TROUBLE_NOTICE, LOG_BOTH, false, $e); // Make notice
+						, TROUBLE_NOTICE, LOG_BOTH, null, $e); // Make notice
 					}
 				}
 			}

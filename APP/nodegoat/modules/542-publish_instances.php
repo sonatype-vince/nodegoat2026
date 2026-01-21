@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -311,7 +311,7 @@ class publish_instances extends base_module {
 			}
 					
 			$this->html = $this->createPublishProjects();
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == 'open_archive') {
@@ -381,7 +381,7 @@ class publish_instances extends base_module {
 				$store_publish->delProjectPaths($arr_instance_project, $str_date);
 				
 				$this->html = $this->createPublishProjectArchiveSelector($arr_instance_projects['projects'][$project_id]);
-				$this->msg = true;
+				$this->message = true;
 			}
 		}
 	}

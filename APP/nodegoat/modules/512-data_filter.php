@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -61,27 +61,37 @@ class data_filter extends base_module {
 	
 	private function getFilterTypeObjectTabs($arr_type_filter, $arr_source = []) {
 		
+		$arr_filter_codes_check = ($arr_source['filter_codes'] ? array_combine($arr_source['filter_codes'], $arr_source['filter_codes']) : []);
 		$arr_filter_codes_new = [];
+		
 		$arr_filter_tabs = [];
 		
 		foreach ((array)$arr_type_filter as $filter_code => $arr_filter) {
 			
+			$arr_filter['filter_code'] = $filter_code;
+			
 			if ($arr_source) { // Keep newly added filters unique, generate new filter codes
+				
+				if (isset($arr_filter_codes_check[$filter_code])) {
 					
-				if (!$arr_filter_codes_new[$filter_code]) {
-					$arr_filter['filter_code'] = $arr_filter_codes_new[$filter_code] = uniqid('filter_');
+					if (!isset($arr_filter_codes_new[$filter_code])) {
+						$arr_filter_codes_new[$filter_code] = uniqid('filter_');
+					}
+					
+					$arr_filter['filter_code'] = $arr_filter_codes_new[$filter_code];
 				}
 				
 				if ($arr_filter['source'] && $arr_filter['source']['filter_code']) {
 					
-					if (!$arr_filter_codes_new[$arr_filter['source']['filter_code']]) {
-						$arr_filter_codes_new[$arr_filter['source']['filter_code']] = uniqid('filter_');
+					if (isset($arr_filter_codes_check[$arr_filter['source']['filter_code']])) {
+						
+						if (!isset($arr_filter_codes_new[$arr_filter['source']['filter_code']])) {
+							$arr_filter_codes_new[$arr_filter['source']['filter_code']] = uniqid('filter_');
+						}
+						
+						$arr_filter['source']['filter_code'] = $arr_filter_codes_new[$arr_filter['source']['filter_code']];
 					}
-					
-					$arr_filter['source']['filter_code'] = $arr_filter_codes_new[$arr_filter['source']['filter_code']];
 				}
-			} else {
-				$arr_filter['filter_code'] = $filter_code;
 			}
 			
 			$arr_filter_tabs[] = $this->createFilterTypeObjectTab($arr_filter['type_id'], ((!$arr_filter['source'] || !$arr_filter['source']['filter_code']) && $arr_source ? $arr_source : $arr_filter['source']), $arr_filter);
@@ -116,7 +126,6 @@ class data_filter extends base_module {
 				
 		$filter_code = ($arr_filter['filter_code'] ?: uniqid('filter_'));
 		$name = $this->form_name.'[form]['.$filter_code.']';
-		$is_new = (!$arr_filter['filter_code']);
 		
 		if ($arr_source['type_id']) {
 			
@@ -1546,49 +1555,56 @@ class data_filter extends base_module {
 										
 				COMMANDS.setData(cur, {filter: str_filter});
 			}).on('command', '.filter [id^=y\\\:data_filter\\\:add_filter_extra-]', function() {
-				var cur = $(this);
-				var elm_parent = cur.closest('.filter');
-				var elm_filter_form = elm_parent.children('div:visible');
-				
-				if (!$(this).closest('.tabs > ul').length) {
-					var filter_code = elm_filter_form.attr('id');
-					var filter_type_id = elm_filter_form.find('[name=\"filter[form]['+filter_code+'][type_id]\"]').val();
-				} else {
-					var filter_code = 0;
-					var filter_type_id = 0;
+				const cur = $(this);
+				const elm_parent = cur.closest('.filter');
+				const elms_filter_form = elm_parent.children('div');
+
+				const arr_filter_codes = [];
+				for (const elm_filter_form of elms_filter_form) {
+					arr_filter_codes.push(elm_filter_form.getAttribute('id'));
 				}
-				var elm_filter_beacon = cur.next('[name$=\"[beacon]\"]');
-				var filter_beacon = elm_filter_beacon.val();
+				
+				const elm_filter_form = elms_filter_form.filter('div:visible');
+				
+				let filter_code = 0;
+				let filter_type_id = 0;
+				if (!$(this).closest('.tabs > ul').length) {
+					filter_code = elm_filter_form.attr('id');
+					filter_type_id = elm_filter_form.find('[name=\"filter[form]['+filter_code+'][type_id]\"]').val();
+				}
+				
+				const elm_filter_beacon = cur.next('[name$=\"[beacon]\"]');
+				let filter_beacon = elm_filter_beacon.val();
 				if (!filter_beacon && elm_filter_beacon.length) {
-					filter_beacon = guid();
+					filter_beacon = uniqid('beacon_');
 					elm_filter_beacon.val(filter_beacon);
 				}
-				var str_name = elm_parent.find('[data-name]').attr('data-name');
-				var type_id = 0;
+				const str_name = elm_parent.find('[data-name]').attr('data-name');
+				let type_id = 0;
 				
 				if (cur.is('[id^=y\\\:data_filter\\\:add_filter_extra-0]')) {
 
-					var target = cur.closest('li > fieldset').parent('li');
+					let target = cur.closest('li > fieldset').parent('li');
 					if (!target.length) {
 						target = cur.closest('li');
 					}
 					target = target.prev('li').find('.update_object_type');
 					
 					if (target.length) {
-						var type_id = target.val();
+						type_id = target.val();
 					}
 				}
 										
-				COMMANDS.setData(cur, {filter_code: filter_code, filter_type_id: filter_type_id, filter_beacon: filter_beacon, type_id: type_id, name: str_name});
+				COMMANDS.setData(cur, {filter_code: filter_code, filter_type_id: filter_type_id, filter_beacon: filter_beacon, type_id: type_id, name: str_name, filter_codes: arr_filter_codes});
 				COMMANDS.setTarget(cur, function(data) {
 				
-					var elm_collect = $();
+					let elm_collect = $();
 								
-					for (var key in data.arr_filter_tabs) {
+					for (const key in data.arr_filter_tabs) {
 					
-						var cur_filter = data.arr_filter_tabs[key];
-						var elm_content = $(cur_filter.content);
-						var elm_tab = cur_filter.link;
+						const cur_filter = data.arr_filter_tabs[key];
+						const elm_content = $(cur_filter.content);
+						const elm_tab = cur_filter.link;
 						
 						elm_parent[0].navigationtabs.add({tab: elm_tab, content: elm_content});
 						
@@ -1597,7 +1613,7 @@ class data_filter extends base_module {
 					
 					if (data.html_versioning) {
 						
-						var elm_content = $(data.html_versioning);
+						const elm_content = $(data.html_versioning);
 						elm_parent.next('.versioning').replaceWith(elm_content);
 						elm_collect = elm_collect.add(elm_content);
 					}
@@ -1615,17 +1631,21 @@ class data_filter extends base_module {
 			}).on('click', '.filter > div .del', function() {
 				$(this).closest('li').next('li').find('.sorter').first().sorter('clean');
 			}).on('click', '.filter > div .add[data-section]', function() {
-				var cur = $(this);
-				var elm_li = cur.closest('li');
+				
+				const cur = $(this);
+				const elm_li = cur.closest('li');
+				
 				if (!cur[0].elm_source) {
-					var target = elm_li.next('li');
-						target = target.add(target.nextUntil('.start, :not(.'+cur.attr('data-section')+'-section)'));
-					var clone = target.clone();
-						clone.sorter('resetRow');
-						clone.find('[name*=object_sub_'+cur.attr('data-section')+'_type]').removeAttr('data-update_'+cur.attr('data-section')+'_type');
-					cur[0].elm_source = clone;
+				
+					let elms_target = elm_li.next('li');
+					elms_target = elms_target.add(elms_target.nextUntil('.start, :not(.'+cur.attr('data-section')+'-section)'));
+					let elm_clone = elms_target.clone();
+					unloadClonedElements(elm_clone);
+					
+					cur[0].elm_source = elm_clone;
 				}
-				var elm = cur[0].elm_source.clone();
+				
+				const elm = cur[0].elm_source.clone();
 				FORMMANAGING.iterateElementsNames(elm);
 				elm.insertAfter(elm_li);
 				SCRIPTER.triggerEvent(elm_scripter, 'ajaxloaded', {elm: elm});
@@ -2087,12 +2107,18 @@ class data_filter extends base_module {
 
 			elm_scripter.on('command', '[id^=y\\\:data_filter\\\:configure_application_filter-]', function() {
 			
-				var cur = $(this);
-				var elm_target = cur.prev('input[type=hidden]');
+				const cur = $(this);
+				const elm_target = cur.prev('input[type=hidden]');
 				
 				if (cur.is('[id$=configure_application_filter-0]')) {
 				
-					var type_id = cur.prevAll('select:last').val();
+					let elm_check = cur.prevAll('select:last');
+					
+					if (!elm_check.length) {
+						elm_check = cur.closest('li').prevAll('li').find('select:last');
+					}
+					
+					const type_id = elm_check.val();
 					COMMANDS.setID(cur, type_id);
 				}
 				
@@ -2102,12 +2128,12 @@ class data_filter extends base_module {
 				});
 			}).on('command', '[id^=y\\\:data_filter\\\:configure_application_path-]', function() {
 			
-				var cur = $(this);
-				var elm_target = cur.prev('input[type=hidden]');
+				const cur = $(this);
+				const elm_target = cur.prev('input[type=hidden]');
 				
 				if (cur.is('[id$=configure_application_path-0]')) {
 				
-					var type_id = cur.prevAll('select:last').val();
+					const type_id = cur.prevAll('select:last').val();
 					COMMANDS.setID(cur, type_id);
 				}
 				
@@ -2393,7 +2419,11 @@ class data_filter extends base_module {
 			
 			$arr_id = explode('_', $id);
 			$type_id = ($value['type_id'] ?: $arr_id[0]);
-			$arr_source = ['filter_code' => $value['filter_code'], 'filter_type_id' => $value['filter_type_id'], 'filter_beacon' => $value['filter_beacon'], 'type_id' => $arr_id[1], 'object_description_id' => $arr_id[2], 'object_sub_details_id' => $arr_id[3], 'object_sub_description_id' => $arr_id[4], 'direction' => ($arr_id[5] != '' ? ($arr_id[5] ? 'in' : 'out') : false)];
+			$arr_source = [
+				'filter_code' => $value['filter_code'], 'filter_type_id' => $value['filter_type_id'], 'filter_beacon' => $value['filter_beacon'],
+				'type_id' => $arr_id[1], 'object_description_id' => $arr_id[2], 'object_sub_details_id' => $arr_id[3], 'object_sub_description_id' => $arr_id[4], 'direction' => ($arr_id[5] != '' ? ($arr_id[5] ? 'in' : 'out') : false),
+				'filter_codes' => $value['filter_codes']
+			];
 			if ($value['name']) {
 				$this->form_name = $value['name'];
 			}
@@ -2406,7 +2436,6 @@ class data_filter extends base_module {
 			if ($_POST['select']) {
 				
 				if ($_POST['filter_id']) {
-					
 					$arr_type_filter = self::getFilterSet($_POST['filter_id']);
 				}
 			} else if ($_POST['plain']) {
@@ -2563,10 +2592,14 @@ class data_filter extends base_module {
 		
 		if ($method == "configure_application_filter") {
 		
-			$arr_id = explode('_', $id);
+			$type_id = (int)$id;
 			$arr_type_filter = ($value['filter'] ? json_decode($value['filter'], true) : []);
+			
+			if (!$type_id || !custom_projects::checkAccessType(StoreCustomProject::ACCESS_PURPOSE_VIEW, $type_id)) {
+				return;
+			}
 						
-			$this->html = '<form data-method="return_application_filter">'.$this->createFilter($id, $arr_type_filter).'</form>';
+			$this->html = '<form data-method="return_application_filter">'.$this->createFilter($type_id, $arr_type_filter).'</form>';
 		}
 		if ($method == "return_application_filter") {
 						
@@ -2589,6 +2622,10 @@ class data_filter extends base_module {
 			$arr_type_scope = ($arr_path['scope'] ?: []);
 			
 			$arr_options = ($value['options'] ? json_decode($value['options'], true) : []);
+			
+			if (!$type_id || !custom_projects::checkAccessType(StoreCustomProject::ACCESS_PURPOSE_VIEW, $type_id)) {
+				return;
+			}
 			
 			$html_filter = $this->createFilter($type_id, $arr_type_filter);
 			
@@ -2644,11 +2681,7 @@ class data_filter extends base_module {
 			$source_object_sub_details_id = ($value['source_object_sub_details_id'] ?? $arr_ids[3]);
 			$source_object_sub_description_id = ($value['source_object_sub_description_id'] ?? $arr_ids[4]);
 
-			if (!$type_id) {
-				return;
-			}
-			
-			if (!custom_projects::checkAccessType(StoreCustomProject::ACCESS_PURPOSE_VIEW, $type_id)) {
+			if (!$type_id || !custom_projects::checkAccessType(StoreCustomProject::ACCESS_PURPOSE_VIEW, $type_id)) {
 				return;
 			}
 			
@@ -2831,14 +2864,11 @@ class data_filter extends base_module {
 					
 					$arr_results = $external->getResultValues();
 				} catch (RealTroubleThrown $e) {
-
-					$arr_code = Trouble::parseCode($e);
 					
-					if ($arr_code['suppress'] != LOG_SYSTEM) {
+					if ($e->getTroubleSuppress() != LOG_SYSTEM) {
 						
 						Labels::setVariable('resource_name', $arr_resource['name']);
-
-						error(getLabel('msg_external_resource_error_parse').' '.$e->getMessage(), TROUBLE_ERROR, LOG_CLIENT, false, $e); // Make notice
+						error(getLabel('msg_external_resource_error_parse').' '.$e->getTroubleMessage(), TROUBLE_ERROR, LOG_CLIENT, null, $e); // Make notice
 					}
 					
 					throw($e);
@@ -2925,8 +2955,10 @@ class data_filter extends base_module {
 					$arr_settings['filter_id'] = $arr_project_source_type['include_referenced_types'][$type_id]['object_sub_details'][$source_object_sub_details_id]['object_sub_descriptions'][$source_object_sub_description_id]['filter_id'];
 				}
 			}
-
-			$this->html = '<form data-method="return_type_object">'.data_view::createViewTypeObjects($type_id, $arr_settings).'<input type="submit" value="'.getLabel('lbl_select').'" /></form>';
+			
+			$str_html_return = data_view::createViewTypeObjects($type_id, $arr_settings);
+			
+			$this->html = '<form data-method="return_type_object">'.$str_html_return.'<input type="submit" value="'.getLabel('lbl_select').'" /></form>';
 		}
 		
 		if ($method == "select_type_object_sub") {
@@ -2943,7 +2975,13 @@ class data_filter extends base_module {
 				error(getLabel('msg_missing_information'), TROUBLE_ERROR, LOG_CLIENT);
 			}
 			
-			$this->html = '<form data-method="return_type_object_sub">'.data_view::createViewTypeObjectSubs($value['type_id'], (int)$value['object_id'], (int)$value['object_sub_details_id'], ['select' => true, 'filter' => true]).'<input type="submit" value="'.getLabel('lbl_select').'" /></form>';
+			$str_html_return = data_view::createViewTypeObjectSubs($value['type_id'], (int)$value['object_id'], (int)$value['object_sub_details_id'], ['select' => true, 'filter' => true]);
+			
+			if (!$str_html_return) {
+				return;
+			}
+			
+			$this->html = '<form data-method="return_type_object_sub">'.$str_html_return.'<input type="submit" value="'.getLabel('lbl_select').'" /></form>';
 		}
 		
 		if ($method == "select_external") {

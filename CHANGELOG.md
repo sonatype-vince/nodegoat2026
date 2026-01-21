@@ -112,4 +112,18 @@ Initial release.
 * Filter: Added filter operator 'all'/'filter' to the Sub-Object amount option. This setting switches between counting all available Sub-Objects (default) or only the Sub-Objects matched by that specific filter form.
 * Various fixes and tweaks.
 
+## VERSION 8.5
+
+* Visualisation social: Redeveloped the node search and inspection view. The inspection view now details and lists all relationships to a selected node, and allows to hover and highlight any node listed.
+* Analysis: Added new algorithm option to the Analysis module that allows exporting the computed graph (nodes/edges/time/weights). The main export format supported is GEXF (Graph Exchange XML Format), which supports most of the graph features offered by nodegoat.
+* Retrieval-Augmented Generation: *Experimental and in development* a new 'Retrieval' module utilises and combines various nodegoat functionalities to perform RAG prompting and processing on live data. The retrieval module establishes a modular and dynamic LLM pipeline by using Linked Data Resources, the new vector store, and Filtering.
+* Conditions: Implemented a 'function' option and routine to Conditions that can provide additional and dynamic applicability or processing. For example: when an Object is second in a list, colour it blue.
+* Filter/API: Implemented and [documented](https://nodegoat.net/documentation.s/161/filter-endpoints) 'Filter Endpoints'. Filter Endpoints configure specific parameters belonging to a Filter, that in turn allow direct access to an end-user (e.g. using the API) and change their value.
+* Analysis: Added new algorithm to the Analysis module named 'vector distance'. With the support of vectors, it is possible to use metrics for evaluating vector similarity. Vector distance applies euclidean distance or cosine distance to calculate distance between two vectors. The algorithm can use the network graph to determine initial relevancy between vectors, or do a 'disconnected' query.
+* Model: Implemented new Object Description value type 'vector'. The vector value type is able to host an array value containing floating-point numbers. Vectors can be used to store embeddings provided by machine learning (ML) models. Availability depends on the database running nodegoat: PostgreSQL requires the pgvector extension, MariaDB requires version 11.8+.
+* API: Implemented a full OpenAPI description for the nodegoat API using any configured Project as its endpoint. The description exposes a machine-readable output with: query and storage possibilities, available data Models and their schemas, Filters, Scopes, Conditions, any added custom descriptions, etc..
+* Conditions: Added a secondary 'highlight colour' option for nodes in Conditions. The secondary colour becomes available when including weighted values in the Condition and allows to specify a lower bound for weighting the colours. The colour/weight range is calculated using summary statistics.
+* Data/Filter/Model: Added new functionalities in class GenerateTypeObjects to be able to compute and expose summary statistics using values from Object Descriptions and Sub Objects: e.g. averages, ranges, min, max.
+* Various fixes and tweaks.
+
 ## VERSION x.x

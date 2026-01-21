@@ -56,7 +56,8 @@ INSERT INTO `site_pages` (`id`, `name`, `title`, `directory_id`, `template_id`, 
 (38, 'api', 'API', 6, 0, 11, '', '', '', 1, 1, 2),
 (47, 'patternpairs', 'Pattern Pairs', 7, 0, 13, '', '', '', 1, 1, 3),
 (48, 'publish', 'Publish', 6, 0, 11, '', '', '', 1, 1, 4),
-(49, 'publication', 'Publication', 4, 17, 0, '', '', '', 0, 0, 2);
+(49, 'publication', 'Publication', 4, 17, 0, '', '', '', 0, 0, 2),
+(50, 'retrieval', 'Retrieval-Augmented Generation', 5, 0, 11, '', '', '', 0, 0, 7);
 
 INSERT INTO `site_page_modules` (`id`, `page_id`, `x`, `y`, `module`, `var`, `shortcut`, `shortcut_root`) VALUES
 (42, 13, 0, 1, 'data_model', '', '', 0),
@@ -81,7 +82,8 @@ INSERT INTO `site_page_modules` (`id`, `page_id`, `x`, `y`, `module`, `var`, `sh
 (118, 12, 0, 1, 'login', '', '', 0),
 (119, 47, 0, 1, 'data_pattern_pairs', '', '', 0),
 (120, 49, 0, 0, 'publish', '', 'publication', 0),
-(121, 48, 0, 1, 'publish_instances', '', '', 0);
+(121, 48, 0, 1, 'publish_instances', '', '', 0),
+(122, 50, 0, 1, 'retrieval', '', '', 0);
 
 INSERT INTO `site_page_templates` (`id`, `name`, `html`, `html_raw`, `css`, `preview`, `column_count`, `row_count`, `margin_back`, `margin_mod`) VALUES
 (3, 'app header + 1', '<div id=\"template-3\" class=\"container\"><div class=\"site\"><div class=\"mod\" id=\"mod-0_0\"></div><div class=\"back\" id=\"back-1\"><div class=\"mod\" id=\"mod-0_1\"></div></div></div><div class=\"full footer\" id=\"full-3\"><div class=\"site\"><div class=\"mod\" id=\"mod-0_2\"></div></div></div></div>\n', '<div class=\"mod\" style=\"left: 1px; top: 1px; width: 141px; height: 70px;\" info=\"mod-0-0-2-1\" sort=\"0-0\" mt=\"0\" mr=\"0\" mb=\"0\" ml=\"0\" mte=\"0\" mre=\"0\" mbe=\"0\" mle=\"0\" pt=\"0\" pr=\"0\" pb=\"0\" pl=\"0\" aright=\"0\"></div><div class=\"back\" style=\"left: 1px; top: 72px; width: 141px; height: 70px;\" info=\"back-0-1-2-1\" sort=\"1-0\" mt=\"1\" mr=\"1\" mb=\"1\" ml=\"1\" mte=\"0\" mre=\"0\" mbe=\"0\" mle=\"0\" pt=\"0\" pr=\"0\" pb=\"0\" pl=\"0\" aright=\"0\"><div class=\"mod\" style=\"left: 1px; top: 1px; width: 135px; height: 64px;\" info=\"mod-0-0-2-1\" sort=\"0-0\" mt=\"1\" mr=\"1\" mb=\"1\" ml=\"1\" mte=\"0\" mre=\"0\" mbe=\"0\" mle=\"0\" pt=\"0\" pr=\"0\" pb=\"0\" pl=\"0\" aright=\"0\"></div></div><div class=\"full\" style=\"left: 1px; top: 143px; width: 141px; height: 70px;\" info=\"full-0-2-2-1\" sort=\"2-0\" aright=\"0\" customclass=\"footer\"><div class=\"mod\" style=\"left: 1px; top: 1px; width: 135px; height: 64px;\" info=\"mod-0-0-2-1\" sort=\"0-0\" mt=\"0\" mr=\"1\" mb=\"0\" ml=\"1\" mte=\"0\" mre=\"0\" mbe=\"0\" mle=\"0\" pt=\"0\" pr=\"0\" pb=\"0\" pl=\"0\" aright=\"0\"></div></div>', '#template-3 .site { width: 1000px; margin: 0px auto; }\n						#template-3 .back-spacing { margin: 0px; border-width: 0px; }\n						#template-3 .mod-spacing { margin: 20px; border-width: 20px; }\n#template-3 #mod-0_0 { width: calc(100% - 0px);  margin-top: 0px; margin-left: 0px; margin-right: 0px; margin-top: 0px; margin-bottom: 0px; }\n#template-3 #back-1 { width: calc(100% - 0px);  margin-top: 0px; margin-left: 0px; margin-right: 0px; margin-top: 0px; margin-bottom: 0px; }\n#template-3 #mod-0_1 { width: calc(100% - 40px);  margin-left: 20px; margin-right: 20px; margin-top: 20px; margin-bottom: 20px; }\n#template-3 #full-3 {  }\n#template-3 #mod-0_2 { width: calc(100% - 40px);  margin-top: 0px; margin-left: 20px; margin-right: 20px; margin-top: 0px; margin-bottom: 0px; }\n', '<table><col style=\"width: 50%;\" /><col style=\"width: 50%;\" /><tr style=\"height: 33.333333333333%;\"><td id=\"mod-0_0\" colspan=\"2\" rowspan=\"1\"></td></tr><tr style=\"height: 33.333333333333%;\"><td id=\"mod-0_1\" colspan=\"2\" rowspan=\"1\"></td></tr><tr style=\"height: 33.333333333333%;\"><td id=\"mod-0_2\" colspan=\"2\" rowspan=\"1\"></td></tr></table>', '50,50', '0,0,0', 0, 20),

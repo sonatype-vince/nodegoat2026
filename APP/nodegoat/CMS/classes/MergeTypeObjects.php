@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -88,7 +88,6 @@ class MergeTypeObjects extends StoreTypeObjects {
 		foreach ($this->arr_merge_object_sets as $merge_object_id => $arr_merge_object_set) {
 			
 			if ($this->is_master && $this->arr_master_object_set['object']['object_name_plain']) { // Do not store: existing master values
-				
 				unset($arr_merge_object_set['object']['object_name_plain']);
 			}
 			
@@ -120,7 +119,6 @@ class MergeTypeObjects extends StoreTypeObjects {
 				$arr_master_object_sub = $this->arr_master_object_set['object_subs'][$object_sub_id]['object_sub'];
 				
 				if ($this->is_master && ($arr_master_object_sub['object_sub_date_chronology'] || $arr_master_object_sub['object_sub_location_ref_object_id'] || $arr_master_object_sub['object_sub_location_geometry'])) { // Do not store: existing master values
-					
 					$arr_merge_object_set['object_subs'][$cur_object_sub_id]['object_sub'] = ['object_sub_id' => $cur_object_sub_id, 'object_sub_details_id' => $object_sub_details_id];
 				}
 				
@@ -210,7 +208,6 @@ class MergeTypeObjects extends StoreTypeObjects {
 				}
 				
 				foreach ((array)$arr_version_users[$arr_version['object_version']] as $arr_version_user) {
-					
 					$this->addTypeObjectVersionUser($arr_collect_versions[$hash], $arr_version_user['id'], $arr_version_user['date'], $arr_version_user['system_object_id']);
 				}
 			}
@@ -273,7 +270,6 @@ class MergeTypeObjects extends StoreTypeObjects {
 					}
 					
 					foreach ((array)$arr_version_users[$arr_version['object_definition_version']] as $arr_version_user) {
-						
 						$this->addTypeObjectDescriptionVersionUser($object_description_id, $arr_collect_versions[$hash], $arr_version_user['id'], $arr_version_user['date'], $arr_version_user['system_object_id']);
 					}
 				}
@@ -454,10 +450,8 @@ class MergeTypeObjects extends StoreTypeObjects {
 							$object_sub_id = $this->addTypeObjectSubVersion($object_sub_id, $object_sub_details_id, $version, $arr_value);
 														
 							if ($arr_object_sub_details['object_sub_details']['object_sub_details_is_single']) {
-								
 								$this->arr_append_object_sub_details_ids[$object_sub_details_id] = $object_sub_id;
 							} else {
-								
 								$this->arr_append_object_sub_ids[$cur_object_sub_id] = $object_sub_id;
 							}
 							
@@ -467,7 +461,6 @@ class MergeTypeObjects extends StoreTypeObjects {
 						}
 						
 						foreach ((array)$arr_version_users[$arr_version['object_sub_version']] as $arr_version_user) {
-							
 							$this->addTypeObjectSubVersionUser($object_sub_id, $arr_collect_versions_sub[$hash], $arr_version_user['id'], $arr_version_user['date'], $arr_version_user['system_object_id']);
 						}
 					}
@@ -505,7 +498,6 @@ class MergeTypeObjects extends StoreTypeObjects {
 							}
 							
 							foreach ((array)$arr_version_users[$arr_version['object_definition_version']] as $arr_version_user) {
-								
 								$this->addTypeObjectSubDescriptionVersionUser($object_sub_id, $object_sub_description_id, $arr_collect_versions_sub_descriptions[$object_sub_description_id][$hash], $arr_version_user['id'], $arr_version_user['date'], $arr_version_user['system_object_id']);
 							}
 						}
@@ -771,7 +763,6 @@ class MergeTypeObjects extends StoreTypeObjects {
 						}
 						
 						if ($arr_object_sub['object_sub_date_span_cycle']) {
-							
 							$arr_chronology['span']['cycle_object_id'] = $this->object_id;
 						}
 
@@ -906,7 +897,7 @@ class MergeTypeObjects extends StoreTypeObjects {
 				object_sub_description_id INT DEFAULT 0,
 				type CHAR(40),
 					PRIMARY KEY (".$sql_primary_key.")
-			) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
+			) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
 			
 			INSERT INTO ".$this->table_name_referenced_objects."
 				(id, type_id, type)

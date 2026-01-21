@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -254,7 +254,7 @@ class ui_filter extends base_module {
 							</div>
 						</div>';	
 							
-			} else if ($arr_filter['value_type'] == 'int') {
+			} else if ($arr_filter['value_type'] == 'integer') {
 
 				$elm_form_elements .= '<div class="form-element" data-value-type="'.$arr_filter['value_type'].'" data-filter_id="'.$arr_filter['filter_id'].'">
 					<div class="input">'
@@ -499,9 +499,9 @@ class ui_filter extends base_module {
 						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
 						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
 
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="int"] .input { display: flex; height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="int"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="int"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="integer"] .input { display: flex; height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
+						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
 
 						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
 						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .results > p { display: none; }
@@ -543,9 +543,9 @@ class ui_filter extends base_module {
 						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
 						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
 
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="int"] .input { height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="int"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="int"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="integer"] .input { height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
+						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
 
 						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
 						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .results > p { display: none; }
@@ -594,14 +594,14 @@ class ui_filter extends base_module {
 						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > label { order: 1;  display: inline-block; height: 36px; line-height: 36px; padding: 0 15px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; background-color: #0096e4; color: #fff;}
 						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > input + label { display: none; }
 						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input:empty + label { display: none; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="int"],
+						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="integer"],
 						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] { margin-right: 5px; }
 						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] .input > label { display: none; margin: 0px; }
 						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] .input > input:checked + label { pointer-events: none; order: 2; display: inline-block; background-color: rgba(255, 255, 255, 0.6); color: #333; }
 						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] .input > input:checked + label + input + label + label,
 						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] .input > input:checked + label + label { display: inline-block; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="int"] .input > label { display: none; pointer-events: none; order: 1; margin: 0px; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="int"] .input > input { display: none; pointer-events: none; order: 2; height: 36px; width: 60px; padding: 10px; background-color: rgba(255, 255, 255, 0.6); color: #333; }
+						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="integer"] .input > label { display: none; pointer-events: none; order: 1; margin: 0px; }
+						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="integer"] .input > input { display: none; pointer-events: none; order: 2; height: 36px; width: 60px; padding: 10px; background-color: rgba(255, 255, 255, 0.6); color: #333; }
 						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .results { display: none; }
 						
 						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .date { display: inline-block; display: flex; }
@@ -636,18 +636,18 @@ class ui_filter extends base_module {
 						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > input + label > span { display: inline-block; font-family: var(--font-mono); font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
 						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > input:not(:checked) + label > span:first-child,
 						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="int"] .input,
+						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input,
 						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="int"] .input > label,
+						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > label,
 						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
 						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
 						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > label:nth-of-type(2) { }
 						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
 						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="int"] .input > label { color: rgba(0, 0, 0, 0.6);  order: 1;  }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="int"] .input > input { display: inline-block;  box-shadow: none; border: 0; border-radius: 0;  order: 3; height: 40px; width: 60px; background-color: rgba(255, 255, 255, 0.6); margin: 0; padding: 10px; box-sizing: border-box; font-size: 14px; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="int"] .input > input:hover,
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="int"] .input > input:focus { box-shadow: none; border: 0; border-radius: 0; }
+						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > label { color: rgba(0, 0, 0, 0.6);  order: 1;  }
+						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > input { display: inline-block;  box-shadow: none; border: 0; border-radius: 0;  order: 3; height: 40px; width: 60px; background-color: rgba(255, 255, 255, 0.6); margin: 0; padding: 10px; box-sizing: border-box; font-size: 14px; }
+						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > input:hover,
+						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > input:focus { box-shadow: none; border: 0; border-radius: 0; }
 						.ui nav li.project-filters.form > div > input:checked + label + div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
 						.ui nav li.project-filters.form > div > input:checked + label + div .results > p { display: none; }
 						
@@ -692,9 +692,9 @@ class ui_filter extends base_module {
 						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
 						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
 						
-						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="int"] .input { height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
-						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="int"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
-						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="int"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="integer"] .input { height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
+						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
 						
 						.ui nav.top li.project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
 						.ui nav.top li.project-filters.form > div > div .results > p { display: none; }
@@ -734,9 +734,9 @@ class ui_filter extends base_module {
 						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
 						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
 	
-						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="int"] .input { display: flex; height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
-						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="int"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
-						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="int"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="integer"] .input { display: flex; height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
+						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
 						
 						.ui nav.left li.project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); width: 40vw; max-width: 750px; }
 						.ui nav.left li.project-filters.form > div > div .results > p { display: none; }
@@ -890,9 +890,9 @@ class ui_filter extends base_module {
 						
 						value.arr_filter[filter_id] = [{boolean_value: elm_form.find('input:checked').val()}];									
 					
-					} else if (elm_form_value_type == 'int') {
+					} else if (elm_form_value_type == 'integer') {
 						
-						value.arr_filter[filter_id] = [{int: elm_form.find('input').val()}];									
+						value.arr_filter[filter_id] = [{integer: elm_form.find('input').val()}];									
 					
 					} else {
 					
@@ -1274,9 +1274,9 @@ class ui_filter extends base_module {
 				
 				foreach((array)$arr_filter_set as $arr_filter) {
 					
-					if (isset($arr_filter['int'])) {
+					if (isset($arr_filter['integer'])) {
 
-						$url_filter_set = (int)$arr_filter['int'];
+						$url_filter_set = (int)$arr_filter['integer'];
 					}
 					
 					if (isset($arr_filter['boolean_value'])) {
@@ -1697,7 +1697,8 @@ class ui_filter extends base_module {
 				
 				$collect->addFilterTypeFilters($ref_type_id, ['objects' => $arr_object_ids]); // Filter object ids => OR
 				$collect->setScope(['users' => false, 'types' => StoreCustomProject::getScopeTypes($project_id), 'project_id' => $project_id]);
-				$collect->init([$type_id => []], false);
+				$collect->setFilter([$type_id => []]);
+				$collect->init(false);
 				$arr_collect_info = $collect->getResultInfo();
 				
 

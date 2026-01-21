@@ -1,39 +1,31 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
  * See http://nodegoat.net/release for the latest version of nodegoat and its license.
  */
 
-$(document).on('documentloaded ajaxloaded', function(e) {
+/*const func_content_loaded_ng_home = function(e) {
 	
 	if (!getElement(e.detail.elm)) {
 		return;
 	}
 	
-	for (var i = 0, len = e.detail.elm.length; i < len; i++) {
+	for (let i = 0, len = e.detail.elm.length; i < len; i++) {
 		
-		var elm = $(e.detail.elm[i]);
+		const elm = $(e.detail.elm[i]);
 		
-		elm.find('.colorpicker').each(function() {
-			
-			var cur = $(this);
-			
-			if (cur[0].colorpicker) {
-				return;
-			}
-			cur[0].colorpicker = true;
-			
-			cur.wrap('<span class="input" />').minicolors({
-				theme: 'none',
-				swatchPosition: 'right'
-			});
+		runElementSelectorFunction(elm[0], '.what', function(elm_found) {
+			new What(elm_found);
 		});
 	}
-});
+};
+
+document.addEventListener('documentloaded', func_content_loaded_ng_home);
+document.addEventListener('ajaxloaded', func_content_loaded_ng_home);*/
 
 function TextTags(elm, arr_options) {
 	
@@ -467,44 +459,44 @@ var DATEPARSER = new DateParser();
 
 function TSchuifje(elm, options) {
 	
-	var obj = this;
+	var SELF = this;
 	
-	var arr_options = $.extend({
+	const arr_options = $.extend({
 		bounds: {},
 		min: false,
 		max: false,
 		call_change: false
 	}, options || {});
-			
+	
 	var elm = $(elm);
 	
 	if (!elm.hasClass('tschuifje')) {
 		elm.addClass('tschuifje');
 	}
 	
-	var elm_slider = $('<div></div>').appendTo(elm);
-	var elm_options = $('<div></div>').appendTo(elm);
+	const elm_slider = $('<div></div>').appendTo(elm);
+	const elm_options = $('<div></div>').appendTo(elm);
 	
-	var elm_button_left = $('<button type="button" class="left"><span class="icon"></span></button>').appendTo(elm_slider);
-	var elm_bar = $('<div class="bar"></div>').appendTo(elm_slider);
-	var elm_bar_inner = $('<div></div>').appendTo(elm_bar);
-	var elm_handler_left = $('<div class="handler left"></div>').appendTo(elm_bar_inner);
-	var elm_handler_left_label = $('<time>00-00-0000</time>').appendTo(elm_handler_left);
-	var elm_handler_right = $('<div class="handler right"></div>').appendTo(elm_bar_inner);
-	var elm_handler_right_label = $('<time>00-00-0000</time>').appendTo(elm_handler_right);
-	var elm_day = $('<div class="day"></div>').appendTo(elm_bar_inner);
-	var elm_day_label = $('<time>00-00-0000</time>').appendTo(elm_day);
-	var elm_button_right = $('<button type="button" class="right"><span class="icon"></span></button>').appendTo(elm_slider);
+	const elm_button_left = $('<button type="button" class="left"><span class="icon"></span></button>').appendTo(elm_slider);
+	const elm_bar = $('<div class="bar"></div>').appendTo(elm_slider);
+	const elm_bar_inner = $('<div></div>').appendTo(elm_bar);
+	const elm_handler_left = $('<div class="handler left"></div>').appendTo(elm_bar_inner);
+	const elm_handler_left_label = $('<time>00-00-0000</time>').appendTo(elm_handler_left);
+	const elm_handler_right = $('<div class="handler right"></div>').appendTo(elm_bar_inner);
+	const elm_handler_right_label = $('<time>00-00-0000</time>').appendTo(elm_handler_right);
+	const elm_day = $('<div class="day"></div>').appendTo(elm_bar_inner);
+	const elm_day_label = $('<time>00-00-0000</time>').appendTo(elm_day);
+	const elm_button_right = $('<button type="button" class="right"><span class="icon"></span></button>').appendTo(elm_slider);
 	
-	var elm_date_min = $('<input name="min" type="text" class="date" />').appendTo(elm_options);
-	var elm_date_max = $('<input name="max" type="text" class="date" />').appendTo(elm_options);
+	const elm_date_min = $('<input name="min" type="text" class="date" />').appendTo(elm_options);
+	const elm_date_max = $('<input name="max" type="text" class="date" />').appendTo(elm_options);
 	$('<span class="split"></span>').appendTo(elm_options);
-	var elm_speed_amount = $('<input name="amount" type="number" value="1" min="1" />').appendTo(elm_options);
-	var elm_speed_unit = $('<select name="unit"><option value="day">day</option><option value="week">week</option><option value="month">month</option><option value="year">year</option></select>').appendTo(elm_options);
-	var elm_play = $('<button type="button" class="play"><span class="icon"></span></button>').appendTo(elm_options);
-	var elm_speed_reverse = $('<input type="checkbox" name="reverse" value="1" />').appendTo(elm_options);
-	var elm_pause = $('<button type="button" class="pause hide"><span class="icon"></span></button>').appendTo(elm_options);
-	var elm_stop = $('<button type="button" class="stop hide"><span class="icon"></span></button>').appendTo(elm_options);
+	const elm_speed_amount = $('<input name="amount" type="number" value="1" min="1" />').appendTo(elm_options);
+	const elm_speed_unit = $('<select name="unit"><option value="day"></option><option value="week"></option><option value="month"></option><option value="year"></option></select>').appendTo(elm_options);
+	const elm_mode = $('<select name="mode"><option value="extend">|&gt;|</option><option value="extend_reverse">|&lt;|</option><option value="move">||&gt;</option><option value="move_reverse">&lt;||</option></select>').appendTo(elm_options);
+	const elm_play = $('<button type="button" class="play"><span class="icon"></span></button>').appendTo(elm_options);
+	const elm_pause = $('<button type="button" class="pause hide"><span class="icon"></span></button>').appendTo(elm_options);
+	const elm_stop = $('<button type="button" class="stop hide"><span class="icon"></span></button>').appendTo(elm_options);
 	
 	ASSETS.getIcons(elm, ['prev', 'next', 'play', 'pause', 'stop'], function(data) {
 		elm_button_left[0].children[0].innerHTML = data.prev;
@@ -514,16 +506,20 @@ function TSchuifje(elm, options) {
 		elm_stop[0].children[0].innerHTML = data.stop;
 	});
 	ASSETS.getLabels(elm,
-		['inf_tschuifje_date_min', 'inf_tschuifje_date_max', 'inf_tschuifje_speed_amount', 'inf_tschuifje_speed_unit', 'inf_tschuifje_play', 'inf_tschuifje_pause', 'inf_tschuifje_stop', 'inf_tschuifje_speed_reverse', 'inf_tschuifje_move_left', 'inf_tschuifje_move_right'],
+		['unit_day', 'unit_week', 'unit_month', 'unit_year', 'inf_tschuifje_date_min', 'inf_tschuifje_date_max', 'inf_tschuifje_speed_amount', 'inf_tschuifje_speed_unit', 'inf_tschuifje_play', 'inf_tschuifje_pause', 'inf_tschuifje_stop', 'inf_tschuifje_mode', 'inf_tschuifje_move_left', 'inf_tschuifje_move_right'],
 		function(data) {
 			elm_date_min[0].title = data.inf_tschuifje_date_min;
 			elm_date_max[0].title = data.inf_tschuifje_date_max;
 			elm_speed_amount[0].title = data.inf_tschuifje_speed_amount;
+			elm_speed_unit[0].children[0].textContent = data.unit_day;
+			elm_speed_unit[0].children[1].textContent = data.unit_week;
+			elm_speed_unit[0].children[2].textContent = data.unit_month;
+			elm_speed_unit[0].children[3].textContent = data.unit_year;
 			elm_speed_unit[0].title = data.inf_tschuifje_speed_unit;
 			elm_play[0].title = data.inf_tschuifje_play;
 			elm_pause[0].title = data.inf_tschuifje_pause;
 			elm_stop[0].title = data.inf_tschuifje_stop;
-			elm_speed_reverse[0].title = data.inf_tschuifje_speed_reverse;
+			elm_mode[0].title = data.inf_tschuifje_mode;
 			elm_button_left[0].title = data.inf_tschuifje_move_left;
 			elm_button_right[0].title = data.inf_tschuifje_move_right;
 		}
@@ -538,7 +534,7 @@ function TSchuifje(elm, options) {
 	
 	var width = elm_bar[0].offsetWidth;
 	var calc_bounds = {min: false, max: false};
-	var cur_calc_bounds = {min: false, max: false};
+	var backup_calc_bounds = {min: false, max: false};
 	var calc_min = false;
 	var calc_max = false;
 	var calc_time = false;
@@ -547,7 +543,6 @@ function TSchuifje(elm, options) {
 	var calc_one_value = false;
 	
 	var play_mode = 'size';
-	var reverse = false;
 	var is_playing = false;
 	var is_paused = false;
 	
@@ -556,9 +551,10 @@ function TSchuifje(elm, options) {
 						
 	this.update = function(arr_update) {
 		
-		var changed = false;
+		let is_changed = false;
 							
 		if (arr_update.bounds) {
+			
 			arr_settings.bounds.min = arr_update.bounds.min;
 			arr_settings.bounds.max = arr_update.bounds.max;
 			calc_bounds.min = DATEPARSER.date2Calculate(arr_settings.bounds.min);
@@ -566,7 +562,8 @@ function TSchuifje(elm, options) {
 			calc_one_perc = (calc_bounds.max - calc_bounds.min) / 100;
 			calc_one_width = width / (calc_bounds.max - calc_bounds.min);
 			calc_one_value = (calc_bounds.max - calc_bounds.min) / width;
-			var days = (calc_bounds.max - calc_bounds.min) / DATEPARSER.calc_day;
+			const days = (calc_bounds.max - calc_bounds.min) / DATEPARSER.calc_day;
+			
 			if (days > (365 * 10)) {
 				elm_speed_unit.val('year');
 			} else if (days > (365 * 2)) {
@@ -576,24 +573,30 @@ function TSchuifje(elm, options) {
 			} else {
 				elm_speed_unit.val('day');
 			}
+			
 			SCRIPTER.triggerEvent(elm_speed_unit, 'update');
-			changed = true;
+			is_changed = true;
 		}
-		if (arr_update.target) {
+		if (arr_update.target) { // Introduce temporary bounds to calculate/distribute overflow
+			
 			if (arr_update.target.min) {
-				var calc_target_min = DATEPARSER.date2Calculate(arr_update.target.min);
+				
+				const calc_target_min = DATEPARSER.date2Calculate(arr_update.target.min);
+				
 				if (calc_target_min > calc_bounds.min && calc_target_min < calc_bounds.max) {
-					cur_calc_bounds.min = calc_bounds.min;
+					backup_calc_bounds.min = calc_bounds.min;
 					calc_bounds.min = calc_target_min;
-					changed = true;
+					is_changed = true;
 				}
 			}
 			if (arr_update.target.max) {
-				var calc_target_max = DATEPARSER.date2Calculate(arr_update.target.max);
+				
+				const calc_target_max = DATEPARSER.date2Calculate(arr_update.target.max);
+				
 				if (calc_target_max < calc_bounds.max && calc_target_max > calc_bounds.min) {
-					cur_calc_bounds.max = calc_bounds.max;
+					backup_calc_bounds.max = calc_bounds.max;
 					calc_bounds.max = calc_target_max;
-					changed = true;
+					is_changed = true;
 				}
 			}
 		}
@@ -607,12 +610,12 @@ function TSchuifje(elm, options) {
 		if (arr_update.min) {
 			arr_settings.min = arr_update.min;
 			calc_min = DATEPARSER.date2Calculate(arr_settings.min);
-			changed = true;
+			is_changed = true;
 		}
 		if (arr_update.max) {
 			arr_settings.max = arr_update.max;
 			calc_max = DATEPARSER.date2Calculate(arr_settings.max);
-			changed = true;
+			is_changed = true;
 		}
 		
 		if (arr_update.move) {
@@ -690,33 +693,39 @@ function TSchuifje(elm, options) {
 			}
 	
 			if (amount > 0 || mode == 'set') {
+				
 				calc_max = calc_new;
+				
 				if (calc_new > calc_bounds.max) {
+					
 					calc_max = calc_bounds.max;
-					if (!(arr_update.target && arr_update.target.max)) { // Add excess time to the other side
+					if (!(arr_update.target && arr_update.target.max)) { // Add excess time to the other side (when there is no target)
 						calc_min = calc_min - (calc_new - calc_bounds.max);
 					}
 				}
 			} else {
+				
 				calc_min = calc_new;
+				
 				if (calc_new < calc_bounds.min) {
+					
 					calc_min = calc_bounds.min;
-					if (!(arr_update.target && arr_update.target.min)) { // Add excess time to the other side
+					if (!(arr_update.target && arr_update.target.min)) { // Add excess time to the other side (when there is no target)
 						calc_max = calc_max + (calc_bounds.min - calc_new);
 					}
 				}
 			}
 			
-			changed = true;
+			is_changed = true;
 		}
 		
-		if (cur_calc_bounds.min) {
-			calc_bounds.min = cur_calc_bounds.min;
-			cur_calc_bounds.min = false;
+		if (backup_calc_bounds.min) {
+			calc_bounds.min = backup_calc_bounds.min;
+			backup_calc_bounds.min = false;
 		}
-		if (cur_calc_bounds.max) {
-			calc_bounds.max = cur_calc_bounds.max;
-			cur_calc_bounds.max = false;
+		if (backup_calc_bounds.max) {
+			calc_bounds.max = backup_calc_bounds.max;
+			backup_calc_bounds.max = false;
 		}
 		
 		if (arr_update.time !== undefined) {
@@ -729,7 +738,7 @@ function TSchuifje(elm, options) {
 				play_mode = 'time';
 				elm_day.removeClass('hide');
 				
-				changed = true;
+				is_changed = true;
 			} else {
 				
 				if (is_playing && !is_paused) {
@@ -740,7 +749,7 @@ function TSchuifje(elm, options) {
 						calc_time = calc_min;
 					}
 					
-					changed = true;
+					is_changed = true;
 				}
 			}
 		}
@@ -761,15 +770,24 @@ function TSchuifje(elm, options) {
 			if (arr_update.dating.amount) {
 				arr_settings.dating.amount = arr_update.dating.amount;
 				elm_speed_amount.val(arr_settings.dating.amount);
-				if (reverse) {
-					arr_settings.dating.amount = -arr_settings.dating.amount;
-				}
 				func_dating_speed();
 			}
 		}
 		
 		if (arr_update.player !== undefined) {
 			
+			if (arr_update.player.mode) {
+				if (arr_update.player.mode == 'move' || arr_update.player.mode == 'move_reverse') {
+					arr_size_change.mode = 'move';
+				} else {
+					arr_size_change.mode = 'extend';
+				}
+				if (arr_update.player.mode == 'extend_reverse' || arr_update.player.mode == 'move_reverse') {
+					arr_size_change.reverse = true;
+				} else {
+					arr_size_change.reverse = false;
+				}
+			}
 			if (arr_update.player.action) {
 				
 				var action = arr_update.player.action;
@@ -781,7 +799,7 @@ function TSchuifje(elm, options) {
 					elm_pause.removeClass('hide');
 					elm_stop.removeClass('hide');
 					elm_play.addClass('hide');
-					elm_speed_reverse.addClass('hide');
+					elm_mode.addClass('hide');
 					is_playing = true;
 					is_paused = false;
 				}
@@ -798,25 +816,14 @@ function TSchuifje(elm, options) {
 						arr_size_change.func_stop(true);
 					} else {
 						calc_time = calc_min;
-						changed = true;
+						is_changed = true;
 					}			
 					func_player_stop();
 				}
 			}
-			if (arr_update.player.reverse !== undefined) {
-				
-				reverse = arr_update.player.reverse;
-			
-				arr_settings.dating.amount = Math.abs(arr_settings.dating.amount);
-				if (reverse) {
-					arr_settings.dating.amount = -arr_settings.dating.amount;
-				}
-				
-				func_dating_speed();
-			}
 		}
 		
-		if (changed) {
+		if (is_changed) {
 			func_change();
 		}
 		func_draw();
@@ -989,27 +996,46 @@ function TSchuifje(elm, options) {
 		elm_pause.addClass('hide');
 		elm_stop.addClass('hide');
 		elm_play.removeClass('hide');
-		elm_speed_reverse.removeClass('hide');
+		elm_mode.removeClass('hide');
 		is_playing = false;
 		is_paused = false;
 	};
 	
-	var arr_size_change = {poller: new PollingBuffer(40), arr_update: {size: {day: 0, mode: 'add'}, target: {min: false, max: false}}, speed_sec: false, min: false, max: false,
+	var arr_size_change = {poller: new PollingBuffer(40), arr_update: {move : null, size: null, target: null}, mode: 'extend', reverse: false, speed_sec: false, min: false, max: false, target: {min: false, max: false},
 		func_run: function(reset) {
 		
 			arr_size_change.func_stop();
 			
 			if (!arr_size_change.min || reset) {
-				
-				arr_size_change.min = arr_settings.min;
-				arr_size_change.max = arr_settings.max;
-				arr_size_change.arr_update.target.min = arr_settings.min;
-				arr_size_change.arr_update.target.max = arr_settings.max;
-				
-				if (arr_settings.dating.amount > 0) {
-					obj.update({max: arr_settings.min});
+								
+				arr_size_change.arr_update.move = null;
+				arr_size_change.arr_update.size = null;
+
+				if (arr_size_change.mode == 'move') {
+					
+					arr_size_change.min = arr_settings.min;
+					arr_size_change.max = arr_settings.max;
+					arr_size_change.target.min = arr_settings.bounds.min;
+					arr_size_change.target.max = arr_settings.bounds.max;
+					
+					arr_size_change.arr_update.target = arr_size_change.target;
+					arr_size_change.arr_update.move = {day: 0};
 				} else {
-					obj.update({min: arr_settings.max});
+					
+					arr_size_change.min = arr_settings.min;
+					arr_size_change.max = arr_settings.max;
+					arr_size_change.target.min = arr_settings.min;
+					arr_size_change.target.max = arr_settings.max;
+
+					// Collapse date to start
+					if (arr_size_change.reverse) {
+						SELF.update({min: arr_settings.max});
+					} else {
+						SELF.update({max: arr_settings.min});
+					}
+					
+					arr_size_change.arr_update.target = arr_size_change.target;
+					arr_size_change.arr_update.size = {day: 0, mode: 'add'};
 				}
 			}
 										
@@ -1027,11 +1053,16 @@ function TSchuifje(elm, options) {
 				if (arr_size_change.speed_sec >= 1) {
 					
 					var size = Math.floor(arr_size_change.speed_sec);
-					arr_size_change.arr_update.size.day = (arr_settings.dating.amount < 0 ? -size : size);
 					
-					obj.update(arr_size_change.arr_update);
+					if (arr_size_change.mode == 'move') {
+						arr_size_change.arr_update.move.day = (arr_size_change.reverse ? -size : size);
+					} else {
+						arr_size_change.arr_update.size.day = (arr_size_change.reverse ? -size : size);
+					}
+					
+					SELF.update(arr_size_change.arr_update);
 																																
-					if ((arr_settings.dating.amount > 0 && arr_settings.max >= arr_size_change.max) || (arr_settings.dating.amount < 0 && arr_settings.min <= arr_size_change.min)) {
+					if ((!arr_size_change.reverse && arr_settings.max >= arr_size_change.target.max) || (arr_size_change.reverse && arr_settings.min <= arr_size_change.target.min)) {
 						
 						arr_size_change.func_stop();
 						func_player_stop();
@@ -1046,7 +1077,7 @@ function TSchuifje(elm, options) {
 				arr_size_change.poller.stop();
 			}
 			if (arr_size_change.min && reset) {
-				obj.update({min: arr_size_change.min, max: arr_size_change.max});
+				SELF.update({min: arr_size_change.min, max: arr_size_change.max});
 			}
 		}
 	};
@@ -1067,7 +1098,7 @@ function TSchuifje(elm, options) {
 	
 	// Initialise
 	
-	obj.update(arr_options);
+	SELF.update(arr_options);
 
 	// Listeners
 	
@@ -1198,7 +1229,7 @@ function TSchuifje(elm, options) {
 		
 		var arr_update = {move: {}};
 		arr_update.move[arr_settings.dating.unit] = dating_amount;
-		obj.update(arr_update);
+		SELF.update(arr_update);
 		
 		var timeout = false;
 		var count = 0;
@@ -1208,7 +1239,7 @@ function TSchuifje(elm, options) {
 			count++;
 			
 			timeout = setTimeout(function() {
-				obj.update(arr_update);
+				SELF.update(arr_update);
 				func_timer();
 			}, timer);
 		};
@@ -1244,10 +1275,10 @@ function TSchuifje(elm, options) {
 	var removeListeners = false;
 	
 	elm_date_min.on('change', function(e) {
-		obj.update({min: DATEPARSER.int2Date(DATEPARSER.strDate2Int(elm_date_min.val()))});
+		SELF.update({min: DATEPARSER.int2Date(DATEPARSER.strDate2Int(elm_date_min.val()))});
 	});
 	elm_date_max.on('change', function(e) {
-		obj.update({max: DATEPARSER.int2Date(DATEPARSER.strDate2Int(elm_date_max.val()))});
+		SELF.update({max: DATEPARSER.int2Date(DATEPARSER.strDate2Int(elm_date_max.val()))});
 	});
 	
 	elm_speed_amount.on('change update', function(e) {
@@ -1256,23 +1287,23 @@ function TSchuifje(elm, options) {
 			amount = 1;
 			elm_speed_amount.val(amount);
 		}
-		obj.update({dating: {amount: amount}});
+		SELF.update({dating: {amount: amount}});
 	});
 	elm_speed_unit.on('change update', function(e) {
-		obj.update({dating: {unit: elm_speed_unit.val()}});
+		SELF.update({dating: {unit: elm_speed_unit.val()}});
 	});
 	
+	elm_mode.on('change update', function(e) {
+		SELF.update({player: {mode: elm_mode.val()}});
+	});
 	elm_play.on('click', function(e) {
-		obj.update({player: {action: 'play'}});
+		SELF.update({player: {action: 'play'}});
 	});
 	elm_pause.on('click', function(e) {
-		obj.update({player: {action: 'pause'}});
+		SELF.update({player: {action: 'pause'}});
 	});
 	elm_stop.on('click', function(e) {
-		obj.update({player: {action: 'stop'}});
-	});
-	elm_speed_reverse.on('change', function(e) {
-		obj.update({player: {reverse: elm_speed_reverse.is(':checked')}});
+		SELF.update({player: {action: 'stop'}});
 	});
 	
 	new ResizeSensor(elm, function() {
@@ -1516,8 +1547,7 @@ function UISelection() {
 		var elm_button_remove_selection = $('<button class="remove-selection" value="" type="button" title="Remove selection"><span class="icon">'+ arr_server_data.icons['close'] +'</span></button>').appendTo(elm_options);
 		var elm_button_bookify_selection = $('<button class="bookify-selection" value="" type="button" title="Generate formatted PDF from selection"><span class="icon">'+ arr_server_data.icons['print'] +'</span></button>').appendTo(elm_options);
 		var elm_button_url_selection = $('<button class="url-selection" value="" type="button" title="Get selection URL"><span class="icon">'+ arr_server_data.icons['link'] +'</span></button>').appendTo(elm_options);
-		var elm_button_share_selection = $('<button class="share-selection" value="" type="button" title="Share selection"><span class="icon">'+ arr_server_data.icons['users'] +'</span></button>').appendTo(elm_options);
-		var elm_url_share_container = $('<span></span>').appendTo(elm_options);
+		var elm_url_container = $('<span></span>').appendTo(elm_options);
 		
 		elm_options.on('click', 'button', function() {
 			
@@ -1541,12 +1571,9 @@ function UISelection() {
 				
 			} else if (cur.hasClass('url-selection')) {
 				
-				func_get_selection_url(selection_id, false);
+				func_get_selection_url(selection_id);
 				
-			} else if (cur.hasClass('share-selection')) {
-				
-				func_get_selection_url(selection_id, true);
-			}
+			} 
 		});		
 	}
 	
@@ -1748,21 +1775,22 @@ function UISelection() {
 			var elm_id = cur.closest('[data-elm_id]').attr('data-elm_id');
 						
 			var arr_selection = func_get_selection(selection_id);
-					
+			
+			var value = cur.val().replace(/[!@#$%^&*_|+\-'\"<>\{\}\[\]\\\/]/gi, ' ');
+				
 			if (cur.is('[name=selection_title]')) {
-				
-				cur.closest('.selections-container').find('h1').html(cur.val());
-				
-				arr_selection['selection_title'] = cur.val();
+
+				cur.closest('.selections-container').find('h1').html(value);
+				arr_selection['selection_title'] = value;
 				
 			} else if (cur.is('[name=selection_editor]')) {
-				arr_selection['selection_editor'] = cur.val();
+				arr_selection['selection_editor'] = value;
 			} else if (cur.is('[name=selection_notes]')) {
-				arr_selection['selection_notes'] = cur.val();
+				arr_selection['selection_notes'] = value;
 			} else if (cur.is('[name=selection_elm_heading]')) {
-				arr_selection['elements'][elm_id]['elm_heading'] = cur.val();
+				arr_selection['elements'][elm_id]['elm_heading'] = value;
 			} else if (cur.is('[name=selection_elm_notes]')) {
-				arr_selection['elements'][elm_id]['elm_notes'] = cur.val();
+				arr_selection['elements'][elm_id]['elm_notes'] = value;
 			}
 			
 			func_store_selection(selection_id, arr_selection);
@@ -1966,7 +1994,7 @@ function UISelection() {
 		func_list_selections();	
 	}
 	
-	var func_get_selection_url = function(selection_id, share) {
+	var func_get_selection_url = function(selection_id) {
 
 		var arr_external_selections = func_get_selection_ids(true);
 
@@ -1995,37 +2023,8 @@ function UISelection() {
 			
 			var url = arr_data['url'];
 			var elm_target = obj.elm_list_container.find('menu > span').empty();
-			
-			if (share) {
-				
-				if (elm_target.hasClass('share')) {
-					elm_target.removeClass('share');
-					return;
-				} else {
-					elm_target.removeClass('url').addClass('share');
-				}
-				
-				var arr_shares = arr_data['arr_shares'];
-				
-				for (var i = 0; i < arr_shares.length; i++) {
-					
-					var arr_share = arr_shares[i];
-					var elm_icon = (arr_share['icon_class'] ? '<span class="' + arr_share['icon_class'] + '"></span>' : '<span class="icon">'+ arr_server_data.icons['email'] +'</span>'); 
-					var elm_share_button = $('<button value="" type="button" data-href="' + arr_share['share_url'] + url + '" title="' + arr_share['share_name'] + '">' + elm_icon + '</button>').appendTo(elm_target);
-				}
-				
-			} else {
-				
-				if (elm_target.hasClass('url')) {
-					elm_target.removeClass('url');
-					return;
-				} else {
-					elm_target.removeClass('share').addClass('url');
-				}
-				
-				var elm_input = $('<input type="text" value="' + url + '">').appendTo(elm_target).select();
-			}
-						
+			var elm_input = $('<input type="text" value="' + url + '">').appendTo(elm_target).select();
+		
 		});
 	}
 	
@@ -2035,8 +2034,8 @@ function UISelection() {
 		
 		if (new_external_selection_id) {
 			
-			var new_external_selection_title = obj.elm_list_container.attr('data-new_external_selection_title');
-			
+			var new_external_selection_title = obj.elm_list_container.attr('data-new_external_selection_title').replace(/[!@#$%^&*_|+\-'\"<>\{\}\[\]\\\/]/gi, ' ');
+
 			if (localStorage['pui_'+obj.public_user_interface_id+'_external_selections']) {
 				
 				var arr_external_selections = JSON.parse(localStorage['pui_'+obj.public_user_interface_id+'_external_selections']);

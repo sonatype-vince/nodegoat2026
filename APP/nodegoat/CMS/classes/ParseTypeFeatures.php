@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -32,8 +32,9 @@ class ParseTypeFeatures {
 					continue;
 				}
 				
-				$condition_filter = ($arr_condition_setting['condition_filter'] ? json_decode($arr_condition_setting['condition_filter'], true) : '');
-				$condition_scope = ($arr_condition_setting['condition_scope'] ? json_decode($arr_condition_setting['condition_scope'], true) : '');
+				$condition_filter = ($arr_condition_setting['condition_filter'] ? JSON2Value($arr_condition_setting['condition_filter']) : null);
+				$condition_scope = static::parseSettingAdvancedInput($arr_condition_setting['condition_scope'], ',');
+				$condition_function = static::parseSettingAdvancedInput($arr_condition_setting['condition_function'], ',');
 				$condition_actions = [];
 				
 				foreach ($arr_condition_actions as $action => $arr_action) {
@@ -44,40 +45,45 @@ class ParseTypeFeatures {
 					
 					foreach ($arr_action['value'] as $value) {
 						
-						$type = (is_array($value) ? $value['type'] : $value);
+						$str_type = $value;
+						$str_name = $str_type;
+						
+						if (is_array($value)) {
+							$str_type = $value['type'];
+							$str_name = ($value['name'] ?: $str_type);
+						}
+						
 						$return = null;
 						
-						switch ($type) {
+						switch ($str_type) {
 							case 'emphasis':
-								$return = array_filter(array_values($arr_condition_setting['condition_actions'][$action][$type]));
+								$return = array_filter(array_values($arr_condition_setting['condition_actions'][$action][$str_name]));
 								break;
 							case 'color':
-								$return = str2Color($arr_condition_setting['condition_actions'][$action][$type]);
+								$return = str2Color($arr_condition_setting['condition_actions'][$action][$str_name]);
 								break;
 							case 'regex':
 							
-								$arr_regex = $arr_condition_setting['condition_actions'][$action][$type];
+								$arr_regex = $arr_condition_setting['condition_actions'][$action][$str_name];
 								$return = parseRegularExpression($arr_regex['pattern'], $arr_regex['flags'], $arr_regex['template'], true);
 								
 								break;
 							case 'image':
 							
 								$return = '';
-								$url = $arr_condition_setting['condition_actions'][$action][$type]['url'];
+								$url = $arr_condition_setting['condition_actions'][$action][$str_name]['url'];
 								
 								if ($url) {
 									
 									if (isPath(DIR_HOME_CUSTOM_PROJECT_WORKSPACE.$url)) {
-										
 										$return = $url;
 									}
-								} else if ($arr_files[$key]['name']['condition_actions'][$action][$type]['file']) {
+								} else if ($arr_files[$key]['name']['condition_actions'][$action][$str_name]['file']) {
 									
 									$arr_file = $arr_files[$key];
 									
 									foreach ($arr_file as $key_file => $value_file) {
-										
-										$arr_file[$key_file] = $value_file['condition_actions'][$action][$type]['file'];
+										$arr_file[$key_file] = $value_file['condition_actions'][$action][$str_name]['file'];
 									}
 									
 									$str_path_file = $arr_file['tmp_name'];
@@ -90,7 +96,7 @@ class ParseTypeFeatures {
 									if ($str_extension != 'svg') {
 										
 										Labels::setVariable('type', 'svg');
-										error(getLabel('msg_invalid_file_type_specific'));
+										error(getLabel('msg_invalid_file_type_specific'), TROUBLE_ERROR, LOG_BOTH, $arr_file['name']);
 									}
 									
 									$str_filename = hash_file('md5', $str_path_file);
@@ -104,14 +110,14 @@ class ParseTypeFeatures {
 								}
 								break;
 							default:
-								$return = $arr_condition_setting['condition_actions'][$action][$type];
+								$return = $arr_condition_setting['condition_actions'][$action][$str_name];
 						}
 						
 						if ($return === '' || $return === false || $return === null || $return === []) {
 							continue;
 						}
 						
-						$condition_actions[$action][$type] = $return;
+						$condition_actions[$action][$str_name] = $return;
 					}
 				}
 				
@@ -121,6 +127,7 @@ class ParseTypeFeatures {
 
 				$arr_condition_setting_clean = [
 					'condition_filter' => $condition_filter,
+					'condition_function' => $condition_function,
 					'condition_scope' => $condition_scope,
 					'condition_actions' => $condition_actions,
 					'condition_in_object_name' => (bool)$arr_condition_setting['condition_in_object_name'],
@@ -160,7 +167,7 @@ class ParseTypeFeatures {
 						if ($arr_condition_setting['id'] == $str_id) {
 							$arr_condition['object_sub_details'][$object_sub_details_id]['object_sub_descriptions'][$object_sub_description_id][] = $arr_condition_setting_clean;
 							break;
-						}					
+						}
 					}				
 				}
 			}
@@ -171,15 +178,27 @@ class ParseTypeFeatures {
 			$num_count_conditions = 0;
 			$str_prefix = value2Hash($arr_condition); // Create a stable and reinitiable (scenario-cacheable) but unique identifier
 			
+			$func_check_identifier = function(&$arr_condition_setting) use ($str_prefix, &$num_count_conditions) {
+				
+				$num_count_conditions++;
+					
+				if (isset($arr_condition_setting['condition_identifier'])) {
+					return;
+				}
+				
+				$str_identifier = $arr_condition_setting['condition_label'];
+				
+				if (!$str_identifier || $arr_condition_setting['condition_function']) { // If containing function, do also not group by possible label
+					$str_identifier = $str_prefix.$num_count_conditions;
+				}
+				
+				$arr_condition_setting['condition_identifier'] = $str_identifier;
+			};
+			
 			if ($arr_condition['object']) {
 				
 				foreach ($arr_condition['object'] as &$arr_condition_setting) {
-					
-					$num_count_conditions++;
-					
-					if (!isset($arr_condition_setting['condition_identifier'])) {
-						$arr_condition_setting['condition_identifier'] = ($arr_condition_setting['condition_label'] ?: $str_prefix.$num_count_conditions);
-					}
+					$func_check_identifier($arr_condition_setting);
 				}
 			}
 			
@@ -188,12 +207,7 @@ class ParseTypeFeatures {
 				foreach ($arr_condition['object_descriptions'] as $object_description_id => &$arr_condition_settings) {
 					
 					foreach ($arr_condition_settings as &$arr_condition_setting) {
-						
-						$num_count_conditions++;
-						
-						if (!isset($arr_condition_setting['condition_identifier'])) {
-							$arr_condition_setting['condition_identifier'] = ($arr_condition_setting['condition_label'] ?: $str_prefix.$num_count_conditions);
-						}
+						$func_check_identifier($arr_condition_setting);
 					}
 				}
 			}
@@ -205,12 +219,7 @@ class ParseTypeFeatures {
 					if ($arr_condition_object_sub_details['object_sub_details']) {
 						
 						foreach ($arr_condition_object_sub_details['object_sub_details'] as &$arr_condition_setting) {
-					
-							$num_count_conditions++;
-							
-							if (!isset($arr_condition_setting['condition_identifier'])) {
-								$arr_condition_setting['condition_identifier'] = ($arr_condition_setting['condition_label'] ?: $str_prefix.$num_count_conditions);
-							}
+							$func_check_identifier($arr_condition_setting);
 						}
 					}
 					
@@ -221,12 +230,7 @@ class ParseTypeFeatures {
 					foreach ($arr_condition_object_sub_details['object_sub_descriptions'] as $object_sub_description_id => &$arr_condition_settings) {
 
 						foreach ($arr_condition_settings as &$arr_condition_setting) {
-							
-							$num_count_conditions++;
-							
-							if (!isset($arr_condition_setting['condition_identifier'])) {
-								$arr_condition_setting['condition_identifier'] = ($arr_condition_setting['condition_label'] ?: $str_prefix.$num_count_conditions);
-							}
+							$func_check_identifier($arr_condition_setting);
 						}
 					}
 				}
@@ -294,7 +298,7 @@ class ParseTypeFeatures {
 		
 		$arr_label = Labels::parseNamespace($arr_condition_setting['condition_label']);
 		
-		if ($arr_label === false) {
+		if ($arr_label === null) {
 			return $arr_condition_setting;
 		}
 		
@@ -305,9 +309,9 @@ class ParseTypeFeatures {
 				$arr_condition_setting['condition_label'] = $arr_label['label']; // Return label without namespace
 				
 				return $arr_condition_setting;
-			} else {
-				return false;
 			}
+			
+			return false;
 		}
 
 		return $arr_condition_setting;
@@ -412,8 +416,8 @@ class ParseTypeFeatures {
 			'add_text_prefix' => ['id' => 'add_text_prefix', 'name' => getLabel('lbl_prefix').' '.getLabel('lbl_text'), 'value' => ['value', ['type' => 'check', 'info' => getLabel('inf_override_default_or_previous')]]],
 			'add_text_affix' => ['id' => 'add_text_affix', 'name' => getLabel('lbl_affix').' '.getLabel('lbl_text'), 'value' => ['value', ['type' => 'check', 'info' => getLabel('inf_override_default_or_previous')]]],
 			'regex_replace' => ['id' => 'regex_replace', 'name' => getLabel('lbl_regular_expression'), 'value' => [['type' => 'regex', 'info' => getLabel('inf_regular_expression_replace')], ['type' => 'check', 'info' => getLabel('inf_override_default_or_previous')]]],
-			'color' => ['id' => 'color', 'name' => getLabel('lbl_highlight_color'), 'value' => ['color', ['type' => 'check', 'info' => getLabel('inf_add_to_previous')]]],
-			'weight' => ['id' => 'weight', 'name' => getLabel('lbl_weight').' ('.getLabel('lbl_multiply').')', 'value' => ['number', ['type' => 'number_use_object_description_id', 'info' => getLabel('lbl_multiply_with').' '.getLabel('lbl_object_description')], ['type' => 'number_use_object_analysis_id', 'info' => getLabel('lbl_multiply_with').' '.getLabel('lbl_analysis')], ['type' => 'check', 'info' => getLabel('inf_add_to_previous')]]],
+			'color' => ['id' => 'color', 'name' => getLabel('lbl_highlight_color'), 'value' => [['type' => 'color', 'option_alpha' => true], ['type' => 'color', 'name' => 'color_secondary', 'option_alpha' => true, 'info' => getLabel('inf_condition_color_secondary')], ['type' => 'check', 'info' => getLabel('inf_add_to_previous')]]],
+			'weight' => ['id' => 'weight', 'name' => getLabel('lbl_weight'), 'value' => ['number', ['type' => 'number_use_object_description_id', 'info' => getLabel('lbl_multiply_with').' '.getLabel('lbl_object_description')], ['type' => 'number_use_object_analysis_id', 'info' => getLabel('lbl_multiply_with').' '.getLabel('lbl_analysis')], ['type' => 'check', 'info' => getLabel('inf_add_to_previous')]]],
 			'remove' => ['id' => 'remove', 'name' => getLabel('lbl_remove').' '.getLabel('lbl_value'), 'value' => ['check']],
 			'geometry_color' => ['id' => 'geometry_color', 'name' => getLabel('lbl_geometry').' '.getLabel('lbl_color'), 'value' => ['color', 'opacity']],
 			'geometry_stroke_color' => ['id' => 'geometry_stroke_color', 'name' => getLabel('lbl_geometry').' '.getLabel('lbl_stroke_color'), 'value' => ['color', 'opacity']],
@@ -499,15 +503,20 @@ class ParseTypeFeatures {
 				'geo_display' => $arr_settings_use['settings']['geo_display'],
 				'geo_advanced' => $arr_settings_use['settings']['geo_advanced'],
 				'social_dot_color' => $arr_settings_use['social']['dot']['color'],
+				'social_dot_opacity' => $arr_settings_use['social']['dot']['opacity'],
 				'social_dot_size_min' => $arr_settings_use['social']['dot']['size']['min'],
 				'social_dot_size_max' => $arr_settings_use['social']['dot']['size']['max'],
 				'social_dot_size_start' => $arr_settings_use['social']['dot']['size']['start'],
 				'social_dot_size_stop' => $arr_settings_use['social']['dot']['size']['stop'],
 				'social_dot_stroke_color' => $arr_settings_use['social']['dot']['stroke_color'],
+				'social_dot_stroke_opacity' => $arr_settings_use['social']['dot']['stroke_opacity'],
 				'social_dot_stroke_width' => $arr_settings_use['social']['dot']['stroke_width'],
 				'social_label_show' => $arr_settings_use['social']['label']['show'],
 				'social_label_threshold' => $arr_settings_use['social']['label']['threshold'],
 				'social_label_condition' => $arr_settings_use['social']['label']['condition'],
+				'social_label_color' => $arr_settings_use['social']['label']['color'],
+				'social_label_opacity' => $arr_settings_use['social']['label']['opacity'],
+				'social_label_size' => $arr_settings_use['social']['label']['size'],
 				'social_line_show' => $arr_settings_use['social']['line']['show'],
 				'social_line_color' => $arr_settings_use['social']['line']['color'],
 				'social_line_opacity' => $arr_settings_use['social']['line']['opacity'],
@@ -597,7 +606,7 @@ class ParseTypeFeatures {
 			'line' => [
 				'show' => (int)((string)$arr_settings['line_show'] !== '' ? (bool)$arr_settings['line_show'] : true),
 				'color' => ($arr_settings['line_color'] ?: ''),
-				'opacity' => (float)($arr_settings['line_opacity'] ?: 1),
+				'opacity' => (float)($arr_settings['line_opacity'] ?: 0.8),
 				'width' =>  ['min' => (float)($arr_settings['line_width_min'] ?: 2), 'max' => (float)($arr_settings['line_width_max'] ?: 10)],
 				'offset' => (int)((string)$arr_settings['line_offset'] !== '' ? $arr_settings['line_offset'] : 6)
 			],
@@ -632,14 +641,19 @@ class ParseTypeFeatures {
 			'social' => [
 				'dot' => [
 					'color' => ($arr_settings['social_dot_color'] ?: '#ffffff'),
+					'opacity' => (float)((string)$arr_settings['social_dot_opacity'] !== '' ? $arr_settings['social_dot_opacity'] : 1),
 					'size' => ['min' => (float)($arr_settings['social_dot_size_min'] ?: 6), 'max' => (float)($arr_settings['social_dot_size_max'] ?: 40), 'start' => ((int)$arr_settings['social_dot_size_start'] ?: ''), 'stop' => ((int)$arr_settings['social_dot_size_stop'] ?: '')],
 					'stroke_color' => ($arr_settings['social_dot_stroke_color'] ?: '#aaaaaa'),
+					'stroke_opacity' => (float)($arr_settings['social_dot_stroke_opacity'] ?: 1),
 					'stroke_width' => (float)((string)$arr_settings['social_dot_stroke_width'] !== '' ? $arr_settings['social_dot_stroke_width'] : 1)
 				],
 				'label' => [
 					'show' => (int)((string)$arr_settings['social_label_show'] !== '' ? (bool)$arr_settings['social_label_show'] : true),
 					'threshold' => (float)((string)$arr_settings['social_label_threshold'] !== '' ? $arr_settings['social_label_threshold'] : 0.1),
-					'condition' => ($arr_settings['social_label_condition'] ?: '')
+					'condition' => ($arr_settings['social_label_condition'] ?: ''),
+					'color' => ($arr_settings['social_label_color'] ?: '#000000'),
+					'opacity' => (float)($arr_settings['social_label_opacity'] ?: 1),
+					'size' => (float)($arr_settings['social_label_size'] ?: 12)
 				],
 				'line' => [
 					'show' => (int)((string)$arr_settings['social_line_show'] !== '' ? (bool)$arr_settings['social_line_show'] : true),
@@ -656,7 +670,7 @@ class ParseTypeFeatures {
 				],
 				'forceatlas2' => [
 					'lin_log_mode' => (bool)(isset($arr_settings['social_forceatlas2']['lin_log_mode']) ? $arr_settings['social_forceatlas2']['lin_log_mode'] : false),
-					'outbound_attraction_distribution' => (bool)(isset($arr_settings['social_forceatlas2']['outbound_attraction_distribution']) ? $arr_settings['social_forceatlas2']['outbound_attraction_distribution'] : true),
+					'outbound_attraction_distribution' => (bool)(isset($arr_settings['social_forceatlas2']['outbound_attraction_distribution']) ? $arr_settings['social_forceatlas2']['outbound_attraction_distribution'] : false),
 					'adjust_sizes' => (bool)(isset($arr_settings['social_forceatlas2']['adjust_sizes']) ? $arr_settings['social_forceatlas2']['adjust_sizes'] : false),
 					'edge_weight_influence' => (float)((string)$arr_settings['social_forceatlas2']['edge_weight_influence'] !== '' ? $arr_settings['social_forceatlas2']['edge_weight_influence'] : 0),
 					'scaling_ratio' => (float)($arr_settings['social_forceatlas2']['scaling_ratio'] ?: 1),
@@ -719,15 +733,15 @@ class ParseTypeFeatures {
 		return $arr;
 	}
 	
-	public static function parseVisualSettingsInputAdvanced($value) {
+	public static function parseSettingAdvancedInput($value, $str_separator = EOL_1100CC) {
+
+		if (!$value) {
+			return null;
+		}
 		
 		$arr = [];
 		
-		if (!$value) {
-			return $arr;
-		}
-		
-		$arr_settings = explode(PHP_EOL, $value);
+		$arr_settings = explode($str_separator, $value);
 			
 		foreach ($arr_settings as $value) {
 			
@@ -740,20 +754,37 @@ class ParseTypeFeatures {
 			$key_setting = trim(substr($value, 0, $num_pos));
 			$value_setting = trim(substr($value, $num_pos + 1));
 			
-			if ($key_setting && $value_setting != '') {
+			if ($value_setting === 'true' || $value_setting === 'false' || $value_setting === 'null') {
+				$value_setting = ($value_setting === 'true' ? true : ($value_setting === 'false' ? false : null));
+			}
+			
+			if ($key_setting !== '' && $value_setting !== '') {
 				$arr[$key_setting] = $value_setting;
 			}
+		}
+		
+		if (!$arr) {
+			return null;
 		}
 		
 		return $arr;
 	}
 	
-	public static function parseVisualSettingsOutputAdvanced($arr) {
+	public static function parseSettingAdvancedOutput($arr, $str_separator = EOL_1100CC) {
+		
+		if (!$arr) {
+			return '';
+		}
 		
 		$str = '';
 		
 		foreach ($arr as $key => $value) {
-			$str .= $key.':'.$value.PHP_EOL;
+			
+			if ($value === true || $value === false || $value === null) {
+				$value = ($value === true ? 'true' : ($value === false ? 'false' : 'null'));
+			}
+			
+			$str .= ($str !== '' ? $str_separator : '').$key.':'.$value;
 		}
 		
 		return $str;
@@ -775,27 +806,30 @@ class ParseTypeFeatures {
 		return $arr_collect;
 	}
 	
-	public static function parseTypeAnalysis($type_id, $arr, $num_user_clearance = 0) {
+	public static function parseTypeAnalysis($type_id, $arr, $user_id, $project_id, $num_user_clearance = 0) {
 		
 		$arr = ($arr ?? []);
 		$arr_collect = [];
 		
-		$algorithm = $arr['algorithm'];
+		$str_algorithm = $arr['algorithm'];
 		
-		if (!$algorithm) {
+		if (!$str_algorithm) {
 			return $arr_collect;
 		}
 		
+		$analyse = new AnalyseTypeObjects($user_id, $project_id);
+		$arr_algorithm = $analyse->getAlgorithms($str_algorithm);
+		
 		$arr_scope = StoreType::parseTypeNetwork($arr['scope'], false, $num_user_clearance);
 		
-		if (!$arr_scope['paths'] && !$arr_scope['types']) {
+		if (!$arr_algorithm['disconnected'] && !$arr_scope['paths'] && !$arr_scope['types']) {
 			return $arr_collect;
 		}
 		
 		if ($arr['algorithm_settings']) {
 			
-			$arr_settings = $arr['algorithm_settings'][$algorithm];
-			$arr_weighted = $arr['weighted_settings'];
+			$arr_settings = $arr['algorithm_settings'][$str_algorithm];
+			$arr_weighted = ($arr_algorithm['weighted'] == AnalyseTypeObjects::SETTING_WEIGHTED_RAW ? $arr['weighted_settings']['raw'] : $arr['weighted_settings']['process']);
 		} else { // 'algorithm_settings' is part of the form configuration
 			
 			$arr_settings = $arr['settings'];
@@ -803,8 +837,7 @@ class ParseTypeFeatures {
 		}
 		unset($arr['algorithm_settings']);
 		unset($arr['weighted_settings']);
-			
-		$arr_algorithm = AnalyseTypeObjects::getAlgorithms($algorithm);
+
 		$func_parse = $arr_algorithm['parse'];
 		
 		if ($func_parse) {
@@ -822,15 +855,21 @@ class ParseTypeFeatures {
 		if ($arr_algorithm['weighted']) {
 			
 			$str_mode = $arr_weighted['mode'];
-			$arr_settings['weighted']['mode'] = ($str_mode == 'closeness' || $str_mode == 'distance' ? $str_mode : 'unweighted');
 			
-			if ($arr_settings['weighted']['mode'] != 'unweighted') {
+			if ($arr_algorithm['weighted'] == AnalyseTypeObjects::SETTING_WEIGHTED_RAW) {
 				
-				$arr_settings['weighted']['max'] = ($arr_weighted['max'] && (int)$arr_weighted['max'] > 1 ? (int)$arr_weighted['max'] : '');
+				$arr_settings['weighted']['mode'] = ($str_mode == AnalyseTypeObjects::WEIGHTED_WEIGHTED ? $str_mode : AnalyseTypeObjects::WEIGHTED_UNWEIGHTED);
+			} else {
+				
+				$arr_settings['weighted']['mode'] = ($str_mode == AnalyseTypeObjects::WEIGHTED_CLOSENESS || $str_mode == AnalyseTypeObjects::WEIGHTED_DISTANCE ? $str_mode : AnalyseTypeObjects::WEIGHTED_UNWEIGHTED);
+				
+				if ($arr_settings['weighted']['mode'] != AnalyseTypeObjects::WEIGHTED_UNWEIGHTED) {
+					$arr_settings['weighted']['max'] = ($arr_weighted['max'] && (int)$arr_weighted['max'] > 1 ? (int)$arr_weighted['max'] : '');
+				}
 			}
 		}
 		
-		$arr_collect['algorithm'] = $algorithm;
+		$arr_collect['algorithm'] = $str_algorithm;
 		$arr_collect['scope'] = $arr_scope;
 		$arr_collect['settings'] = $arr_settings;
 		$arr_collect['user_id'] = (int)$arr['user_id'];
@@ -925,5 +964,94 @@ class ParseTypeFeatures {
 				]
 			]
 		];
+	}
+	
+	public static function parseDescriptionTypeFilter($type_id, $arr_project_filter, &$arr_parameters_input = null) {
+				
+		if (!$arr_project_filter['description']) {
+			return null;
+		}
+		
+		try {
+			$arr_schema = strSerial2Value($arr_project_filter['description'], $str_leftover);
+		} catch (Exception $e) {
+				
+			Labels::setVariable('what', getLabel('lbl_description'));
+			Labels::setVariable('type', 'YAML / JSON schema');
+			error(getLabel('msg_malformed_value'));
+		}
+
+		if (!$arr_schema) {
+			return null;
+		}
+		
+		$arr_parameters = [];
+				
+		foreach ($arr_schema as $identifier => $arr_value) {
+			
+			$str_path = $arr_value['path'];
+			
+			if (!$str_path) {
+				continue;
+			}
+			
+			$str_path = ltrim($str_path, '/');
+			$str_path = (!strStartsWith($str_path, 'form/') ? 'form/' : '').$str_path;
+			
+			try {
+				$pointer =& arrByPath($arr_project_filter['object'], $str_path, '/');
+			} catch (Exception $e) {
+
+				Labels::setVariable('what', getLabel('lbl_filter'));
+				Labels::setVariable('type', 'path');
+				error(getLabel('msg_malformed_value'));
+			}
+			
+			$arr_type = ['type' => 'integer'];
+			
+			if (is_array($pointer)) {
+				
+				$arr_type['type'] = 'array';
+				$arr_type['items'] = ['type' => 'integer'];
+				
+				if (isset($pointer[0]) && is_string($pointer[0])) {
+					
+					$arr_type['items']['type'] = 'string';
+					
+					if (isset($arr_parameters_input[$identifier])) {
+						$pointer = arrValuesRecursiveParse(null, $arr_parameters_input[$identifier], TYPE_STRING, true);
+					}
+				} else {
+					
+					if (isset($arr_parameters_input[$identifier])) {
+						$pointer = arrValuesRecursiveParse(null, $arr_parameters_input[$identifier], TYPE_INTEGER, true);
+					}
+				}
+			} else if (is_string($pointer)) {
+				
+				$arr_type['type'] = 'string';
+				
+				if (isset($arr_parameters_input[$identifier])) {
+					$pointer = parseValue($arr_parameters_input[$identifier], TYPE_STRING);
+				}
+			} else {
+				
+				if (isset($arr_parameters_input[$identifier])) {
+					$pointer = parseValue($arr_parameters_input[$identifier], TYPE_INTEGER);
+				}
+			}
+						
+			$arr_parameters[$identifier] = [
+				'description' => $arr_value['description'],
+				'path' => $str_path,
+				'type' => $arr_type
+			];
+		}
+		
+		if (isset($arr_parameters_input)) {
+			$arr_parameters_input = $arr_project_filter['object']; // Link parameters_input to the now adjusted filter object
+		}
+	
+		return ['parameters' => $arr_parameters, 'text' => $str_leftover];
 	}
 }

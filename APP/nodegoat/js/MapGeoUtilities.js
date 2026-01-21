@@ -1,7 +1,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -12,7 +12,7 @@ function MapGeoUtilities(PARENT) {
 
 	var SELF = new MapUtilities(PARENT);
 	
-	SELF.parseColor = SELF.parseColorToHex;
+	SELF.parseColor = null;
 	
 	SELF.geometryToPackage = function(arr_geometry, arr_geometry_package) {
 		

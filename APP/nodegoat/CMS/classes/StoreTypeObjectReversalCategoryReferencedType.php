@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -87,7 +87,7 @@ class StoreTypeObjectReversalCategoryReferencedType {
 
 		$this->collect->setInitLimit(static::$num_store_reversal_objects_stream);
 
-		while ($this->collect->init($this->arr_filters)) {
+		while ($this->collect->init()) {
 															
 			$filter = $this->collect->getResultSource(0, 'start');
 			$sql_table_name_source = $filter->storeResultTemporarily();
@@ -341,7 +341,7 @@ class StoreTypeObjectReversalCategoryReferencedType {
 	
 	protected function iterateCollectorCollection() {
 		
-		$arr_objects = $this->collect->getPathObjects('0');
+		$arr_objects = $this->collect->getPathObjects(CollectTypesObjects::PATH_START);
 		
 		foreach ($arr_objects as $object_id => $arr_object) {
 		
@@ -371,7 +371,7 @@ class StoreTypeObjectReversalCategoryReferencedType {
 		
 		$this->collect->setWalkMode(false, true);
 		
-		$arr_objects = $this->collect->getPathObjects('0');
+		$arr_objects = $this->collect->getPathObjects(CollectTypesObjects::PATH_START);
 		
 		foreach ($arr_objects as $object_id => $arr_object) {
 			
@@ -689,15 +689,20 @@ class StoreTypeObjectReversalCategoryReferencedType {
 			}
 		}
 		
-		$collect = new CollectTypesObjects($arr_type_network['paths'], GenerateTypeObjects::VIEW_ALL);
-		$collect->setScope(['types' => $arr_type_network['types']]);
-		$collect->setConditions(GenerateTypeObjects::CONDITIONS_MODE_STYLE_INCLUDE, function($cur_type_id) {
+		$func_type_condition = function($cur_type_id) {
 			
 			$arr_conditions = cms_nodegoat_publish::getTypeConditions($cur_type_id, false);
 			
 			return ParseTypeFeatures::parseTypeConditionNamespace($cur_type_id, $arr_conditions, fn($arr_condition_setting) => ParseTypeFeatures::checkTypeConditionNamespace($arr_condition_setting, false));
-		});
-		$collect->init($arr_filters, false);
+		};
+		
+		GenerateTypeObjects::setConditionsResource($func_type_condition);
+		
+		$collect = new CollectTypesObjects($arr_type_network['paths'], GenerateTypeObjects::VIEW_ALL);
+		$collect->setScope(['types' => $arr_type_network['types']]);
+		$collect->setConditions(GenerateTypeObjects::CONDITIONS_MODE_STYLE_INCLUDE, $func_type_condition);
+		$collect->setFilter($arr_filters);
+		$collect->init(false);
 		
 		$arr_collect_info = $collect->getResultInfo();
 		
@@ -706,7 +711,9 @@ class StoreTypeObjectReversalCategoryReferencedType {
 			foreach ($arr_paths as $path) {
 				
 				$source_path = $path;
+				
 				if ($source_path) { // Path includes the target type id, remove it
+					
 					$source_path = explode('-', $source_path);
 					array_pop($source_path);
 					$source_path = implode('-', $source_path);
@@ -724,7 +731,7 @@ class StoreTypeObjectReversalCategoryReferencedType {
 
 				$arr_selection = static::getTypeNetworkSelection($cur_type_id, $arr_settings);
 				
-				if ($source_path == '0') { // Check for specific sub-object filtering at the start when applicable
+				if ($source_path == CollectTypesObjects::PATH_START) { // Check for specific sub-object filtering at the start when applicable
 					
 					if (isset($arr_type_network['selection']['object_sub_details'])) {
 																

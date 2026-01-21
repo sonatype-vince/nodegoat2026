@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -24,13 +24,14 @@ class StoreResourceExternal {
 		if (!$id) {
 			
 			$res = DB::query("INSERT INTO ".DB::getTable('DEF_NODEGOAT_LINKED_DATA_RESOURCES')."
-				("."name, description, protocol, url, url_options, url_headers, query, response_uri_value, response_uri_template, response_uri_conversion_id, response_uri_conversion_output_identifier, response_label_value, response_label_conversion_id, response_label_conversion_output_identifier) 
+				("."name, description, protocol, protocol_method, url, url_options, url_headers, query, response_uri_value, response_uri_template, response_uri_conversion_id, response_uri_conversion_output_identifier, response_label_value, response_label_conversion_id, response_label_conversion_output_identifier) 
 					VALUES
 				(
 					"."
 					'".DBFunctions::strEscape($arr['name'])."',
 					'".DBFunctions::strEscape($arr['description'])."',
 					'".DBFunctions::strEscape($arr['protocol'])."',
+					".(int)$arr['protocol_method'].",
 					'".DBFunctions::strEscape($arr['url'])."',
 					'".DBFunctions::strEscape($arr['url_options'])."',
 					'".DBFunctions::strEscape($str_url_headers)."',
@@ -52,6 +53,7 @@ class StoreResourceExternal {
 					name = '".DBFunctions::strEscape($arr['name'])."',
 					description = '".DBFunctions::strEscape($arr['description'])."',
 					protocol = '".DBFunctions::strEscape($arr['protocol'])."',
+					protocol_method = ".(int)$arr['protocol_method'].",
 					url = '".DBFunctions::strEscape($arr['url'])."',
 					url_options = '".DBFunctions::strEscape($arr['url_options'])."',
 					url_headers = '".DBFunctions::strEscape($str_url_headers)."',
@@ -325,6 +327,40 @@ class StoreResourceExternal {
 			$arr = current($arr);
 		}
 
+		return $arr;
+	}
+	
+	public static function parseResource($arr) {
+		
+		$arr_url_headers = (array)$arr['url_headers'];
+		$arr['url_headers'] = [];
+		
+		foreach ($arr_url_headers as $key => $value) {
+			
+			if (is_array($value)) { // Form
+							
+				$key = trim($value['key']);
+				$value = trim($value['value']);
+			} else {
+				
+				$key = trim($key);
+				$value = trim($value);
+			}
+				
+			if (!$key) {
+				continue;
+			}
+				
+			$arr['url_headers'][$key] = $value;
+		}
+		
+		$arr_response_values = (array)$arr['response_values'];
+		$arr['response_values'] = [];
+		
+		foreach ($arr_response_values as $arr_value) {
+			$arr['response_values'][$arr_value['name']] = $arr_value;
+		}
+		
 		return $arr;
 	}
 }

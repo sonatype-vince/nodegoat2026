@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -21,6 +21,7 @@ DB::setTable('DATA_NODEGOAT_TYPE_OBJECTS', DATABASE_NODEGOAT_CONTENT.'.data_type
 DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS', DATABASE_NODEGOAT_CONTENT.'.data_type_object_definitions');
 DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_REFERENCES', DATABASE_NODEGOAT_CONTENT.'.data_type_object_definitions_references');
 DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_MODULES', DATABASE_NODEGOAT_CONTENT.'.data_type_object_definitions_modules');
+DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS', DATABASE_NODEGOAT_CONTENT.'.data_type_object_definitions_vectors');
 DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS', DATABASE_NODEGOAT_CONTENT.'.data_type_object_subs');
 DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DATE', DATABASE_NODEGOAT_CONTENT.'.data_type_object_sub_date');
 DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DATE_CHRONOLOGY', DATABASE_NODEGOAT_CONTENT.'.data_type_object_sub_date_chronology');
@@ -28,6 +29,7 @@ DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_LOCATION_GEOMETRY', DATABASE_NODEGOA
 DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS', DATABASE_NODEGOAT_CONTENT.'.data_type_object_sub_definitions');
 DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_REFERENCES', DATABASE_NODEGOAT_CONTENT.'.data_type_object_sub_definitions_references');
 DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_MODULES', DATABASE_NODEGOAT_CONTENT.'.data_type_object_sub_definitions_modules');
+DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS', DATABASE_NODEGOAT_CONTENT.'.data_type_object_sub_definitions_vectors');
 
 DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_VERSION', DATABASE_NODEGOAT_CONTENT.'.data_type_object_version');
 DB::setTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITION_VERSION', DATABASE_NODEGOAT_CONTENT.'.data_type_object_definition_version');
@@ -176,7 +178,34 @@ class cms_nodegoat_definitions extends base_module {
 				'run' => function() {
 					
 					GenerateTypeObjects::setSQLFunctionObjectSubDate();
-				}
+				},
+				'transform' => false
+			],
+			'nodegoat_vector' => [
+				'label' => 'Initialise nodegoat vector support.',
+				'run' => function() {
+					
+					if (!Settings::get('value_type_vector', 'support')) {
+						return;
+					}
+					
+					if (DB::ENGINE_IS_MYSQL) {
+						
+						$str_sql = "
+							ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS')." MODIFY embed_normalise VECTOR(".FormatTypeObjects::VALUE_VECTOR_DIMENSIONS.") NOT NULL;
+							ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS')." MODIFY embed_normalise VECTOR(".FormatTypeObjects::VALUE_VECTOR_DIMENSIONS.") NOT NULL;
+						";
+					} else {
+						
+						$str_sql = "
+							ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS')." ALTER embed_normalise TYPE vector(".FormatTypeObjects::VALUE_VECTOR_DIMENSIONS.") USING embed_normalise::vector(".FormatTypeObjects::VALUE_VECTOR_DIMENSIONS.");
+							ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS')." ALTER embed_normalise TYPE vector(".FormatTypeObjects::VALUE_VECTOR_DIMENSIONS.") USING embed_normalise::vector(".FormatTypeObjects::VALUE_VECTOR_DIMENSIONS.");
+						";
+					}
+					
+					DB::queryMulti($str_sql);
+				},
+				'transform' => true
 			]
 		];
 	}
@@ -244,6 +273,8 @@ class cms_nodegoat_definitions extends base_module {
 			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_MODULES'), 'object_description_id'], 'test' => [DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS'), 'id'], 'clause' => 'object_description_id > 0'],
 			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_MODULE_STATUS'), 'object_id'], 'test' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS'), 'id']],
 			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_MODULE_STATUS'), 'object_description_id'], 'test' => [DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS'), 'id'], 'clause' => 'object_description_id > 0'],
+			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS'), 'object_id'], 'test' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS'), 'id']],
+			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS'), 'object_description_id'], 'test' => [DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS'), 'id'], 'clause' => 'object_description_id > 0'],
 			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITION_OBJECTS'), 'object_id'], 'test' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS'), 'id']],
 			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITION_VERSION'), 'object_id'], 'test' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS'), 'id']],
 			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITION_SOURCES'), 'object_id'], 'test' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS'), 'id']],
@@ -260,6 +291,8 @@ class cms_nodegoat_definitions extends base_module {
 			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_REFERENCES'), 'object_sub_description_id'], 'test' => [DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DESCRIPTIONS'), 'id'], 'clause' => 'object_sub_description_id > 0'],
 			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_MODULES'), 'object_sub_id'], 'test' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS'), 'id']],
 			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_MODULES'), 'object_sub_description_id'], 'test' => [DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DESCRIPTIONS'), 'id'], 'clause' => 'object_sub_description_id > 0'],
+			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS'), 'object_sub_id'], 'test' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS'), 'id']],
+			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS'), 'object_sub_description_id'], 'test' => [DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DESCRIPTIONS'), 'id'], 'clause' => 'object_sub_description_id > 0'],
 			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITION_OBJECTS'), 'object_sub_id'], 'test' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS'), 'id']],
 			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITION_VERSION'), 'object_sub_id'], 'test' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS'), 'id']],
 			['delete' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITION_SOURCES'), 'object_sub_id'], 'test' => [DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS'), 'id']],
@@ -689,5 +722,229 @@ class cms_nodegoat_definitions extends base_module {
 		} else {
 			return false;
 		}	
+	}
+	
+	// Other
+	
+	public static function changeTableValueTypeVector() {
+		
+		// Prepare
+		
+		$str_sql = "
+			ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS')." DROP COLUMN IF EXISTS embed_normalise_new;
+			ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS')." DROP COLUMN IF EXISTS embed_normalise_new;
+		";
+		
+		if (DB::ENGINE_IS_MYSQL) {
+			
+			$str_sql .= "
+				ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS')." ADD COLUMN embed_normalise_new VECTOR(".FormatTypeObjects::VALUE_VECTOR_DIMENSIONS.") AFTER embed_normalise;
+				ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS')." ADD COLUMN embed_normalise_new VECTOR(".FormatTypeObjects::VALUE_VECTOR_DIMENSIONS.") AFTER embed_normalise;
+			";
+		} else {
+			
+			$str_sql .= "
+				ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS')." ADD COLUMN embed_normalise_new TYPE vector(".FormatTypeObjects::VALUE_VECTOR_DIMENSIONS.");
+				ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS')." ADD COLUMN embed_normalise_new TYPE vector(".FormatTypeObjects::VALUE_VECTOR_DIMENSIONS.");
+			";
+		}
+		
+		DB::queryMulti($str_sql);
+		
+		$str_sql = '';
+		$num_sql = 0;
+		
+		// Object Definitions
+		
+		status('Processing Object Definitions.');
+		
+		$num_total = 0;
+		
+		$func_sql = function() use (&$str_sql, &$num_sql, &$num_total) {
+
+			/*
+			$str_sql[0] = ' '; // Remove leading ,
+			
+			DB::query("INSERT INTO ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS')."
+				(object_id, object_description_id, identifier, version, embed_normalise_new)
+					VALUES
+				".$str_sql."
+				".DBFunctions::onConflict('object_id, object_description_id, identifier, version', ['embed_normalise_new'])."
+			");
+			
+			DB::query("
+				WITH updated(object_id, object_description_id, identifier, version, embed_normalise_new) AS (
+					VALUES
+						".$str_sql."
+				)
+				UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS')." target
+					SET embed_normalise_new = updated.embed_normalise_new
+				FROM updated
+				WHERE (target.object_id = updated.object_id AND target.object_description_id = updated.object_description_id AND target.identifier = updated.identifier AND target.version = updated.version);
+			");*/
+			
+			DB::queryMulti($str_sql);
+			
+			$num_total += $num_sql;
+			
+			$str_sql = '';
+			$num_sql = 0;
+		};
+		
+		while (true) {
+			
+			$str_table_name = DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS');
+
+			$res = DB::query("
+				SELECT
+					object_id, object_description_id, identifier, version, embed
+				FROM ".$str_table_name."
+				WHERE embed_normalise_new IS NULL
+				LIMIT 2000
+			");
+			
+			if (!$res->getRowCount()) {
+				break;
+			}
+			
+			DB::startTransaction();
+
+			while ($arr_row = $res->fetchRow()) {
+				
+				try {
+					
+					$str = FormatTypeObjects::formatToVector($arr_row[4]);
+					$str = FormatTypeObjects::vector2VectorValid($str);
+								
+					//$str_sql .= ',('.$arr_row[0].', '.$arr_row[1].', '.$arr_row[2].', '.$arr_row[3].', '.FormatTypeObjects::formatToSQLEscape('vector', $str, true).')';
+					$str_sql .= 'UPDATE '.$str_table_name.' SET embed_normalise_new = '.FormatTypeObjects::formatToSQLEscape('vector', $str, true).' WHERE object_id = '.$arr_row[0].' AND object_description_id = '.$arr_row[1].' AND identifier = '.$arr_row[2].' AND version = '.$arr_row[3].';';
+					
+					$num_sql++;
+				} catch (Exception $e) {
+					
+					msg($arr_row);
+				}
+				
+				if ($num_sql === 500) {
+					
+					$func_sql();
+					
+					DB::commitTransaction();
+					
+					status('Processed <strong>'.$num_total.'</strong> Object Definitions.');
+					
+					DB::startTransaction();
+				}
+			}
+			
+			if ($num_sql != 0) {
+				$func_sql();
+			}
+			
+			DB::commitTransaction();
+		}
+		
+		status('Processed <strong>'.$num_total.'</strong> Object Definitions.');
+		
+		// Sub-Object Definitions
+		
+		status('Processing Sub-Object Definitions.');
+		
+		$num_total = 0;
+		
+		$func_sql = function() use (&$str_sql, &$num_sql, &$num_total) {
+			
+			/*$str_sql[0] = ' '; // Remove leading ,
+		
+			DB::query("INSERT INTO ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS')."
+				(object_sub_id, object_sub_description_id, version, embed_normalise_new)
+					VALUES
+				".$str_sql."
+				".DBFunctions::onConflict('object_sub_id, object_sub_description_id, version', ['embed_normalise_new'])."
+			");*/
+			
+			DB::queryMulti($str_sql);
+			
+			$num_total += $num_sql;
+			
+			$str_sql = '';
+			$num_sql = 0;
+		};
+		
+		while (true) {
+			
+			$str_table_name = DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS');
+			
+			$res = DB::query("
+				SELECT
+					object_sub_id, object_sub_description_id, version, embed
+				FROM ".$str_table_name."
+				WHERE embed_normalise_new IS NULL
+				LIMIT 2000
+			");
+			
+			if (!$res->getRowCount()) {
+				break;
+			}
+			
+			DB::startTransaction();
+			
+			while ($arr_row = $res->fetchRow()) {
+				
+				$str = FormatTypeObjects::formatToVector($arr_row[3]);
+				$str = FormatTypeObjects::vector2VectorValid($str);
+							
+				//$str_sql .= ',('.$arr_row[0].', '.$arr_row[1].', '.$arr_row[2].', '.FormatTypeObjects::formatToSQLEscape('vector', $str, true).')';
+				$str_sql .= 'UPDATE '.$str_table_name.' SET embed_normalise_new = '.FormatTypeObjects::formatToSQLEscape('vector', $str, true).' WHERE object_sub_id = '.$arr_row[0].' AND object_sub_description_id = '.$arr_row[1].' AND version = '.$arr_row[2].';';
+				
+				$num_sql++;
+				
+				if ($num_sql === 500) {
+					
+					$func_sql();
+					
+					DB::commitTransaction();
+					
+					status('Processed <strong>'.$num_total.'</strong> Sub-Object Definitions.');
+					
+					DB::startTransaction();
+				}
+			}
+			
+			if ($num_sql != 0) {
+				$func_sql();
+			}
+			
+			DB::commitTransaction();
+		}
+		
+		status('Processed <strong>'.$num_total.'</strong> Sub-Object Definitions.');
+		
+		// Rename
+		
+		status('Renaming table columns.');
+		
+		$str_sql = "
+			ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS')." DROP COLUMN embed_normalise;
+			ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS')." RENAME COLUMN embed_normalise_new TO embed_normalise;
+			ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS')." DROP COLUMN embed_normalise;
+			ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS')." RENAME COLUMN embed_normalise_new TO embed_normalise;
+		";
+		
+		if (DB::ENGINE_IS_MYSQL) {
+			
+			$str_sql .= "
+				ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS')." MODIFY COLUMN embed_normalise VECTOR(".FormatTypeObjects::VALUE_VECTOR_DIMENSIONS.") NOT NULL;
+				ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS')." MODIFY COLUMN embed_normalise VECTOR(".FormatTypeObjects::VALUE_VECTOR_DIMENSIONS.") NOT NULL;
+			";
+		} else {
+			
+			$str_sql .= "
+				ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_VECTORS')." ALTER COLUMN embed_normalise SET NOT NULL;
+				ALTER TABLE ".DB::getTableName('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS_VECTORS')." ALTER COLUMN embed_normalise SET NOT NULL;
+			";
+		}
+		
+		DB::queryMulti($str_sql);
 	}
 }

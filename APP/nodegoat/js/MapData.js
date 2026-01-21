@@ -1,7 +1,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -34,15 +34,15 @@ function MapData(element, PARENT, arr_settings_options) {
 					
 		arr_data = arr_source_data;
 
-		var identifier_parse = JSON.stringify(arr_settings);
+		const str_identifier_parse = JSON.stringify(arr_settings);
 		
 		if (!arr_data.source) {
 			
-			var Merge = new DeepMerge();
+			const Merge = new DeepMerge();
 			
-			var arr_package = {};
+			let arr_package = {};
 			
-			for (var i = 0, len = arr_data.pack.length; i < len; i++) {
+			for (let i = 0, len = arr_data.pack.length; i < len; i++) {
 
 				arr_package = Merge.single(arr_package, arr_data.pack[i]);
 
@@ -51,22 +51,21 @@ function MapData(element, PARENT, arr_settings_options) {
 			
 			delete arr_data.pack;
 			
-			for (var key in arr_package) {
-				
+			for (const key in arr_package) {
 				arr_data[key] = arr_package[key];
 			}
 			
-			arr_data.identifier_parse = false;
+			arr_data.identifier_parse = null;
 			arr_data.update = []; // To store/indicate further processing updates
 
 			arr_data.source = JSON.stringify(arr_data);
 		}
 		
-		if (arr_data.identifier_parse && arr_data.identifier_parse != identifier_parse) {
+		if (arr_data.identifier_parse && arr_data.identifier_parse != str_identifier_parse) {
 
-			var arr_source_data = JSON.parse(arr_data.source);
+			const arr_source_data = JSON.parse(arr_data.source);
 
-			for (var key in arr_data) {
+			for (const key in arr_data) {
 				
 				if (key == 'source') {
 					continue;
@@ -338,7 +337,7 @@ function MapData(element, PARENT, arr_settings_options) {
 			}
 			arr_data.date.arr_loop = arr_loop;
 			
-			arr_data.identifier_parse = identifier_parse;
+			arr_data.identifier_parse = str_identifier_parse;
 		}
 		
 		PARENT.setDateRange((arr_data.date_range ? arr_data.date_range : false));

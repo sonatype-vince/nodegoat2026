@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -94,7 +94,9 @@ class data_analysis extends base_module {
 	public function createTypeAnalysis($type_id, $arr_analysis = []) {
 				
 		$html_type_network = data_model::createTypeNetwork($type_id, false, false, ['references' => TraceTypesNetwork::RUN_MODE_BOTH, 'network' => ['dynamic' => true, 'object_sub_locations' => true], 'value' => $arr_analysis['scope'], 'name' => 'analysis[scope]', 'descriptions' => false, 'functions' => ['filter' => true, 'collapse' => false]]);
-		$arr_algorithms = AnalyseTypeObjects::getAlgorithms();
+		
+		$analyse = new AnalyseTypeObjects($_SESSION['USER_ID'], $_SESSION['custom_projects']['project_id']);
+		$arr_algorithms = $analyse->getAlgorithms();
 		
 		$has_graph_database = Settings::get('graph_analysis_service');
 		
@@ -108,10 +110,14 @@ class data_analysis extends base_module {
 			$arr_analysis_settings = $arr_analysis['settings'];
 		}
 		
-		$arr_weighted_options = [
-			['id' => 'unweighted', 'name' => getLabel('lbl_analysis_unweighted'), 'title' => getLabel('inf_analysis_unweighted')],
-			['id' => 'closeness', 'name' => getLabel('lbl_analysis_weighted_closeness'), 'title' => getLabel('inf_analysis_weighted_closeness')],
-			['id' => 'distance', 'name' => getLabel('lbl_analysis_weighted_distance'), 'title' => getLabel('inf_analysis_weighted_distance')]
+		$arr_weighted_options_raw = [
+			['id' => AnalyseTypeObjects::WEIGHTED_UNWEIGHTED, 'name' => getLabel('lbl_analysis_unweighted'), 'title' => getLabel('inf_analysis_unweighted')],
+			['id' => AnalyseTypeObjects::WEIGHTED_WEIGHTED, 'name' => getLabel('lbl_analysis_weighted'), 'title' => getLabel('inf_analysis_weighted')],
+		];
+		$arr_weighted_options_process = [
+			['id' => AnalyseTypeObjects::WEIGHTED_UNWEIGHTED, 'name' => getLabel('lbl_analysis_unweighted'), 'title' => getLabel('inf_analysis_unweighted')],
+			['id' => AnalyseTypeObjects::WEIGHTED_CLOSENESS, 'name' => getLabel('lbl_analysis_weighted_closeness'), 'title' => getLabel('inf_analysis_weighted').'<br/>'.getLabel('inf_analysis_weighted_closeness')],
+			['id' => AnalyseTypeObjects::WEIGHTED_DISTANCE, 'name' => getLabel('lbl_analysis_weighted_distance'), 'title' => getLabel('inf_analysis_weighted').'<br/>'.getLabel('inf_analysis_weighted_distance')]
 		];
 		
 		$arr_html_options = [];
@@ -120,7 +126,7 @@ class data_analysis extends base_module {
 			
 			$func_options = $arr_algorithm['options'];
 			$arr_options = [];
-			$is_weighted = false;
+			$mode_weighted = 0;
 			
 			if ($arr_algorithm['graph'] && !$has_graph_database) {
 				
@@ -130,16 +136,14 @@ class data_analysis extends base_module {
 			} else {
 				
 				if ($func_options) {
-			
 					$arr_options = $func_options($type_id, 'analysis[algorithm_settings]['.$algorithm.']', ($arr_analysis['algorithm'] == $algorithm ? $arr_analysis_settings : []));
 				}
 				
 				if (!$arr_options) {
-					
 					$arr_options = [getLabel('lbl_options') => '<section class="info attention">'.getLabel('msg_no_options').'</section>'];
 				}
 				
-				$is_weighted = $arr_algorithm['weighted'];
+				$mode_weighted = $arr_algorithm['weighted'];
 			}
 						
 			foreach ($arr_options as $str_label => $html_option) {
@@ -147,10 +151,8 @@ class data_analysis extends base_module {
 				$html_option = '<label>'.$str_label.'</label><div>'.$html_option.'</div>';
 				
 				if (!$arr_html_options[$algorithm]) { // Add more parameters (i.e. weighted) to the first option of the algorithm
-					
-					$arr_html_options[$algorithm] .= '<li class="section-'.$algorithm.'" data-weighted="'.($is_weighted ? '1' : '0').'">'.$html_option.'</li>';
+					$arr_html_options[$algorithm] .= '<li class="section-'.$algorithm.'" data-weighted="'.$mode_weighted.'">'.$html_option.'</li>';
 				} else {
-					
 					$arr_html_options[$algorithm] .= '<li class="section-'.$algorithm.'">'.$html_option.'</li>';
 				}
 			}
@@ -174,16 +176,17 @@ class data_analysis extends base_module {
 							<div><select name="analysis[algorithm]">'.cms_general::createDropdown($arr_algorithms, $arr_analysis['algorithm']).'</select></div>
 						</li>
 						'.implode('', $arr_html_options).'
-						<li class="section-weighted">
+						<li class="section-weighted-raw">
 							<label>'.getLabel('lbl_analysis_weighted').'</label>
-							<div>
-								<section class="info attention">'.getLabel('inf_analysis_weighted').'</section>
-								<div>'.cms_general::createSelectorRadio($arr_weighted_options, 'analysis[weighted_settings][mode]', ($arr_analysis_weighted['mode'] ?: 'unweighted')).'</span>
-							</div>
+							<div>'.cms_general::createSelectorRadio($arr_weighted_options_raw, 'analysis[weighted_settings][raw][mode]', (($arr_algorithms[$arr_analysis['algorithm']]['weighted'] ?? null) == AnalyseTypeObjects::SETTING_WEIGHTED_RAW && $arr_analysis_weighted['mode'] ? $arr_analysis_weighted['mode'] : AnalyseTypeObjects::WEIGHTED_UNWEIGHTED)).'</div>
 						</li>
-						<li class="section-weighted">
+						<li class="section-weighted-process">
+							<label>'.getLabel('lbl_analysis_weighted').'</label>
+							<div>'.cms_general::createSelectorRadio($arr_weighted_options_process, 'analysis[weighted_settings][process][mode]', (($arr_algorithms[$arr_analysis['algorithm']]['weighted'] ?? null) == AnalyseTypeObjects::SETTING_WEIGHTED_PROCESS && $arr_analysis_weighted['mode'] ? $arr_analysis_weighted['mode'] : AnalyseTypeObjects::WEIGHTED_UNWEIGHTED)).'</div>
+						</li>
+						<li class="section-weighted-process">
 							<label>'.getLabel('lbl_analysis_weighted_max').'</label>
-							<div><input name="analysis[weighted_settings][max]" type="number" step="1" min="0" value="'.($arr_analysis_weighted['max'] ?: '').'" /></div>
+							<div><input name="analysis[weighted_settings][process][max]" type="number" step="1" min="0" value="'.($arr_analysis_weighted['max'] ?: '').'" /></div>
 						</li>
 					</ul></fieldset>
 				</div>
@@ -362,6 +365,80 @@ class data_analysis extends base_module {
 		return $arr_object_analyses;
 	}
 	
+	public function runTypeAnalysis($type_id, $arr_type_filters, $storage_analysis_id = null) {
+
+		$arr_analysis = self::getTypeAnalysis($type_id);
+		
+		$arr_scope = $arr_analysis['scope'];
+		
+		$arr_filters = current($arr_type_filters);
+
+		$arr_id = ($storage_analysis_id ? explode('_', $storage_analysis_id) : [0, 0]);
+		
+		$arr_analysis['id'] = (int)$arr_id[0];
+		if ($arr_analysis['id']) {
+			$arr_analysis['user_id'] = ($arr_id[1] ? $_SESSION['USER_ID'] : 0);
+		} else {
+			$arr_analysis['user_id'] = $_SESSION['USER_ID'];
+		}
+			
+		if (!$arr_analysis['id'] && !$arr_analysis['user_id']) {
+			error(getLabel('msg_missing_information'));
+		}
+		
+		$analyse = AnalyseTypeObjects::getAlgorithmClass($arr_analysis['algorithm']);
+		$analyse = new $analyse($_SESSION['USER_ID'], $_SESSION['custom_projects']['project_id']);
+		
+		$is_server = ($analyse instanceof AnalyseTypeObjectsServer);
+		$str_host = false;
+		
+		if ($is_server) {
+				
+			$str_host = Settings::get('graph_analysis_service', 'host');
+		
+			if ($str_host == 'service') {
+				
+				$arr_job = self::checkService();
+				
+				if (!$arr_job) {
+					error(getLabel('msg_analysis_no_service'));
+				}
+				
+				$str_host = $arr_job['host'];
+			}
+		}
+
+		$collect = static::getTypeAnalysisCollector($type_id, $arr_analysis, $arr_filters, $arr_scope);
+		
+		$arr_nodegoat_details = cms_nodegoat_details::getDetails();
+		if ($arr_nodegoat_details['processing_time']) {
+			timeLimit($arr_nodegoat_details['processing_time']);
+		}
+		if ($arr_nodegoat_details['processing_memory']) {
+			memoryBoost($arr_nodegoat_details['processing_memory']);
+		}
+		
+		$analyse->setAnalyse($type_id, $arr_analysis);
+		
+		if ($is_server) {
+			$analyse->setHost($str_host);
+		}
+
+		$analyse->input($collect);
+		
+		$has_function = $analyse->run();
+		
+		if (!$has_function) {
+			
+			$analyse->readInputResourcePackage();
+			return;
+		}
+		
+		$success = $analyse->store();
+		
+		return $success;
+	}
+	
 	public static function css() {
 	
 		$return = '
@@ -411,7 +488,7 @@ class data_analysis extends base_module {
 					}
 					
 					var elm_table = $('[id^=d\\\:data_entry\\\:data]');
-					elm_table[0].datatable.handleColumn('[data-identifier=analysis]', data.column, '[data-identifier=version]');
+					elm_table[0].datatable.handleColumn('[data-identifier=analysis]', data.column, '[data-identifier=status]');
 					elm_table[0].datatable.reload();
 				});
 			});
@@ -447,9 +524,10 @@ class data_analysis extends base_module {
 					
 					elms_option.removeClass('hide');
 					
-					if (elms_option[0].dataset.weighted == '1') {
-					
-						elm_container.children('.section-weighted').removeClass('hide');
+					if (elms_option[0].dataset.weighted == '".AnalyseTypeObjects::SETTING_WEIGHTED_RAW."') {
+						elm_container.children('.section-weighted-raw').removeClass('hide');
+					} else if (elms_option[0].dataset.weighted == '".AnalyseTypeObjects::SETTING_WEIGHTED_PROCESS."') {
+						elm_container.children('.section-weighted-process').removeClass('hide');
 					}
 				}
 			}).on('click', 'fieldset > ul > li > span > .del + .add', function() {
@@ -463,6 +541,16 @@ class data_analysis extends base_module {
 				
 				COMMANDS.setTarget(this, elm_analysis);
 				COMMANDS.setOptions(this, {html: 'replace', elm_container: elm_analysis.parent()});	
+			});
+			
+			// Algorithm specific
+			
+			elm_scripter.on('change', 'select[name$=\"[end_type_id]\"]', function() {
+				
+				const elm_target = $(this).closest('li').next('li').find('[id^=y\\\:data_analysis\\\:get_value_type_descriptions-');
+				
+				COMMANDS.setData(elm_target, {type_id: this.value});
+				COMMANDS.quickCommand(elm_target, elm_target);
 			});
 		});
 		
@@ -499,15 +587,17 @@ class data_analysis extends base_module {
 				
 				$str_message = getLabel('msg_analysis_no_configuration');
 			} else {
-			
-				$arr_algorithm = AnalyseTypeObjects::getAlgorithms($arr_analysis['algorithm']);
 				
-				if ($arr_algorithm['graph'] && Settings::get('graph_analysis_service', 'host') == 'service') {
+				$analyse = AnalyseTypeObjects::getAlgorithmClass($arr_analysis['algorithm']);
+				$analyse = new $analyse($_SESSION['USER_ID'], $_SESSION['custom_projects']['project_id']);
+				
+				$is_server = ($analyse instanceof AnalyseTypeObjectsServer);
+				
+				if ($is_server && Settings::get('graph_analysis_service', 'host') == 'service') {
 					
 					$arr_job = self::checkService();
 					
 					if (!$arr_job) {
-						
 						$str_message = getLabel('msg_analysis_no_service');
 					}
 				}
@@ -521,6 +611,36 @@ class data_analysis extends base_module {
 					.'</section>'
 					.'<input type="submit" value="'.getLabel('lbl_close').'" />'
 				.'</form>';
+				
+				return;
+			}
+			
+			$arr_algorithm = $analyse->getAlgorithms($arr_analysis['algorithm']);
+			
+			if (!$arr_algorithm['function']) {
+				
+				if ($_SESSION['NODEGOAT_CLEARANCE'] < NODEGOAT_CLEARANCE_INTERACT) {
+				
+					error(getLabel('msg_not_allowed'));
+					return;
+				}
+				
+				if ($this->is_download) {
+				
+					$arr_type_filters = toolbar::getFilter();
+					$type_id = toolbar::getFilterTypeID();
+					
+					if (!custom_projects::checkAccessType(StoreCustomProject::ACCESS_PURPOSE_VIEW, $type_id)) {
+						return;
+					}
+					
+					$this->runTypeAnalysis($type_id, $arr_type_filters);
+					
+					exit;
+				} else {
+				 
+					$this->do_download = true;
+				}
 				
 				return;
 			}
@@ -546,72 +666,14 @@ class data_analysis extends base_module {
 				return;
 			}
 			
-			$arr_analysis = self::getTypeAnalysis($type_id);
-			
-			$arr_scope = $arr_analysis['scope'];
-			
-			$arr_filters = current($arr_type_filters);
-
-			$analysis_id = $_POST['storage'];
-			$arr_id = explode('_', $analysis_id);
-			
-			$arr_analysis['id'] = (int)$arr_id[0];
-			if ($arr_analysis['id']) {
-				$arr_analysis['user_id'] = ($arr_id[1] ? $_SESSION['USER_ID'] : 0);
-			} else {
-				$arr_analysis['user_id'] = $_SESSION['USER_ID'];
-			}
-				
-			if (!$arr_analysis['id'] && !$arr_analysis['user_id']) {
-				error(getLabel('msg_missing_information'));
-			}
-			
-			$arr_algorithm = AnalyseTypeObjects::getAlgorithms($arr_analysis['algorithm']);
-			
-			$str_host = false;
-			
-			if ($arr_algorithm['graph']) {
-					
-				$str_host = Settings::get('graph_analysis_service', 'host');
-			
-				if ($str_host == 'service') {
-					
-					$arr_job = self::checkService();
-					
-					if (!$arr_job) {
-						error(getLabel('msg_analysis_no_service'));
-					}
-					
-					$str_host = $arr_job['host'];
-				}
-			}
-
-			$collect = static::getTypeAnalysisCollector($type_id, $arr_analysis, $arr_filters, $arr_scope);
-			
-			$arr_nodegoat_details = cms_nodegoat_details::getDetails();
-			if ($arr_nodegoat_details['processing_time']) {
-				timeLimit($arr_nodegoat_details['processing_time']);
-			}
-			if ($arr_nodegoat_details['processing_memory']) {
-				memoryBoost($arr_nodegoat_details['processing_memory']);
-			}
-				
-			$analyse = new AnalyseTypeObjectsServer($type_id, $arr_analysis);
-			
-			$analyse->setHost($str_host);
-
-			$analyse->input($collect, $arr_filters);
-							
-			$analyse->run();
-			
-			$success = $analyse->store();
+			$success = $this->runTypeAnalysis($type_id, $arr_type_filters, $_POST['storage']);
 			
 			$this->html = ['success' => $success];
 			
 			if (!$success) {
-				$this->msg = getLabel('msg_no_results');
+				$this->message = getLabel('msg_no_results');
 			} else {
-				$this->msg = true;
+				$this->message = true;
 			}
 		}
 		
@@ -731,6 +793,22 @@ class data_analysis extends base_module {
 			
 			$this->html = $this->createTypeAnalysisContext($type_id, $arr_analysis_context);
 		}
+		
+		if ($method == 'get_value_type_descriptions') {
+			
+			$type_id = (int)$value['type_id'];
+			$str_value_type = $id;
+			
+			if (!$type_id || !custom_projects::checkAccessType(StoreCustomProject::ACCESS_PURPOSE_VIEW, $type_id)) {
+				
+				$this->html = '';
+				return;
+			}
+			
+			$arr_object_descriptions_vector = data_model::getTypeObjectDescriptionsByValueType($type_id, $str_value_type);
+
+			$this->html = Labels::parseTextVariables(cms_general::createDropdown($arr_object_descriptions_vector, false, true));
+		}
 	}
 	
 	public static function getTypeAnalysisCollector($type_id, $arr_analysis, $arr_filters, $arr_scope) {
@@ -738,8 +816,10 @@ class data_analysis extends base_module {
 		$arr_project = StoreCustomProject::getProjects($_SESSION['custom_projects']['project_id']);
 		$arr_use_project_ids = array_keys($arr_project['use_projects']);
 		
-		$arr_algorithm = AnalyseTypeObjects::getAlgorithms($arr_analysis['algorithm']);
-		$do_weighted = ($arr_algorithm['weighted'] && $arr_analysis['settings']['weighted']['mode'] != 'unweighted');
+		$analyse = new AnalyseTypeObjects($_SESSION['USER_ID'], $_SESSION['custom_projects']['project_id']);
+		$arr_algorithm = $analyse->getAlgorithms($arr_analysis['algorithm']);
+		$do_weighted = ($arr_algorithm['weighted'] && $arr_analysis['settings']['weighted']['mode'] != AnalyseTypeObjects::WEIGHTED_UNWEIGHTED);
+		$do_labels = ($arr_algorithm['resource'] == AnalyseTypeObjects::RESOURCE_GRAPH);
 		
 		if ($arr_scope['paths']) {
 			
@@ -754,21 +834,40 @@ class data_analysis extends base_module {
 		$collect = new CollectTypesObjects($arr_type_network_paths, GenerateTypeObjects::VIEW_ALL);
 		$collect->setScope(['users' => $_SESSION['USER_ID'], 'types' => StoreCustomProject::getScopeTypes($_SESSION['custom_projects']['project_id']), 'project_id' => $_SESSION['custom_projects']['project_id']]);
 		
-		if ($do_weighted) {
+		if ($do_weighted || $do_labels) {
 			
-			$collect->setConditions(GenerateTypeObjects::CONDITIONS_MODE_FULL, function($cur_type_id) {
+			$collect->setConditions(GenerateTypeObjects::CONDITIONS_MODE_FULL, function($cur_type_id) use ($do_weighted, $do_labels) {
 				
 				$arr_use_conditions = toolbar::getTypeConditions($cur_type_id);
 				
-				return ParseTypeFeatures::parseTypeConditionNamespace($cur_type_id, $arr_use_conditions, function($arr_condition_setting) {
+				return ParseTypeFeatures::parseTypeConditionNamespace($cur_type_id, $arr_use_conditions, function($arr_condition_setting) use ($do_weighted, $do_labels) {
 					
 					$arr_condition_setting = ParseTypeFeatures::checkTypeConditionNamespace($arr_condition_setting, ParseTypeFeatures::CONDITION_NAMESPACE_ANALYSE);
-						
-					if ($arr_condition_setting !== false && isset($arr_condition_setting['condition_actions']['weight'])) {
-						return $arr_condition_setting;
+					
+					if ($arr_condition_setting === false) {
+						return false;
 					}
 					
-					return false;
+					if ($arr_condition_setting['condition_in_object_name']) {
+						
+						if (!$do_labels) {
+							return false;
+						}
+					} else if ($arr_condition_setting['condition_in_object_nodes_object'] || $arr_condition_setting['condition_in_object_nodes_referencing']) {
+						
+						if (!$do_weighted) {
+							return false;
+						}
+						
+						if (!isset($arr_condition_setting['condition_actions']['weight'])) {
+							return false;
+						}
+					} else {
+						
+						return false;
+					}
+					
+					return $arr_condition_setting;
 				});
 			});
 		} else {
@@ -776,7 +875,8 @@ class data_analysis extends base_module {
 			$collect->setConditions(false);
 		}
 		
-		$collect->init($arr_filters, false);
+		$collect->setFilter($arr_filters);
+		$collect->init(false);
 			
 		$arr_collect_info = $collect->getResultInfo();
 
@@ -792,8 +892,16 @@ class data_analysis extends base_module {
 			
 			foreach ($arr_paths as $path) {
 				
+				$do_collapse = false;
+							
+				if ($arr_scope && !$arr_collect_info['connections'][$path]['end']) { // Not the end of a path, collapse it
+					$do_collapse = true;
+				}
+				
 				$source_path = $path;
+				
 				if ($source_path) { // path includes the target type id, remove it
+					
 					$source_path = explode('-', $source_path);
 					array_pop($source_path);
 					$source_path = implode('-', $source_path);
@@ -807,21 +915,15 @@ class data_analysis extends base_module {
 				}
 
 				$arr_selection = [
-					'object' => [],
+					'object' => ((!$path || !$do_collapse) && $do_labels ? ['object_name' => true]: []),
 					'object_descriptions' => [],
 					'object_sub_details' => []
 				];
-				
-				$collapse = false;
-							
-				if ($arr_scope && !$arr_collect_info['connections'][$path]['end']) { // Not the end of a path, collapse it
-					$collapse = true;
-				}
-	
+					
 				$collect->setPathOptions([$path => [
 					'arr_selection' => $arr_selection,
 					'arr_filtering' => $arr_filtering,
-					'collapse' => $collapse
+					'collapse' => $do_collapse
 				]]);
 			}
 		}
@@ -921,7 +1023,7 @@ class data_analysis extends base_module {
 	
 	public static function parseTypeAnalysis($type_id, $arr) {
 		
-		return ParseTypeFeatures::parseTypeAnalysis($type_id, $arr, ($_SESSION['NODEGOAT_CLEARANCE'] ?? 0));
+		return ParseTypeFeatures::parseTypeAnalysis($type_id, $arr, $_SESSION['USER_ID'], $_SESSION['custom_projects']['project_id'], ($_SESSION['NODEGOAT_CLEARANCE'] ?? 0));
 	}
 		
 	public static function checkService() {

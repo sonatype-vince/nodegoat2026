@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -52,7 +52,7 @@ class data_import extends ingest_source {
 			</section>';
 		}	
 		
-		$return .= '<div class="tabs">
+		$str_html = '<div class="tabs">
 			<ul>
 				<li><a href="#">'.getLabel('lbl_import_templates').'</a></li>
 				<li><a href="#">CSV '.getLabel('lbl_files').'</a></li>
@@ -101,24 +101,25 @@ class data_import extends ingest_source {
 			</div>
 		</div>';
 		
-		return $return;
+		return $str_html;
 	}
 	
 	private function createAddButtons($what) {
 		
+		$str_what = '';
 		if ($what == 'template') {
 			$str_what = getLabel('lbl_import_template');
 		} else if ($what == 'file') {
 			$str_what = 'CSV '.getLabel('lbl_file');
 		}
 	
-		$return .= '<form id="f:data_import:add-'.$what.'" class="options">
+		$str_html = '<form id="f:data_import:add-'.$what.'" class="options">
 			<menu>
 				<input type="submit" value="'.getLabel('lbl_add').' '.$str_what.'" />
 			</menu>
 		</form>';
 		
-		return $return;
+		return $str_html;
 	}
 	
 	public function createTemplate($id = false) {
@@ -129,21 +130,21 @@ class data_import extends ingest_source {
 			$arr_template = static::getTemplate($id);
 		}
 		
-		$html = '<h1>'.($id ? getLabel('lbl_import_template').': '.$arr_template['name'] : getLabel('lbl_import_template')).'</h1>';
+		$str_html = '<h1>'.($id ? getLabel('lbl_import_template').': '.$arr_template['name'] : getLabel('lbl_import_template')).'</h1>';
 		
-		$html .= parent::createTemplate($arr_template);
+		$str_html .= parent::createTemplate($arr_template);
 		
-		return $html;
+		return $str_html;
 	}
 	
 	protected function createTemplateSettingsExtra($arr_template) {
 				
-		$html = '<li>
+		$str_html = '<li>
 			<label>'.getLabel('lbl_name').'</label>
 			<input type="text" name="'.$this->form_name.'[name]" value="'.$arr_template['name'].'" />
 		</li>';
 						
-		return $html;
+		return $str_html;
 	}
 		
 	private function createSourceFile($id = false) {
@@ -152,7 +153,7 @@ class data_import extends ingest_source {
 			$arr_details = StoreIngestFile::getSources($id, false);
 		}
 		
-		$return = '<h1>'.($id ? 'CSV '.getLabel('lbl_file').': '.$arr_details['name'] : 'CSV '.getLabel('lbl_file')).'</h1>
+		$str_html = '<h1>'.($id ? 'CSV '.getLabel('lbl_file').': '.$arr_details['name'] : 'CSV '.getLabel('lbl_file')).'</h1>
 		
 		<div class="options">
 			<section class="info attention body">'.parseBody(getLabel('inf_import_file')).'</section>
@@ -167,7 +168,7 @@ class data_import extends ingest_source {
 				</li>
 				<li class="file">
 					<label>'.getLabel('lbl_file').':</label>'.cms_general::createFileBrowser();
-				$return .= '</li>
+				$str_html .= '</li>
 				</ul>
 			</fieldset>
 		</div>
@@ -178,18 +179,18 @@ class data_import extends ingest_source {
 			
 		$this->validate = ['name' => 'required'];
 		
-		return $return;
+		return $str_html;
 	}
 		
 	public function createRunTemplate($id) {
 		
 		$arr_template = static::getTemplate($id);
 		
-		$html = '<h1>'.getLabel('lbl_run').' '.getLabel('lbl_import_template').': "'.$arr_template['name'].'"</h1>';
+		$str_html = '<h1>'.getLabel('lbl_run').' '.getLabel('lbl_import_template').': "'.$arr_template['name'].'"</h1>';
 		
-		$html .= parent::createRunTemplate($arr_template);
+		$str_html .= parent::createRunTemplate($arr_template);
 		
-		return $html;
+		return $str_html;
 	}
 		
 	protected function createCheckTemplate($arr_template, $source_id) {
@@ -203,8 +204,12 @@ class data_import extends ingest_source {
 		$is_compatible = IngestTypeObjectsFile::checkTemplateSourceCompatibility($arr_template, $arr_source_file);
 		
 		if (!$is_compatible) {
-			
 			return '<section class="info attention body">'.parseBody(getLabel('inf_import_incompatible_source')).'</section>';
+		}
+		
+		$arr_nodegoat_details = cms_nodegoat_details::getDetails();
+		if ($arr_nodegoat_details['processing_time']) {
+			timeLimit($arr_nodegoat_details['processing_time']);
 		}
 		
 		$import = new IngestTypeObjectsFile($arr_template['type_id']);
@@ -214,21 +219,19 @@ class data_import extends ingest_source {
 		$num_row_pointers = $import->getRowPointerCount();
 		
 		if (!$num_row_pointers) {
-			
-			$return = '<section class="info attention body">'.parseBody(getLabel('msg_no_data')).'</section>';
-			return $return;
+			return '<section class="info attention body">'.parseBody(getLabel('msg_no_data')).'</section>';
 		}
 		
 		$arr_rows = [0, (round($num_row_pointers/2) - 1), ($num_row_pointers - 1)];
 	
-		$return = '<section class="info attention body">'.parseBody(getLabel('inf_import_inspect_rows')).'</section><div class="fieldsets"><div>';
+		$str_html = '<section class="info attention body">'.parseBody(getLabel('inf_import_inspect_rows')).'</section><div class="fieldsets"><div>';
 							
 		foreach ($arr_rows as $num_row) {
 			
 			$num_row_show = (int)$num_row;
 			$num_row_show = ($num_row_show + 1);
 			
-			$return .= '<fieldset><legend>Row '.$num_row_show.':</legend><ul>';
+			$str_html .= '<fieldset><legend>Row '.$num_row_show.':</legend><ul>';
 			
 			foreach ($arr_template['pointers'] as $type => $arr_type_pointers) {
 				
@@ -242,33 +245,44 @@ class data_import extends ingest_source {
 			
 				foreach ($arr_type_pointers as $arr_pointer) {
 					
-					$pointer_heading = $arr_pointer['pointer_heading'];
-					$value_split = $arr_pointer['value_split'];
-					$value_index = $arr_pointer['value_index'];
-					$str_value = strEscapeHTML($import->getPointerData($num_row, $pointer_heading));
+					$str_pointer_heading = $arr_pointer['pointer_heading'];
+					$str_value_split = $arr_pointer['value_split'];
+					$num_value_index = $arr_pointer['value_index'];
+					$str_value = $import->getPointerData($num_row, $str_pointer_heading);
 					
-					$return .= '<li><label>'.$pointer_heading.'</label>';
-					
-					if ($value_split) {
+					if ($str_value !== null) {
 						
-						$arr_split = explode($value_split, $str_value);
-						$return .= '<input type="text" value="'.($value_index == 'multiple' ? implode(', ', $arr_split) : $arr_split[(int)$value_index-1]).'" disabled />';
+						if (mb_strlen($str_value) > 500) {
+							$str_value = mb_substr($str_value, 0, 500).' [...]';
+						}
+						$str_value = strEscapeHTML($str_value);
+					} else {
+						
+						$str_value = '';
+					}
+					
+					$str_html .= '<li><label>'.$str_pointer_heading.'</label>';
+					
+					if ($str_value_split) {
+						
+						$arr_split = explode($str_value_split, $str_value);
+						$str_html .= '<input type="text" value="'.($num_value_index === 'multiple' ? implode(', ', $arr_split) : $arr_split[(int)$num_value_index-1]).'" disabled />';
 						
 					} else {
 						
-						$return .= '<input type="text" value="'.$str_value.'" disabled />';
+						$str_html .= '<input type="text" value="'.$str_value.'" disabled />';
 					}
 					
-					$return .= '</li>';
+					$str_html .= '</li>';
 				}
 			}
 			
-			$return .= '</ul></fieldset>';
+			$str_html .= '</ul></fieldset>';
 		}
 		
-		$return .= '</div></div>';
+		$str_html .= '</div></div>';
 				
-		return $return;
+		return $str_html;
 	}
 	
 	public function createProcessTemplate($arr_template, $source_id, $arr_feedback) {
@@ -326,7 +340,7 @@ class data_import extends ingest_source {
 				
 			$arr_result = $ingest->store();
 			
-			$html = $this->createProcessTemplateStoreCheck($arr_result);
+			$html = $this->createProcessTemplateStoreCheck($arr_template, $arr_result);
 			
 			$this->is_done_template_process = true;
 		}
@@ -908,7 +922,7 @@ class data_import extends ingest_source {
 					
 			$this->html = $this->createAddButtons('file');
 			$this->refresh_table = true;
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "insert_template" || ($method == "update_template" && (int)$id)) {
@@ -924,7 +938,7 @@ class data_import extends ingest_source {
 			
 			$this->html = self::createAddButtons('template');
 			$this->refresh_table = true;
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "del" && $id) {
@@ -947,7 +961,7 @@ class data_import extends ingest_source {
 			}
 			
 			$this->refresh_table = true;				
-			$this->msg = true;
+			$this->message = true;
 		}
 	}
 	

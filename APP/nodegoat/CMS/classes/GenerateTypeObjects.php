@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -57,13 +57,14 @@ class GenerateTypeObjects {
 	protected $arr_type_set = [];
 	protected $arr_type_set_object_sub_details_ids = [];
 	protected $arr_type_set_conditions = [];
+	protected $arr_type_set_conditions_collect = [];
 	
 	protected $arr_columns_object = [];
 	protected $arr_columns_object_as = [];
 	protected $arr_columns_object_group = [];
 	protected $arr_columns_object_conditions_values = [];
 	protected $arr_columns_object_conditions = [];
-	protected $arr_columns_object_extra = [];
+	protected $arr_columns_object_external = [];
 	protected $arr_columns_subs = [];
 	protected $arr_columns_subs_as = [];
 	protected $arr_columns_subs_object_conditions_values = [];
@@ -79,6 +80,10 @@ class GenerateTypeObjects {
 	protected $arr_object_conditions = [];
 	protected $arr_object_conditions_name = [];
 	protected $arr_object_conditions_identifiers = [];
+	protected $num_generate_object = 0;
+	protected $num_generate_object_sub = 0;
+	protected $num_generate_column_index_conditions_values = null;
+	protected $arr_generate_functions_post = [];
 	
 	protected $arr_combine_filters = [];
 	protected $arr_depth = [];
@@ -92,6 +97,7 @@ class GenerateTypeObjects {
 	protected $arr_selection_object_sub_details_ids = [];
 	protected $arr_filtering = [];
 	protected $arr_filtering_filters = [];
+	protected $arr_use_extensions = [];
 	protected $filtering_source = false;
 	protected $table_name_filtering = false;
 	protected $versioning = false;
@@ -116,7 +122,9 @@ class GenerateTypeObjects {
 	
 	protected $arr_scope = ['users' => [], 'types' => [], 'project_id' => false];
 	protected $str_identifier_scope = false;
+	protected $arr_definitions_found = [];
 	protected $arr_types_found = [];
+	protected $arr_conditions_found = [];
 	
 	protected $sql_tables_columns_generated = false;
 	protected $settings_used = false;
@@ -132,7 +140,7 @@ class GenerateTypeObjects {
 	protected static $arr_pre_run = [];
 	
 	protected static $table_name_shared_type_object_names = '';
-	protected static $func_shared_type_set_conditions_name = false;
+	protected static $func_shared_type_set_conditions_name = null;
 	protected static $arr_shared_type_set_conditions_name = [];
 	protected static $arr_shared_type_object_names = [];
 	protected static $do_check_shared_type_object_names = false;
@@ -169,7 +177,7 @@ class GenerateTypeObjects {
 				id INT,
 				state SMALLINT,
 					PRIMARY KEY(type_id, id)
-			) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
+			) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
 		"); // An additional index on 'state' will be created later in the process
 		
 		Response::addParse(fn($str) => self::printSharedTypeObjectNames($str, true), 'print_type_object_names');
@@ -181,14 +189,14 @@ class GenerateTypeObjects {
 			}
 			
 			// Clean a possible leftover of the non-temporary tables at 1100CC shutdown.
-			DB::setDatabase(DATABASE_NODEGOAT_TEMP); // Make sure the correct database is selected
+			DB::setConnectionDatabase(DATABASE_NODEGOAT_TEMP); // Make sure the correct database is selected
 			self::cleanResults();
 		});
 	}
 		
 	public static function dropResult($table_name, $do_return = false) {
 		
-		$arr_table = self::$arr_storage_tables[$table_name];
+		$arr_table = (self::$arr_storage_tables[$table_name] ?? null);
 		
 		if (!$arr_table) {
 			return false;
@@ -205,6 +213,15 @@ class GenerateTypeObjects {
 		DB::query($sql_drop);
 	}
 	
+	public static function keepResult($table_name, $do_keep = true) {
+				
+		if (!isset(self::$arr_storage_tables[$table_name])) {
+			return false;
+		}
+		
+		self::$arr_storage_tables[$table_name]['keep'] = (bool)$do_keep;
+	}
+	
 	public static function dropResults($do_return = false) {
 		
 		$arr_sql_drop = [];
@@ -215,14 +232,18 @@ class GenerateTypeObjects {
 				continue;
 			}
 			
+			if (!Mediator::inCleanup() && $arr_table['keep']) {
+				continue;
+			}
+			
 			$arr_sql_drop[] = "DROP ".($arr_table['temporary'] ? (DB::ENGINE_IS_MYSQL ? 'TEMPORARY' : '') : '')." TABLE IF EXISTS ".($arr_table['alias'] ?: $table_name)." CASCADE";
+			
+			unset(self::$arr_storage_tables[$table_name]);
 		}
 		
 		if (!$arr_sql_drop) {
 			return;
 		}
-		
-		self::$arr_storage_tables = [];
 
 		$sql_drop = implode(';', $arr_sql_drop);
 		
@@ -247,19 +268,16 @@ class GenerateTypeObjects {
 	public static function printSharedTypeObjectNames($value, $encode = false) {
 
 		if (self::$do_check_shared_type_object_names) {
-			
 			self::getSharedTypeObjectNames();
 		}
 		
 		if (!self::$arr_shared_type_object_names) {
-			
 			return $value;
 		}
 		
 		if (is_array($value)) {
 			
 			foreach ($value as &$str) {
-				
 				$str = self::doPrintSharedTypeObjectNames($str, $encode);
 			}
 		} else {
@@ -325,7 +343,7 @@ class GenerateTypeObjects {
 				continue;
 			}
 			
-			if (self::$func_shared_type_set_conditions_name && !isset(self::$arr_shared_type_set_conditions_name[$type_id])) {
+			if (self::$func_shared_type_set_conditions_name !== null && !isset(self::$arr_shared_type_set_conditions_name[$type_id])) {
 				
 				$function = self::$func_shared_type_set_conditions_name;
 				self::$arr_shared_type_set_conditions_name[$type_id] = $function($type_id);
@@ -335,7 +353,7 @@ class GenerateTypeObjects {
 			
 			$filter = new FilterTypeObjects($type_id, static::VIEW_NAME);
 			$filter->setVersioning(static::VERSIONING_ADDED);
-			if (self::$func_shared_type_set_conditions_name) {
+			if (self::$func_shared_type_set_conditions_name !== null) {
 				$filter->setConditions(static::CONDITIONS_MODE_STYLE_INCLUDE, self::$arr_shared_type_set_conditions_name[$type_id]); // Use 'style_include' since the style will be stripped by the requesting object when applicable
 			}
 			$filter->setFilter(['table' => [$arr_table]]);
@@ -353,7 +371,6 @@ class GenerateTypeObjects {
 			$count_names++;
 			
 			if (self::$do_check_shared_type_object_names) {
-				
 				self::getSharedTypeObjectNames($count_names);
 			}
 		}
@@ -464,7 +481,7 @@ class GenerateTypeObjects {
 		
 		$arr = [];
 		
-		$has_extra = ($this->arr_columns_object_extra ? true : false);
+		$has_extra = ($this->arr_columns_object_external ? true : false);
 		
 		while ($arr_row = $res_objects->fetchRow()) {
 		
@@ -479,7 +496,7 @@ class GenerateTypeObjects {
 			
 			$cur_row = 1;
 			
-			foreach ($this->arr_columns_object_extra as $sql_name => $sql_extra) {
+			foreach ($this->arr_columns_object_external as $sql_name => $sql_extra) {
 				
 				$arr[$cur_object_id][$sql_name] = $arr_row[$cur_row];
 				$cur_row = $cur_row++;
@@ -604,7 +621,7 @@ class GenerateTypeObjects {
 						referenced_object_sub_description_id INT DEFAULT 0,
 					" : "")."
 						PRIMARY KEY (".($contains_referenced ? "object_id, id" : "id").")
-				) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
+				) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
 			");
 			
 			$sql_query_object_subs_preload = $sql_query_object_subs_select = '';
@@ -615,7 +632,7 @@ class GenerateTypeObjects {
 				
 				$arr_object_sub_details_ids[] = $object_sub_details_id;
 				
-				if ($this->arr_order_object_subs[$object_sub_details_id]) {
+				if (isset($this->arr_order_object_subs[$object_sub_details_id])) {
 					
 					foreach ($this->arr_order_object_subs[$object_sub_details_id] as $key => $value) {
 						
@@ -675,7 +692,6 @@ class GenerateTypeObjects {
 						}
 						
 						if ($arr_sql['condition_is_filtering_sub']) {
-							
 							$arr_object_conditions_keys_filtering[] = $arr_sql['condition_key'];
 						} else {
 							$arr_object_conditions_keys[] = $arr_sql['condition_key'];
@@ -708,8 +724,8 @@ class GenerateTypeObjects {
 				}
 				
 				$arr_columns_object_conditions_values = [];
+				
 				foreach ((array)$this->arr_columns_subs_object_conditions_values[$object_sub_details_id] as $key => $arr_sql) {
-
 					$arr_columns_object_conditions_values[] = "(".$arr_sql['sql'].") AS ".$arr_sql['column_name'];
 				}
 
@@ -770,25 +786,24 @@ class GenerateTypeObjects {
 		
 		if ($this->view == static::VIEW_VISUALISE) {
 				
-			$count_objects = $res_objects->getRowCount();
-			
-			$count_object_subs = 0;
+			$num_count_objects = $res_objects->getRowCount();
+			$num_count_object_subs = 0;
 			
 			if ($this->arr_selection['object_sub_details']) {
 				
 				foreach ($arr_res_objects_subs as $res) {
-					$count_object_subs += $res->getRowCount();
+					$num_count_object_subs += $res->getRowCount();
 				}
 			}
 			
-			Labels::setVariable('count_objects', num2String($count_objects));
-			Labels::setVariable('count_object_subs', num2String($count_object_subs));
+			Labels::setVariable('count_objects', num2String($num_count_objects));
+			Labels::setVariable('count_object_subs', num2String($num_count_object_subs));
 			Labels::setVariable('type', Labels::parseTextVariables($this->arr_type_set['type']['name']));
 			status(getLabel('msg_data_range_objects_found', 'L', true));
 			
 			$arr_nodegoat_details = cms_nodegoat_details::getDetails();
 			
-			if ($count_object_subs > $arr_nodegoat_details['limit_view']) {
+			if ($num_count_object_subs > $arr_nodegoat_details['limit_view']) {
 				error(getLabel('msg_data_range_too_wide'));
 			}
 		}
@@ -823,14 +838,14 @@ class GenerateTypeObjects {
 				
 				$s_arr =& $arr[$ref_type_id][$ref_object_id];
 				
-				if (!$s_arr) {
+				if (!isset($s_arr)) {
 					
 					$s_arr = [$type.'_ref_object_id' => $ref_object_id, $type.'_ref_object_name' => $ref_object_name, $type.'_ref_value' => []];
 					
 					$this->addTypeFound($type.'_'.$object_description_id, $ref_type_id);
 				}
+				
 				if ($arr_ref[3]) {
-					
 					$s_arr[$type.'_ref_value'][] = $arr_ref[3];
 				}
 			}
@@ -879,38 +894,47 @@ class GenerateTypeObjects {
 		
 		// Objects
 		
-		$has_analysis = ($this->arr_selection['object']['analysis'] ? true : false);
-		$has_extra = ($this->arr_columns_object_extra ? true : false);
+		$has_analysis = ($this->arr_selection['object']['object_analysis'] ? true : false);
+		$has_extra = ($this->arr_columns_object_external ? true : false);
 		$arr_object_description_ids = array_keys($this->arr_columns_object_descriptions);
 		$arr_object_definitions_placeholder = [];
 		
 		if ($this->conditions) {
 			
-			$num_column_index_object_conditions_values = $res_objects->getFieldCount() - count($this->arr_columns_object_conditions_values);
+			$this->num_generate_column_index_conditions_values = ($res_objects->getFieldCount() - count($this->arr_columns_object_conditions_values));
 			
 			$arr_object_sub_details_condition_settings_in_name = [];
 			
-			if ($this->arr_type_set_conditions['object_sub_details']) {
-					
-				foreach ($this->arr_type_set_conditions['object_sub_details'] as $object_sub_details_id => $arr_conditions_object_sub_details) {
-					
-					if (!$arr_conditions_object_sub_details['object_sub_descriptions']) {
-						continue;
-					}
-							
-					foreach ($arr_conditions_object_sub_details['object_sub_descriptions'] as $object_sub_description_id => $arr_condition_settings) {
-
-						foreach ($arr_condition_settings as $arr_condition_setting) {
-							
-							if (!$arr_condition_setting['condition_in_object_name']) {
-								continue;
-							}
-							
-							$arr_object_sub_details_condition_settings_in_name[] = $arr_condition_setting;
-						}
-					}
+			foreach ($this->arr_type_set_conditions_collect as &$arr_condition_setting) {
+				
+				if ($arr_condition_setting['object_sub_details_id'] && $arr_condition_setting['condition_in_object_name']) {
+					$arr_object_sub_details_condition_settings_in_name[] = $arr_condition_setting;
 				}
+				
+				if (!isset($arr_condition_setting['condition_value']['result'])) {
+					continue;
+				}
+				
+				if ($arr_condition_setting['condition_value']['object_sub_description_id']) {
+					$arr_result = static::getResultInfoObjectsSubsRangeValue($arr_condition_setting['object_sub_details_id'], $arr_condition_setting['condition_value']);
+				} else {
+					$arr_result = static::getResultInfoRangeValue($arr_condition_setting['condition_value']);
+				}
+				
+				$num_amount = ($arr_condition_setting['condition_actions']['weight']['number'] ?? 1);
+				
+				if ($arr_result['range']['min'] !== null) {
+					$arr_result['range']['min'] = (float)($arr_result['range']['min'] * $num_amount);
+					$arr_result['range']['max'] = (float)($arr_result['range']['max'] * $num_amount);
+				}
+				if ($arr_result['range_filtered']['min'] !== null) {
+					$arr_result['range_filtered']['min'] = (float)($arr_result['range_filtered']['min'] * $num_amount);
+					$arr_result['range_filtered']['max'] = (float)($arr_result['range_filtered']['max'] * $num_amount);
+				}
+				
+				$arr_condition_setting['condition_value']['result'] = $arr_result;
 			}
+			unset($arr_condition_setting);
 		}
 
 		foreach ($arr_object_description_ids as $object_description_id) {
@@ -946,19 +970,20 @@ class GenerateTypeObjects {
 				'object_definition_style' => []
 			];
 		}
-
+		
 		while ($arr_row = $res_objects->fetchRow()) {
 		
 			$cur_object_id = (int)$arr_row[0];
+			$this->num_generate_object++;
 			
 			$arr[$cur_object_id]['object'] = [
 				'object_id' => $cur_object_id,
 				'object_name' => $arr_row[1],
 				'object_name_plain' => $arr_row[2],
 				'object_name_style' => [],
-				'object_style' => [],
 				'object_sources' => $func_parse_sources('object', $arr_row[3]),
-				'object_version' => $arr_row[4],
+				'object_style' => [],
+				'object_state' => $arr_row[4],
 				'object_dating' => $arr_row[5],
 				'object_locked' => $arr_row[6]
 			];
@@ -966,20 +991,19 @@ class GenerateTypeObjects {
 			$cur_row = 7;
 			if ($this->view == static::VIEW_OVERVIEW) {
 				$s_arr['object_changes'] = $arr_row[$cur_row+0];
-				$s_arr['object_sub_changes'] = $arr_row[$cur_row+1];
-				$cur_row = $cur_row+2;
+				$cur_row = $cur_row+1;
 			}
 			if ($has_analysis) {
 				$s_arr['object_analysis'] = $arr_row[$cur_row+0];
 				$cur_row = $cur_row+1;
 			}
 			if ($has_extra) {
-				foreach ($this->arr_columns_object_extra as $sql_name => $sql_extra) {
+				foreach ($this->arr_columns_object_external as $sql_name => $sql_extra) {
 					$s_arr[$sql_name] = $arr_row[$cur_row+0];
 					$cur_row = $cur_row+1;
 				}
 			}
-						
+			
 			$arr[$cur_object_id]['object_definitions'] = $arr_object_definitions_placeholder;
 			
 			if (!isset($arr[$cur_object_id]['object_subs'])) {
@@ -989,16 +1013,15 @@ class GenerateTypeObjects {
 			if ($this->conditions) {
 					
 				$this->resetObjectConditions();
-								
+				
+				$str_object_filter_keys = null;
+				
 				if ($this->arr_columns_object_conditions) {
 					
-					$arr_match = $arr_row[$cur_row+0];
+					$str_object_filter_keys = $arr_row[$cur_row+0];
 					
-					if ($arr_match) {
-						$arr_match = explode(',', $arr_row[$cur_row+0]);
-						$arr_match = array_combine($arr_match, $arr_match);
-					} else {
-						$arr_match = [];
+					if ($str_object_filter_keys !== null) {
+						$str_object_filter_keys = ','.$str_object_filter_keys.',';
 					}
 					
 					$cur_row = $cur_row+1;
@@ -1008,18 +1031,21 @@ class GenerateTypeObjects {
 
 					foreach ($this->arr_type_set_conditions['object'] as $arr_condition_setting) {
 						
-						if ($arr_condition_setting['condition_filter']) {
-							$apply = $arr_match[$arr_condition_setting['condition_key']];
-						} else {
-							$apply = true;
-						}
+						$do_apply = true;
 						
+						if (isset($arr_condition_setting['condition_filter_key'])) {
+							$do_apply = ($str_object_filter_keys !== null && strpos($str_object_filter_keys, ','.$arr_condition_setting['condition_filter_key'].',') !== false);
+						}
+						if (isset($arr_condition_setting['condition_function_call'])) {
+							$do_apply = ($do_apply && $arr_condition_setting['condition_function_call'] !== false && $arr_condition_setting['condition_function_call']($cur_object_id, $arr_row));
+						}
+
 						if ($arr_condition_setting['condition_in_object_name']) {
 							
-							$this->setObjectNameConditions('object', ($apply ? $arr_condition_setting['condition_actions'] : false));
-						} else if ($apply) {
+							$this->setObjectNameConditions('object', ($do_apply ? $arr_condition_setting['condition_actions'] : false));
+						} else if ($do_apply) {
 
-							$this->parseObjectConditions($arr_condition_setting, $arr_row, $num_column_index_object_conditions_values);
+							$this->parseObjectConditions($arr_condition_setting, $arr_row);
 
 							$this->setObjectConditions('object', $arr_condition_setting['condition_actions']);
 						}
@@ -1034,20 +1060,26 @@ class GenerateTypeObjects {
 						
 						foreach ($arr_condition_settings as $arr_condition_setting) {
 							
-							if ($arr_condition_setting['condition_filter']) {
-								$apply = $arr_match[$arr_condition_setting['condition_key']];
-							} else {
-								$apply = true;
+							if (!$in_selection && !$arr_condition_setting['condition_in_object_name']) {
+								continue;
+							}
+							
+							$do_apply = true;
+						
+							if (isset($arr_condition_setting['condition_filter_key'])) {
+								$do_apply = ($str_object_filter_keys !== null && strpos($str_object_filter_keys, ','.$arr_condition_setting['condition_filter_key'].',') !== false);
+							}
+							if (isset($arr_condition_setting['condition_function_call'])) {
+								$do_apply = ($do_apply && $arr_condition_setting['condition_function_call'] !== false && $arr_condition_setting['condition_function_call']($cur_object_id, $arr_row));
 							}
 							
 							if ($arr_condition_setting['condition_in_object_name']) {
 								
-								$this->setObjectNameConditions($object_description_id, ($apply ? $arr_condition_setting['condition_actions'] : false));
-							} else if ($apply && $in_selection) {
+								$this->setObjectNameConditions($object_description_id, ($do_apply ? $arr_condition_setting['condition_actions'] : false));
+							} else if ($do_apply) {
 								
 								if ($arr_condition_setting['condition_in_object_nodes_referencing']) {
-
-									$this->parseObjectConditions($arr_condition_setting, $arr_row, $num_column_index_object_conditions_values);
+									$this->parseObjectConditions($arr_condition_setting, $arr_row);
 								}
 								
 								$this->setObjectConditions($object_description_id, $arr_condition_setting['condition_actions']);
@@ -1060,13 +1092,16 @@ class GenerateTypeObjects {
 					
 					foreach ($arr_object_sub_details_condition_settings_in_name as $arr_condition_setting) {
 						
-						if ($arr_condition_setting['condition_filter']) {
-							$apply = $arr_match[$arr_condition_setting['condition_key']];
-						} else {
-							$apply = true;
+						$do_apply = true;
+						
+						if (isset($arr_condition_setting['condition_filter_key'])) {
+							$do_apply = ($str_object_filter_keys !== null && strpos($str_object_filter_keys, ','.$arr_condition_setting['condition_filter_key'].',') !== false);
+						}
+						if (isset($arr_condition_setting['condition_function_call'])) {
+							$do_apply = ($do_apply && $arr_condition_setting['condition_function_call'] !== false && $arr_condition_setting['condition_function_call']($cur_object_id, $arr_row));
 						}
 						
-						$this->setObjectNameConditions($arr_condition_setting['object_sub_description_id'].'_'.$arr_condition_setting['object_sub_details_id'], ($apply ? $arr_condition_setting['condition_actions'] : false));
+						$this->setObjectNameConditions($arr_condition_setting['object_sub_description_id'].'_'.$arr_condition_setting['object_sub_details_id'], ($do_apply ? $arr_condition_setting['condition_actions'] : false));
 					}
 				}
 				
@@ -1186,6 +1221,8 @@ class GenerateTypeObjects {
 							$s_arr['object_definition_ref_object_id'] = ($select_id === null ? null : ($is_mutable ? $func_parse_mutable('object_definition_'.$object_description_id, $select_id) : (int)$select_id));
 							$s_arr['object_definition_value'] = $select_value;
 						}
+						
+						$this->addDefinitionFound('object_definition_'.$object_description_id);
 					}
 					
 					if (isset($arr_row[3])) {
@@ -1233,7 +1270,7 @@ class GenerateTypeObjects {
 				$arr_object_sub_description_ids = (isset($this->arr_columns_subs_descriptions[$object_sub_details_id]) ? array_keys($this->arr_columns_subs_descriptions[$object_sub_details_id]) : []);
 				$arr_object_sub_definitions_placeholder = [];
 				
-				$num_column_index_object_conditions_subs_values = $res->getFieldCount() - count((array)$this->arr_columns_subs_object_conditions_values[$object_sub_details_id]);
+				$this->num_generate_column_index_conditions_values = ($res->getFieldCount() - count((array)$this->arr_columns_subs_object_conditions_values[$object_sub_details_id]));
 		
 				foreach ($arr_object_sub_description_ids as $object_sub_description_id) {
 
@@ -1258,10 +1295,20 @@ class GenerateTypeObjects {
 				
 				$has_referenced = (isset($this->arr_type_set['type']['include_referenced']['object_sub_details']) && ($object_sub_details_id == 'all' || isset($this->arr_type_set['type']['include_referenced']['object_sub_details'][$object_sub_details_id])));
 				
+				$this->num_generate_object_sub = 0;
+				$prev_object_id = 0;
+				
 				while ($arr_row = $res->fetchRow()) {
 					
-					$cur_object_id = $arr_row[0];
+					$cur_object_id = (int)$arr_row[0];
 					$cur_row = 1;
+					
+					if ($cur_object_id !== $prev_object_id) {
+						
+						$this->num_generate_object_sub = 0;
+						$prev_object_id = $cur_object_id;
+					}
+					$this->num_generate_object_sub++;
 					
 					$cur_object_sub_id = (int)$arr_row[$cur_row+0];
 					$cur_object_sub_details_id = (int)$arr_row[$cur_row+1];
@@ -1301,11 +1348,13 @@ class GenerateTypeObjects {
 						'object_sub_location_ref_object_name' => $object_sub_location_ref_object_name,
 						'object_sub_location_type' => $object_sub_location_type,
 						'object_sub_sources' => $func_parse_sources('object_sub', $arr_row[$cur_row+13]),
-						'object_sub_version' => $arr_row[$cur_row+14],
-						'object_sub_style' => []
+						'object_sub_style' => [],
+						'object_sub_state' => $arr_row[$cur_row+14]
 					];
 					
 					$cur_row = $cur_row+15;
+					
+					$this->addDefinitionFound('object_sub_'.$cur_object_sub_details_id);
 
 					if ($this->conditions == static::CONDITIONS_MODE_TEXT) {
 						
@@ -1329,16 +1378,15 @@ class GenerateTypeObjects {
 					if ($arr_conditions_object_sub_details) {
 						
 						$this->resetObjectConditions();
-												
+						
+						$str_object_filter_keys = null;
+						
 						if ($this->arr_columns_object_conditions) {
 							
-							$arr_match = $arr_row[$cur_row+0];
-							
-							if ($arr_match) {
-								$arr_match = explode(',', $arr_row[$cur_row+0]);
-								$arr_match = array_combine($arr_match, $arr_match);
-							} else {
-								$arr_match = [];
+							$str_object_filter_keys = $arr_row[$cur_row+0];
+					
+							if ($str_object_filter_keys !== null) {
+								$str_object_filter_keys = ','.$str_object_filter_keys.',';
 							}
 							
 							$cur_row = $cur_row+1;
@@ -1348,15 +1396,18 @@ class GenerateTypeObjects {
 							
 							foreach ($arr_conditions_object_sub_details['object_sub_details'] as $arr_condition_setting) {
 								
-								if ($arr_condition_setting['condition_filter']) {
-									$apply = $arr_match[$arr_condition_setting['condition_key']];
-								} else {
-									$apply = true;
+								$do_apply = true;
+						
+								if (isset($arr_condition_setting['condition_filter_key'])) {
+									$do_apply = ($str_object_filter_keys !== null && strpos($str_object_filter_keys, ','.$arr_condition_setting['condition_filter_key'].',') !== false);
+								}
+								if (isset($arr_condition_setting['condition_function_call'])) {
+									$do_apply = ($do_apply && $arr_condition_setting['condition_function_call'] !== false && $arr_condition_setting['condition_function_call']($cur_object_id, $cur_object_sub_id, $arr_row));
 								}
 
-								if ($apply) {
+								if ($do_apply) {
 									
-									$this->parseObjectConditions($arr_condition_setting, $arr_row, $num_column_index_object_conditions_subs_values);
+									$this->parseObjectConditions($arr_condition_setting, $arr_row);
 
 									$this->setObjectConditions('object_sub', $arr_condition_setting['condition_actions']);
 								}
@@ -1368,20 +1419,30 @@ class GenerateTypeObjects {
 							foreach ($arr_conditions_object_sub_details['object_sub_descriptions'] as $object_sub_description_id => $arr_condition_settings) {
 								
 								$in_selection = (bool)$this->arr_columns_subs_descriptions[$object_sub_details_id][$object_sub_description_id];
+								
+								if (!$in_selection) {
+									continue;
+								}
 
 								foreach ($arr_condition_settings as $arr_condition_setting) {
 									
-									if ($arr_condition_setting['condition_filter']) {
-										$apply = $arr_match[$arr_condition_setting['condition_key']];
-									} else {
-										$apply = true;
+									if ($arr_condition_setting['condition_in_object_name']) { // Not relevant here, already handled at Object level
+										continue;
 									}
 									
-									if ($apply && $in_selection) {
+									$do_apply = true;
+						
+									if (isset($arr_condition_setting['condition_filter_key'])) {
+										$do_apply = ($str_object_filter_keys !== null && strpos($str_object_filter_keys, ','.$arr_condition_setting['condition_filter_key'].',') !== false);
+									}
+									if (isset($arr_condition_setting['condition_function_call'])) {
+										$do_apply = ($do_apply && $arr_condition_setting['condition_function_call'] !== false && $arr_condition_setting['condition_function_call']($cur_object_id, $cur_object_sub_id, $arr_row));
+									}
+									
+									if ($do_apply) {
 									
 										if ($arr_condition_setting['condition_in_object_nodes_referencing']) {
-											
-											$this->parseObjectConditions($arr_condition_setting, $arr_row, $num_column_index_object_conditions_subs_values);
+											$this->parseObjectConditions($arr_condition_setting, $arr_row);
 										}
 										
 										$this->setObjectConditions($object_sub_description_id, $arr_condition_setting['condition_actions']);
@@ -1454,7 +1515,7 @@ class GenerateTypeObjects {
 					
 					$cur_object_sub_id = (int)($arr_row[1] ?? 0);
 					
-					if ($cur_object_sub_id == 0) {
+					if ($cur_object_sub_id === 0) {
 						continue;
 					}
 					
@@ -1483,6 +1544,8 @@ class GenerateTypeObjects {
 								$s_arr['object_sub_definition_ref_object_id'] = ($select_id === null ? null : ($is_mutable ? $func_parse_mutable('object_sub_definition_'.$object_sub_description_id, $select_id) : (int)$select_id));
 								$s_arr['object_sub_definition_value'] = $select_value;
 							}
+							
+							$this->addDefinitionFound('object_sub_definition_'.$object_sub_description_id);
 						}
 						
 						if (isset($arr_row[4])) {
@@ -1501,7 +1564,7 @@ class GenerateTypeObjects {
 														
 							$cur_object_sub_id = $object_sub_id;
 							
-							if ($cur_object_sub_id == 0) {
+							if ($cur_object_sub_id === 0) {
 								break;
 							}
 							
@@ -1516,7 +1579,9 @@ class GenerateTypeObjects {
 				unset($s_arr);
 			}
 		}
-
+		
+		$this->initPost($arr);
+		
 		// Object Names
 		
 		if ($this->view !== static::VIEW_STORAGE && ($this->arr_type_object_name_object_sub_details_ids || $this->arr_type_object_name_object_description_ids || $this->arr_type_object_name_object_sub_description_ids)) {
@@ -1881,6 +1946,22 @@ class GenerateTypeObjects {
 				
 		return $arr;
 	}
+	
+	protected function addPost($func) {
+		
+		$this->arr_generate_functions_post[] = $func;
+	}
+	
+	protected function initPost(&$arr_objects) {
+		
+		if (!$this->arr_generate_functions_post) {
+			return;
+		}
+		
+		foreach ($this->arr_generate_functions_post as $func) {
+			$func($arr_objects);
+		}
+	}
 
 	protected function initPre() {
 		
@@ -1956,7 +2037,7 @@ class GenerateTypeObjects {
 				
 				$do_persist = ($arr_sql_pre_setting['persist'] || self::$do_keep_tables);
 				
-				if (DB::ENGINE_IS_MYSQL && !$do_persist) { // MySQL only: check for multiple temporary table uses in the queries, if so, make them persist
+				if (DB::ENGINE_IS_MYSQL && !DB::ENGINE_IS_MARIADB && !$do_persist) { // MySQL only: check for multiple temporary table uses in the queries, if so, make them persist
 					
 					foreach ($this->arr_sql_pre_queries as $sql_query) {
 							
@@ -2022,7 +2103,7 @@ class GenerateTypeObjects {
 					
 					$sql_create = "CREATE ".($is_temporary ? "TEMPORARY" : "")." TABLE ".$table_name." (
 							".$arr_sql_settings['columns']."
-						) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
+						) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
 					;";
 					
 					$sql_insert = '';
@@ -2187,7 +2268,7 @@ class GenerateTypeObjects {
 	public function addPre($identifier, $arr_value, $do_persist = false, $is_abortable = false, $is_dependent = false) {
 		
 		$arr_value = (is_array($arr_value) ? $arr_value : ['query' => $arr_value]);
-		$do_persist = ($do_persist ?: (DB::ENGINE_IS_MYSQL && $this->isFilteringObject()));
+		$do_persist = ($do_persist ?: (DB::ENGINE_IS_MYSQL && !DB::ENGINE_IS_MARIADB && $this->isFilteringObject()));
 
 		$this->arr_sql_pre_settings[$identifier] = ['value' => $arr_value, 'persist' => $do_persist, 'abortable' => $is_abortable, 'dependent' => $is_dependent];
 	}
@@ -2210,18 +2291,13 @@ class GenerateTypeObjects {
 		$sql_tables = '';
 		
 		if ($type == 'full') {
+			
 			$sql_select = implode(',', $this->arr_columns_object_as);
-		} else if ($type == 'count') {
-			$sql_select = 'nodegoat_to.id';
-		} else if ($type == 'count_statistics') {
-			$sql_select = 'nodegoat_to.id, nodegoat_to.active, nodegoat_to.status';
-		} else if ($type == 'object_ids_all' || $type == 'object_ids_all_statistics') {
-			$sql_select = 'nodegoat_to.id';
-		} else if ($type == 'object_ids') {
+		} else if ($type == 'object_ids' || $type == 'object_ids_all') {
 			
 			$sql_select = 'nodegoat_to.id';
 			
-			foreach ($this->arr_columns_object_extra as $sql_name => $sql_extra) {
+			foreach ($this->arr_columns_object_external as $sql_name => $sql_extra) {
 				$sql_select .= ', ('.$sql_extra.') AS '.$sql_name;
 			}
 		} else if ($type == 'storage') {
@@ -2301,7 +2377,7 @@ class GenerateTypeObjects {
 			$sql_having = implode(' AND ', $arr_having);
 		} else if (is_array($type)) {
 			
-			if ($type['columns']) {
+			if (isset($type['columns'])) {
 				
 				foreach ($type['columns'] as $sql_column) {
 					
@@ -2333,17 +2409,19 @@ class GenerateTypeObjects {
 					}
 				}
 				
-				$sql_group = ($type['group'] ? implode(',', $type['group']) : '');
+				$sql_group = ($type['group'] === false ? false : ($type['group'] ? implode(',', $type['group']) : ''));
 				$sql_tables = ($type['tables'] ? implode(' ', $type['tables']) : '');
+				
+				$type = ($type['type'] ?: 'custom');
 			} else {
 				
 				$sql_select = implode(',', $type);
+				
+				$type = 'custom';
 			}
-			
-			$type = 'custom';
 		}
 		
-		$sql_group_default = "nodegoat_to.id, nodegoat_to.version";
+		$sql_group_default = 'nodegoat_to.id, nodegoat_to.version';
 		$sql_group_extra = '';
 		
 		$sql_order = '';
@@ -2366,7 +2444,7 @@ class GenerateTypeObjects {
 			if ($this->sql_limit && !$is_filtering) {
 				$sql_limit = $this->sql_limit;
 			}
-		} else if ($type == 'object_ids_all' || $type == 'object_ids_all_statistics') { // No limits
+		} else if ($type == 'object_ids_all') { // No limits
 			
 			if ($this->arr_sql_order) {
 				$sql_order = implode(',', $this->arr_sql_order).", nodegoat_to.id DESC";
@@ -2374,15 +2452,6 @@ class GenerateTypeObjects {
 			
 			if ($this->arr_sql_group) {
 				$sql_group_extra .= ','.implode(',', $this->arr_sql_group);
-			}
-			
-			if ($type == 'object_ids_all_statistics') {
-				
-				$sql_select .= ", CASE
-					WHEN nodegoat_to.active = TRUE THEN 'active'
-					WHEN nodegoat_to.status = 1 THEN 'added'
-					WHEN nodegoat_to.status = 3 THEN 'deleted'
-				END";
 			}
 		}
 				
@@ -2426,37 +2495,28 @@ class GenerateTypeObjects {
 			$sql_tables .= implode(' ', $arr_sql_queries);
 		}
 		
+		$sql_group = ($sql_group === false ? '' : ($sql_group ?: $sql_group_default)).$sql_group_extra;
+		$sql_order = ($sql_order || $sql_order_extra ? $sql_order_extra.($sql_order_extra && $sql_order ? ',' : '').$sql_order : '');
+		
+		$sql_group = ($sql_group ? "GROUP BY ".$sql_group : '');
+		$sql_having = ($sql_having ? "HAVING ".$sql_having : '');
+		$sql_order = ($sql_order ? "ORDER BY ".$sql_order : '');
+
 		$query = "SELECT ".$sql_select."
 			FROM ".$sql_table." AS nodegoat_to
 				".$sql_tables."
 				".($this->arr_sql_filter['search'] ? "JOIN (".$this->arr_sql_filter['search'].") s ON (s.id = nodegoat_to.id)" : '')."
 				".($type == 'storage' || $type == 'custom' ? $this->arr_tables['filtering_object'].$this->arr_tables['filtering_object_more'] : $this->arr_tables['query_object'].$this->arr_tables['query_object_more'])."
 			WHERE ".$sql_table_where."
-				".($this->arr_sql_filter['objects'] ? "AND nodegoat_to.id IN (".implode(',', $this->arr_sql_filter['objects']).")" : '')."
+				".($this->arr_sql_filter['objects'] ? "AND nodegoat_to.id IN (".$this->arr_sql_filter['objects'].")" : '')."
 				".($this->arr_sql_filter['filter'] ? "AND (".implode(" AND ", $this->arr_sql_filter['filter']).")" : '')."
 				".($this->arr_sql_filter['date'] ? "AND (".implode(" AND ", $this->arr_sql_filter['date']).")" : '')."
-			GROUP BY ".($sql_group ?: $sql_group_default).$sql_group_extra."
-			".($sql_having ? "HAVING ".$sql_having : '')."
-			".($sql_order || $sql_order_extra ? "ORDER BY ".$sql_order_extra.($sql_order_extra && $sql_order ? ',' : '').$sql_order : '')."
+			".$sql_group."
+			".$sql_having."
+			".$sql_order."
 			".$sql_limit."
 		";
 		
-		if ($type == 'count' || $type == 'count_statistics') {
-			
-			$sql_count = 'COUNT(nodegoat_to.id)';
-			
-			if ($type == 'count_statistics') {
-				
-				$sql_count .= ",
-					COUNT(CASE WHEN nodegoat_to.active = TRUE THEN 1 ELSE NULL END) AS active,
-					COUNT(CASE WHEN nodegoat_to.status = 1 THEN 1 ELSE NULL END) AS added,
-					COUNT(CASE WHEN nodegoat_to.status = 3 THEN 1 ELSE NULL END) AS deleted
-				";
-			}
-			
-			$query = "SELECT ".$sql_count." FROM (".$query.") nodegoat_to";
-		}
-
 		return $query;
 	}
 	
@@ -2548,7 +2608,7 @@ class GenerateTypeObjects {
 		$sql_indexes = '';
 		
 		$do_index_as_column = (DB::ENGINE_IS_MYSQL && DB::getTransaction()); // Let's try to refrain from using data definition language (DDL) statements that will cause and implicit commit in MySQL
-			
+		
 		if ($do_index_as_column) {
 			
 			foreach ($arr_sql_index as $sql_index) {
@@ -2576,30 +2636,58 @@ class GenerateTypeObjects {
 		$this->useSettings();
 		$this->generateTablesColumns();
 		
-		$table_name = "nodegoat_tos_".$object_sub_details_id;
+		$table_name = 'nodegoat_tos_'.$object_sub_details_id;
+		$do_referenced = false;
+		
+		$sql_select = '';
+		$sql_tables = '';
+		$sql_group = '';
 				
 		if ($type == 'full') {
+			
 			$sql_select = implode(',', $this->arr_columns_subs_as[$object_sub_details_id]);
-			$sql_group = $table_name.'.id, '.$table_name.'.version'.($this->arr_columns_subs_group[$object_sub_details_id] ? ', '.implode(',', $this->arr_columns_subs_group[$object_sub_details_id]) : '');
-		} else if ($type == 'object_sub_ids' || $type == 'count_object_sub_ids' || $type == 'count_object_sub_ids_object_ids_referenced_object_sub_description_ids') {
+		} else if ($type == 'object_sub_ids') {
+			
 			$sql_select = $table_name.'.id';
-			$sql_group = $table_name.'.id, '.$table_name.'.version';
 		} else if ($type == 'object_ids_object_sub_ids') {
+			
 			$sql_select = 'nodegoat_to.id AS object_id, '.$table_name.'.id';
 			$sql_group = 'nodegoat_to.id, '.$table_name.'.id, '.$table_name.'.version';
 		} else if ($type == 'object_sub_ids_object_ids_referenced_object_sub_description_ids') {
+			
+			$do_referenced = true;
 			$sql_select = $table_name.'.id, nodegoat_to.id AS object_id, '.($object_sub_details_id == 'all' ? $table_name.'_all.referenced_object_sub_description_id' : $table_name.'_def.object_sub_description_id').' AS referenced_object_sub_description_id';
 			$sql_group = 'nodegoat_to.id, '.$table_name.'.id, '.$table_name.'.version';
+		} else if (is_array($type)) {
+			
+			if (isset($type['columns'])) {
+				
+				$sql_select = implode(',', $type['columns']);
+				
+				$sql_group = ($type['group'] === false ? false : ($type['group'] ? implode(',', $type['group']) : ''));
+				$sql_tables = ($type['tables'] ? implode(' ', $type['tables']) : '');
+				
+				if ($type['referenced']) {
+					$do_referenced = true;
+				}
+				
+				$type = ($type['type'] ?: 'custom');
+			} else {
+				
+				$sql_select = implode(',', $type);
+				
+				$type = 'custom';
+			}
 		}
 		
 		$version_select_tos = $this->generateVersion('object_sub', $table_name);
 		$version_select_tos_to = $this->generateVersion('object', $table_name.'_to');
 
-		if ($type == 'object_sub_ids_object_ids_referenced_object_sub_description_ids' || $type == 'count_object_sub_ids_object_ids_referenced_object_sub_description_ids') {
+		if ($do_referenced) {
 			
 			$arr_referenced_object_sub_description_ids = $this->generateReferencedTableObjectSubDescriptionIDs($object_sub_details_id);
 			
-			$version_select = $this->generateVersion('record', $table_name."_def");
+			$version_select = $this->generateVersion('record', $table_name.'_def');
 			
 			if ($object_sub_details_id == 'all' || count($arr_referenced_object_sub_description_ids) > 1) {
 				
@@ -2613,7 +2701,7 @@ class GenerateTypeObjects {
 						object_sub_id INT,
 						referenced_object_sub_description_id INT NULL,
 							PRIMARY KEY (id, object_sub_id)
-					) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
+					) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
 										
 					INSERT INTO ".$table_name_all." (id, object_sub_id, referenced_object_sub_description_id)
 						SELECT nodegoat_to.id, ".$table_name.".id AS object_sub_id, NULL AS referenced_object_sub_description_id
@@ -2656,12 +2744,19 @@ class GenerateTypeObjects {
 			$sql_join = "JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." ".$table_name." ON (".$table_name.".object_id = nodegoat_to.id AND ".$version_select_tos.")";
 		}
 		
+		$sql_group_default = $table_name.'.id, '.$table_name.'.version';
+		$sql_group_extra = '';
+		
 		$sql_order = '';
 		$sql_limit = '';
 		
 		if ($type == 'full' || $type == 'object_sub_ids' || $type == 'object_ids_object_sub_ids' || $type == 'object_sub_ids_object_ids_referenced_object_sub_description_ids') {
 			
-			if ($this->arr_order_object_subs[$object_sub_details_id]) {
+			if ($type == 'full') {
+				$sql_group_extra .= ($this->arr_columns_subs_group[$object_sub_details_id] ? ','.implode(',', $this->arr_columns_subs_group[$object_sub_details_id]) : '');
+			}
+			
+			if (isset($this->arr_order_object_subs[$object_sub_details_id])) {
 				
 				$sql_order_all = '';
 				
@@ -2685,35 +2780,34 @@ class GenerateTypeObjects {
 					$value = (strtoupper($value) == 'ASC' ? 'ASC' : 'DESC');
 					
 					$sql_order .= $this->arr_columns_subs[$object_sub_details_id][$key]." ".$value.", ";
-					$sql_group .= ", ".$this->arr_columns_subs[$object_sub_details_id][$key];
+					$sql_group_extra .= ','.$this->arr_columns_subs[$object_sub_details_id][$key];
 				}
 				
-				$sql_order .= ($sql_order_all ? $sql_order_all.", " : "").$table_name.".id ASC";
+				$sql_order .= ($sql_order_all ? $sql_order_all.', ' : '').$table_name.".id ASC";
 			}
 			
 			$sql_limit = $this->arr_sql_limit_object_subs[$object_sub_details_id];
 		}
 		
 		$use_object_sub_details_id = $this->arr_type_set['object_sub_details'][$object_sub_details_id]['object_sub_details']['object_sub_details_id']; // In case the sub-object is referenced
+		
+		$sql_group = ($sql_group === false ? '' : ($sql_group ?: $sql_group_default)).$sql_group_extra;
+		$sql_group = ($sql_group ? "GROUP BY ".$sql_group : '');
 				
 		$query = "SELECT ".$sql_select."
 					FROM ".$table_name_nodegoat_to." AS nodegoat_to
 					".$sql_join."
+					".$sql_tables."
 					".($this->arr_tables['query_object_subs'][$object_sub_details_id] ?? '').($this->arr_tables['query_object_subs_more'][$object_sub_details_id] ?? '')."
 					".($this->arr_tables['select_object_subs'][$object_sub_details_id] ?? '')."
 				WHERE ".$table_name.".object_sub_details_id ".($object_sub_details_id == 'all' ? "IN (".implode(',', $this->arr_selection_object_sub_details_ids).")" : "= ".$use_object_sub_details_id)."
 					".($this->arr_sql_filter['object_subs'] ? "AND ".$table_name.".id IN (".implode(',', $this->arr_sql_filter['object_subs']).")" : "")."
 					".(isset($this->arr_sql_filter_subs[$object_sub_details_id]['filter']) ? "AND ".implode(' AND ', $this->arr_sql_filter_subs[$object_sub_details_id]['filter']) : '')."
-				GROUP BY ".$sql_group."
+				".$sql_group."
 				".$sql_order."
 				".$sql_limit."
 		";
-		
-		if ($type == 'count_object_sub_ids' || $type == 'count_object_sub_ids_object_ids_referenced_object_sub_description_ids') {
-			
-			$query = "SELECT COUNT(nodegoat_tos.id) FROM (".$query.") nodegoat_tos";
-		}
-			
+
 		return $query;
 	}
 	
@@ -2871,8 +2965,6 @@ class GenerateTypeObjects {
 		// Conditions
 		
 		if ($this->arr_type_set_conditions) {
-				
-			$arr_conditions_collect = [];
 			
 			$func_process_condition_action_values = function(&$arr_condition_setting, $group) {
 				
@@ -2924,7 +3016,7 @@ class GenerateTypeObjects {
 					}
 					
 					$arr_condition_setting['condition_group'] = 'object';
-					$arr_conditions_collect[] =& $arr_condition_setting;
+					$this->arr_type_set_conditions_collect[] =& $arr_condition_setting;
 				}
 			}
 			if ($this->arr_type_set_conditions['object_descriptions']) {
@@ -2955,7 +3047,7 @@ class GenerateTypeObjects {
 						
 						$arr_condition_setting['condition_group'] = 'object';
 						$arr_condition_setting['object_description_id'] = $object_description_id;
-						$arr_conditions_collect[] =& $arr_condition_setting;
+						$this->arr_type_set_conditions_collect[] =& $arr_condition_setting;
 					}
 					
 					if (!$arr_condition_settings) {
@@ -2994,7 +3086,7 @@ class GenerateTypeObjects {
 								
 								$arr_condition_setting['condition_group'] = 'object_sub_details';
 								$arr_condition_setting['object_sub_details_id'] = $object_sub_details_id;
-								$arr_conditions_collect[] =& $arr_condition_setting;
+								$this->arr_type_set_conditions_collect[] =& $arr_condition_setting;
 							}
 							
 							if (!$arr_conditions_object_sub_details['object_sub_details']) {
@@ -3032,7 +3124,7 @@ class GenerateTypeObjects {
 								$arr_condition_setting['condition_group'] = ($arr_condition_setting['condition_in_object_name'] ? 'object' : 'object_sub_details');
 								$arr_condition_setting['object_sub_details_id'] = $object_sub_details_id;
 								$arr_condition_setting['object_sub_description_id'] = $object_sub_description_id;
-								$arr_conditions_collect[] =& $arr_condition_setting;
+								$this->arr_type_set_conditions_collect[] =& $arr_condition_setting;
 							}
 							
 							if (!$arr_condition_settings) {
@@ -3051,7 +3143,7 @@ class GenerateTypeObjects {
 				}
 			}
 			
-			foreach ($arr_conditions_collect as &$arr_condition_setting) {
+			foreach ($this->arr_type_set_conditions_collect as &$arr_condition_setting) {
 
 				if ($arr_condition_setting['condition_filter']) {
 						
@@ -3104,7 +3196,7 @@ class GenerateTypeObjects {
 					$arr_sql_pre_settings = $filter_condition->getPre();
 					$this->arr_sql_pre_settings += $arr_sql_pre_settings;
 					
-					$arr_condition_setting['condition_key'] = $condition_key;
+					$arr_condition_setting['condition_filter_key'] = $condition_key;
 				}
 				
 				if ($arr_condition_setting['condition_value']) {
@@ -3124,12 +3216,16 @@ class GenerateTypeObjects {
 							$table_name = 'nodegoat_to_def';
 							$version_select = $this->generateVersion('record', $table_name);
 							$str_value_type = $arr_object_description['object_description_value_type'];
-							$sql_value = $table_name.".".StoreType::getValueTypeValue($str_value_type);
-							$sql_value = ($str_value_type == 'numeric' ? FormatTypeObjects::sqlInt2SQLNumeric($sql_value) : $sql_value);
-							$sql_value = ($arr_object_description['object_description_has_multi'] ? "SUM(".$sql_value.")" : $sql_value);
+							$sql_value = $table_name.'.'.StoreType::getValueTypeValue($str_value_type);
+							if ($str_value_type == 'numeric') {
+								$sql_value = FormatTypeObjects::sqlInt2SQLNumeric($sql_value);
+							}
+							if ($arr_object_description['object_description_has_multi']) {
+								$sql_value = 'SUM('.$sql_value.')';
+							}
 							
 							$arr_sql_value[$column_name] = "(SELECT ".$sql_value." AS column_value
-								FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').StoreType::getValueTypeTable($str_value_type)." AS ".$table_name."
+									FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').StoreType::getValueTypeTable($str_value_type)." AS ".$table_name."
 								WHERE ".$table_name.".object_id = nodegoat_to.id AND ".$table_name.".object_description_id = ".(int)$object_description_id." AND ".$version_select."
 							)";
 						}
@@ -3148,12 +3244,12 @@ class GenerateTypeObjects {
 							if ($analysis_id && !$analysis_user_id) {
 								$analysis_user_id = 0;
 							} else if ($analysis_user_id) {
-								$analysis_user_id = ($this->arr_scope['users'] && in_array($analysis_user_id, $this->arr_scope['users']) ? $analysis_user_id : false);
+								$analysis_user_id = ($this->arr_scope['users'] && in_array($analysis_user_id, $this->arr_scope['users']) ? $analysis_user_id : null);
 							} else if (!$analysis_id) {
-								$analysis_user_id = ($this->arr_scope['users'] ? current($this->arr_scope['users']) : false);
+								$analysis_user_id = ($this->arr_scope['users'] ? current($this->arr_scope['users']) : null);
 							}
 							
-							if ($analysis_user_id === false) { // Make sure we have something
+							if ($analysis_user_id === null) { // Make sure we have something
 								$analysis_user_id = 0;
 							}
 							
@@ -3163,10 +3259,12 @@ class GenerateTypeObjects {
 								".$table_name.".number
 									FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_ANALYSES')." AS ".$table_name."
 								WHERE ".$table_name.".object_id = nodegoat_to.id
-									AND ".$table_name.".user_id = ".$analysis_user_id."
-									AND ".$table_name.".analysis_id = ".$analysis_id."
+									AND ".$table_name.".user_id = ".(int)$analysis_user_id."
+									AND ".$table_name.".analysis_id = ".(int)$analysis_id."
 									AND ".$table_name.".state = 1
 							)";
+							
+							$this->arr_use_extensions['analysis'][$analysis_id.'_'.$analysis_user_id] = ['analysis_id' => $analysis_id, 'user_id' => $analysis_user_id];
 						}
 						
 						$column_name = 'object_condition_value_';
@@ -3191,6 +3289,10 @@ class GenerateTypeObjects {
 						}
 						
 						$arr_condition_setting['condition_value_column_index'] = $s_arr['column_index'];
+						
+						if (isset($arr_condition_setting['condition_actions']['color']['color_secondary'])) {
+							$arr_condition_setting['condition_value']['result'] = []; // Initialise storing the necessary result range
+						}
 					} else {
 						
 						$arr_sql_value = [];
@@ -3206,12 +3308,16 @@ class GenerateTypeObjects {
 							$table_name = 'nodegoat_to_def';
 							$version_select = $this->generateVersion('record', $table_name);
 							$str_value_type = $arr_object_description['object_description_value_type'];
-							$sql_value = $table_name.".".StoreType::getValueTypeValue($str_value_type);
-							$sql_value = ($str_value_type == 'numeric' ? FormatTypeObjects::sqlInt2SQLNumeric($sql_value) : $sql_value);
-							$sql_value = ($arr_object_description['object_description_has_multi'] ? "SUM(".$sql_value.")" : $sql_value);
+							$sql_value = $table_name.'.'.StoreType::getValueTypeValue($str_value_type);
+							if ($str_value_type == 'numeric') {
+								$sql_value = FormatTypeObjects::sqlInt2SQLNumeric($sql_value);
+							}
+							if ($arr_object_description['object_description_has_multi']) {
+								$sql_value = 'SUM('.$sql_value.')';
+							}
 							
 							$arr_sql_value[$column_name] = "(SELECT ".$sql_value." AS column_value
-								FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').StoreType::getValueTypeTable($str_value_type)." AS ".$table_name."
+									FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').StoreType::getValueTypeTable($str_value_type)." AS ".$table_name."
 								WHERE ".$table_name.".object_id = nodegoat_tos_".(int)$object_sub_details_id.".object_id AND ".$table_name.".object_description_id = ".(int)$object_description_id." AND ".$version_select."
 							)";							
 						} else if ($arr_condition_setting['condition_value']['object_sub_description_id']) {
@@ -3223,11 +3329,13 @@ class GenerateTypeObjects {
 							$table_name = 'nodegoat_tos_def';
 							$version_select = $this->generateVersion('record', $table_name);
 							$str_value_type = $arr_object_sub_description['object_sub_description_value_type'];
-							$sql_value = $table_name.".".StoreType::getValueTypeValue($str_value_type);
-							$sql_value = ($str_value_type == 'numeric' ? FormatTypeObjects::sqlInt2SQLNumeric($sql_value) : $sql_value);
+							$sql_value = $table_name.'.'.StoreType::getValueTypeValue($str_value_type);
+							if ($str_value_type == 'numeric') {
+								$sql_value = FormatTypeObjects::sqlInt2SQLNumeric($sql_value);
+							}
 										
 							$arr_sql_value[$column_name] = "(SELECT ".$sql_value." AS column_value
-								FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').StoreType::getValueTypeTable($str_value_type)." AS ".$table_name."
+									FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').StoreType::getValueTypeTable($str_value_type)." AS ".$table_name."
 								WHERE ".$table_name.".object_sub_id = nodegoat_tos_".(int)$object_sub_details_id.".id AND ".$table_name.".object_sub_description_id = ".(int)$object_sub_description_id." AND ".$version_select."
 							)";
 						}
@@ -3246,12 +3354,12 @@ class GenerateTypeObjects {
 							if ($analysis_id && !$analysis_user_id) {
 								$analysis_user_id = 0;
 							} else if ($analysis_user_id) {
-								$analysis_user_id = ($this->arr_scope['users'] && in_array($analysis_user_id, $this->arr_scope['users']) ? $analysis_user_id : false);
+								$analysis_user_id = ($this->arr_scope['users'] && in_array($analysis_user_id, $this->arr_scope['users']) ? $analysis_user_id : null);
 							} else if (!$analysis_id) {
-								$analysis_user_id = ($this->arr_scope['users'] ? current($this->arr_scope['users']) : false);
+								$analysis_user_id = ($this->arr_scope['users'] ? current($this->arr_scope['users']) : null);
 							}
 							
-							if ($analysis_user_id === false) { // Make sure we have something
+							if ($analysis_user_id === null) { // Make sure we have something
 								$analysis_user_id = 0;
 							}
 							
@@ -3261,10 +3369,12 @@ class GenerateTypeObjects {
 								".$table_name.".number
 									FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_ANALYSES')." AS ".$table_name."
 								WHERE ".$table_name.".object_id = nodegoat_tos_".(int)$object_sub_details_id.".object_id
-									AND ".$table_name.".user_id = ".$analysis_user_id."
-									AND ".$table_name.".analysis_id = ".$analysis_id."
+									AND ".$table_name.".user_id = ".(int)$analysis_user_id."
+									AND ".$table_name.".analysis_id = ".(int)$analysis_id."
 									AND ".$table_name.".state = 1
 							)";
+							
+							$this->arr_use_extensions['analysis'][$analysis_id.'_'.$analysis_user_id] = ['analysis_id' => $analysis_id, 'user_id' => $analysis_user_id];
 						}
 						
 						$column_name = 'object_condition_value_';
@@ -3289,6 +3399,60 @@ class GenerateTypeObjects {
 						}
 						
 						$arr_condition_setting['condition_value_column_index'] = $s_arr['column_index'];
+						
+						if (isset($arr_condition_setting['condition_actions']['color']['color_secondary'])) {
+							$arr_condition_setting['condition_value']['result'] = []; // Initialise storing the necessary result range
+						}
+					}
+				}
+				
+				if ($arr_condition_setting['condition_function']) {
+					
+					if (!empty($arr_condition_setting['condition_function']['position'])) {
+						
+						if ($arr_condition_setting['condition_group'] == 'object') {
+							
+							if (!isset($arr_position_object_ids)) {
+								
+								$arr_position_object_ids = [];
+								
+								$this->addPost(function($arr_objects) use (&$arr_position_object_ids) {
+									
+									foreach ($arr_position_object_ids as $str_identifier => $object_id) {
+										$this->addConditionFound($str_identifier, $arr_objects[$object_id]['object']['object_name']);
+									}
+								});
+							}
+							
+							$arr_condition_setting['condition_function']['position'] = (int)$arr_condition_setting['condition_function']['position'];
+							
+							$arr_condition_setting['condition_function_call'] = function($object_id, &$arr_row) use (&$arr_condition_setting, &$arr_position_object_ids) {
+								
+								if ($this->num_generate_object !== $arr_condition_setting['condition_function']['position']) {
+									return false;
+								}
+								
+								$arr_position_object_ids[$arr_condition_setting['condition_identifier']] = $object_id;
+								
+								$arr_condition_setting['condition_function_call'] = false; // false = not needed anymore and do not apply condition, null = not needed anymore and do apply condition
+
+								return true;
+							};
+						} else {
+							
+							// Only supports positioning grouped per Object's Sub-Objects
+							
+							$arr_condition_setting['condition_function']['position'] = (int)$arr_condition_setting['condition_function']['position'];
+							
+							$arr_condition_setting['condition_function_call'] = function($object_id, $object_sub_id, &$arr_row) use (&$arr_condition_setting) {
+								
+								if ($this->num_generate_object_sub !== $arr_condition_setting['condition_function']['position']) {
+									return false;
+								}
+
+								return true;
+							};
+						}
 					}
 				}
 			}
@@ -3319,7 +3483,7 @@ class GenerateTypeObjects {
 		$this->arr_columns_object_as[] = "nodegoat_to.id";
 		
 		$do_select_object = ($this->arr_selection['object']['all'] ? true : false);
-		$do_select_object_name = ($this->view != static::VIEW_ID && $this->view != static::VIEW_STORAGE && $do_select_object);
+		$do_select_object_name = (($do_select_object && $this->view != static::VIEW_ID && $this->view != static::VIEW_STORAGE) || $this->arr_selection['object']['object_name']);
 		$do_order_object_name = ($this->arr_order['object_name'] ?? false);
 		
 		// Columns
@@ -3355,27 +3519,52 @@ class GenerateTypeObjects {
 		$this->arr_columns_object_as[] = ((variableHasValue($this->view, static::VIEW_ALL, static::VIEW_SET, static::VIEW_SET_EXTERNAL, static::VIEW_STORAGE, static::VIEW_OVERVIEW) && $do_select_object_name_plain) ? "nodegoat_to.name" : "NULL")." AS object_name_plain";
 		
 		$this->arr_columns_object_as[] = ((variableHasValue($this->view, static::VIEW_VISUALISE, static::VIEW_ALL, static::VIEW_SET, static::VIEW_SET_EXTERNAL, static::VIEW_STORAGE) && $do_select_object) ? "(SELECT ".DBFunctions::group2String(DBFunctions::fields2String(false, 'nodegoat_to_src.ref_object_id', "'".static::SQL_GROUP_SEPERATOR_2."'", 'nodegoat_to_src.ref_type_id', "'".static::SQL_GROUP_SEPERATOR_2."'", 'nodegoat_to_src.value'), static::SQL_GROUP_SEPERATOR)."
-			FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SOURCES')." nodegoat_to_src
+				FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SOURCES')." nodegoat_to_src
 			WHERE nodegoat_to_src.object_id = nodegoat_to.id
 		)" : "NULL")." AS object_sources";
 		
 		if ($do_select_object) {
 			
-			$str_sql_changes = '';
+			$str_sql_changed = '';
+			$str_sql_other = '\'\'';
 			
-			foreach (StoreType::getValueTypeTables() as $str_sql_table_name_affix => $arr_value_type_table) {
-				$str_sql_changes .= " OR EXISTS (SELECT TRUE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$str_sql_table_name_affix." AS nodegoat_to_def WHERE nodegoat_to_def.object_id = nodegoat_to.id AND nodegoat_to_def.active = FALSE AND nodegoat_to_def.status BETWEEN 1 AND 3)";
+			$arr_type_versionable = StoreType::getTypeVersionableIDs($this->type_id);
+			
+			if ($arr_type_versionable['object_descriptions']) {
+				
+				foreach (StoreType::getValueTypeTables() as $str_sql_table_name_affix => $arr_value_type_table) {
+					$str_sql_changed .= " OR EXISTS (SELECT TRUE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$str_sql_table_name_affix." AS nodegoat_to_def WHERE nodegoat_to_def.object_id = nodegoat_to.id AND nodegoat_to_def.object_description_id IN (".arr2String($arr_type_versionable['object_descriptions'], ',').") AND nodegoat_to_def.active = FALSE AND nodegoat_to_def.status BETWEEN 1 AND 3)";
+				}
+			}
+						
+			if (variableHasValue($this->arr_type_set['type']['class'], StoreType::TYPE_CLASS_SYSTEM, StoreType::TYPE_CLASS_REVERSAL)) {
+				
+				$system_type_id = ($this->arr_type_set['type']['class'] == StoreType::TYPE_CLASS_REVERSAL ? StoreType::getSystemTypeID('reversal') : $this->type_id);
+				$system_object_description_id = StoreType::getSystemTypeObjectDescriptionID($system_type_id, 'module');
+				
+				if ($system_object_description_id) {
+				
+					$str_sql_other = "(SELECT CASE
+							WHEN nodegoat_to_def_modules.state & ".StoreTypeObjects::MODULE_STATE_DISABLED." != 0 THEN '".StoreTypeObjects::OBJECT_STATE_ATTENTION."'
+							ELSE ''
+						END
+							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS_MODULES')." AS nodegoat_to_def_modules
+						WHERE nodegoat_to_def_modules.object_id = nodegoat_to.id
+							AND nodegoat_to_def_modules.object_description_id = ".(int)$system_object_description_id."
+							AND ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ACTIVE, 'record', 'nodegoat_to_def_modules')."
+					)";
+				}
 			}
 			
 			$this->arr_columns_object_as[] = "(CASE
-				WHEN nodegoat_to.status = 3 THEN 'deleted'
-				WHEN nodegoat_to.status = 1 THEN 'added'
-				WHEN (nodegoat_to.status = 2".$str_sql_changes.") THEN 'changed'
-				ELSE '' END
-			) AS object_version";
+				WHEN nodegoat_to.status = 3 THEN '".StoreTypeObjects::OBJECT_STATE_DELETED."'
+				WHEN nodegoat_to.status = 1 THEN '".StoreTypeObjects::OBJECT_STATE_ADDED."'
+				WHEN (nodegoat_to.status = 2".$str_sql_changed.") THEN '".StoreTypeObjects::OBJECT_STATE_CHANGED."'
+				ELSE ".$str_sql_other." END
+			) AS object_state";
 		} else {
 			
-			$this->arr_columns_object_as[] = "NULL AS object_version";
+			$this->arr_columns_object_as[] = "NULL AS object_state";
 		}
 		
 		if (variableHasValue($this->view, static::VIEW_OVERVIEW, static::VIEW_ALL, static::VIEW_SET, static::VIEW_SET_EXTERNAL) && $do_select_object) {
@@ -3388,27 +3577,28 @@ class GenerateTypeObjects {
 					FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')." nodegoat_to_status
 				WHERE nodegoat_to_status.object_id = nodegoat_to.id
 			) AS object_dating";
-			
-			if ($this->arr_order['date']) {
-				
-				$this->arr_columns_object['date'] = "(SELECT
-					CASE
-						WHEN nodegoat_to_status.date_discussion > nodegoat_to_status.date_object THEN nodegoat_to_status.date_discussion
-						ELSE nodegoat_to_status.date_object
-					END AS date
-						FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')." nodegoat_to_status
-					WHERE nodegoat_to_status.object_id = nodegoat_to.id
-				)";
-			}
 		} else {
+			
 			$this->arr_columns_object_as[] = "NULL AS object_dating";
+		}
+		
+		if (isset($this->arr_order['date'])) {
+			
+			$this->arr_columns_object['date'] = "(SELECT
+				CASE
+					WHEN nodegoat_to_status.date_discussion > nodegoat_to_status.date_object THEN nodegoat_to_status.date_discussion
+					ELSE nodegoat_to_status.date_object
+				END AS date
+					FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')." nodegoat_to_status
+				WHERE nodegoat_to_status.object_id = nodegoat_to.id
+			)";
 		}
 		
 		if (variableHasValue($this->view, static::VIEW_OVERVIEW, static::VIEW_ALL, static::VIEW_SET) && $do_select_object) {
 			
 			$s_select = "(SELECT
 				CASE
-					WHEN identifier = '' OR (date_updated + ".DBFunctions::interval(StoreTypeObjects::$timeout_lock, 'SECOND').") > ".DBFunctions::timeNow()." THEN user_id
+					WHEN identifier = '' OR (date_updated + ".DBFunctions::interval(StoreTypeObjects::$timeout_lock, 'SECOND').") > ".DBFunctions::dateTimeNow()." THEN user_id
 					ELSE NULL
 				END
 					FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_LOCK')." nodegoat_to_lock
@@ -3424,41 +3614,73 @@ class GenerateTypeObjects {
 		
 		if ($this->view == static::VIEW_OVERVIEW) {
 			
+			$str_sql_name_changes = '';
 			$arr_sql_object_changes = [];
 			$arr_sql_object_sub_changes = [];
 			
-			foreach (StoreType::getValueTypeTables() as $str_sql_table_name_affix => $arr_value_type_table) {
-				
-				$arr_sql_object_changes[] = "(SELECT
-					COUNT(DISTINCT nodegoat_to_def.object_description_id)
-						FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$str_sql_table_name_affix." AS nodegoat_to_def
-					WHERE nodegoat_to_def.object_id = nodegoat_to.id AND nodegoat_to_def.active = FALSE AND nodegoat_to_def.status BETWEEN 1 AND 3
-				)";
-				
-				$arr_sql_object_sub_changes[] = "EXISTS (SELECT TRUE
-						FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." nodegoat_tos_def
-					WHERE nodegoat_tos_def.object_sub_id = nodegoat_tos.id AND nodegoat_tos_def.active = FALSE AND nodegoat_tos_def.status BETWEEN 1 AND 3
-				)";
+			if ($this->arr_type_set['type']['use_object_name']) {
+				$str_sql_name_changes = "(CASE WHEN nodegoat_to.status BETWEEN 1 AND 3 THEN '1' ELSE '0' END)";
 			}
 			
-			$this->arr_columns_object_as[] = implode(' + ', $arr_sql_object_changes)." AS object_changes";
+			$arr_type_versionable = StoreType::getTypeVersionableIDs($this->type_id);
+
+			foreach (StoreType::getValueTypeTables() as $str_sql_table_name_affix => $arr_value_type_table) {
+				
+				if ($arr_type_versionable['object_descriptions']) {
+					
+					$arr_sql_object_changes[] = "(SELECT
+						COUNT(DISTINCT nodegoat_to_def.object_description_id)
+							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$str_sql_table_name_affix." AS nodegoat_to_def
+						WHERE nodegoat_to_def.object_id = nodegoat_to.id AND nodegoat_to_def.object_description_id IN (".arr2String($arr_type_versionable['object_descriptions'], ',').") AND nodegoat_to_def.active = FALSE AND nodegoat_to_def.status BETWEEN 1 AND 3
+					)";
+				}
+				
+				if ($arr_type_versionable['object_sub_descriptions']) {
+					
+					$arr_sql_object_sub_changes[] = "EXISTS (SELECT TRUE
+							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." nodegoat_tos_def
+						WHERE nodegoat_tos_def.object_sub_id = nodegoat_tos.id AND nodegoat_tos_def.object_sub_description_id IN (".arr2String($arr_type_versionable['object_sub_descriptions'], ',').") AND nodegoat_tos_def.active = FALSE AND nodegoat_tos_def.status BETWEEN 1 AND 3
+					)";
+				}
+			}
+
+			if ($this->arr_type_set['type']['use_object_name'] || $arr_type_versionable['object_descriptions'] || $arr_type_versionable['object_sub_details']) {
+				
+				$arr_sql_concat = [];
+				
+				if ($this->arr_type_set['type']['use_object_name']) {
+					$arr_sql_concat[0] = $str_sql_name_changes;
+				}
+				
+				if ($arr_type_versionable['object_descriptions']) {
+					$arr_sql_concat[1] = DBFunctions::castAs(implode(' + ', $arr_sql_object_changes), DBFunctions::CAST_TYPE_STRING);
+				}
+				
+				if ($arr_type_versionable['object_sub_details']) {
+						
+					$arr_sql_concat[2] = "(SELECT ".DBFunctions::castAs('COUNT(DISTINCT nodegoat_tos.id)', DBFunctions::CAST_TYPE_STRING)."
+						FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos
+						WHERE nodegoat_tos.object_id = nodegoat_to.id
+							AND nodegoat_tos.object_sub_details_id IN (".arr2String(array_keys($arr_type_versionable['object_sub_details']), ',').")
+							AND (
+								(nodegoat_tos.active = FALSE AND nodegoat_tos.status BETWEEN 1 AND 3)
+								".($arr_type_versionable['object_sub_descriptions'] ? "OR ".implode(' OR ', $arr_sql_object_sub_changes) : '')."
+							)
+					)";
+				}
+
+				$this->arr_columns_object_as[] = "CONCAT(".($arr_sql_concat[0] ?? "''").", '/', ".($arr_sql_concat[1] ?? "''").", '/', ".($arr_sql_concat[2] ?? "''").") AS object_changes";
+			} else {
 			
-			$this->arr_columns_object_as[] = "(SELECT COUNT(DISTINCT nodegoat_tos.id)
-				FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos
-				WHERE nodegoat_tos.object_id = nodegoat_to.id
-					AND nodegoat_tos.active = FALSE 
-					AND (
-						nodegoat_tos.status BETWEEN 1 AND 3
-						OR ".implode(' OR ', $arr_sql_object_sub_changes)."
-					)
-			) AS object_sub_changes";
+				$this->arr_columns_object_as[] = "NULL AS object_changes";
+			}
 		}
 		
-		if ($this->arr_selection['object']['analysis']) {
+		if ($this->arr_selection['object']['object_analysis']) {
 			
 			$arr_sql = [];
 	
-			foreach ($this->arr_selection['object']['analysis'] as $arr_analysis) {
+			foreach ($this->arr_selection['object']['object_analysis'] as $arr_analysis) {
 				
 				$arr_sql[] = "COALESCE(
 					(SELECT
@@ -3474,6 +3696,8 @@ class GenerateTypeObjects {
 					),
 					'-'
 				)";
+				
+				$this->arr_use_extensions['analysis'][$arr_analysis['analysis_id'].'_'.$arr_analysis['user_id']] = ['analysis_id' => $arr_analysis['analysis_id'], 'user_id' => $arr_analysis['user_id']];
 			}
 		
 			if (count($arr_sql) > 1) {
@@ -3484,7 +3708,7 @@ class GenerateTypeObjects {
 
 			if ($this->arr_order['object_analysis']) {
 				
-				foreach ($this->arr_selection['object']['analysis'] as $arr_analysis) {
+				foreach ($this->arr_selection['object']['object_analysis'] as $arr_analysis) {
 				
 					$this->arr_columns_object['object_analysis'][] = "(SELECT
 						nodegoat_to_an.number + (COALESCE(nodegoat_to_an.number_secondary, 0) / 1000000000)
@@ -3494,11 +3718,13 @@ class GenerateTypeObjects {
 							AND nodegoat_to_an.analysis_id = ".(int)$arr_analysis['analysis_id']."
 							AND nodegoat_to_an.state = 1
 					)";
+					
+					$this->arr_use_extensions['analysis'][$arr_analysis['analysis_id'].'_'.$arr_analysis['user_id']] = ['analysis_id' => $arr_analysis['analysis_id'], 'user_id' => $arr_analysis['user_id']];
 				}
 			}
 		}
 		
-		foreach ($this->arr_columns_object_extra as $sql_name => $sql_extra) {
+		foreach ($this->arr_columns_object_external as $sql_name => $sql_extra) {
 				
 			$this->arr_columns_object_as[] = '('.$sql_extra.') AS '.$sql_name;
 		}
@@ -3538,7 +3764,7 @@ class GenerateTypeObjects {
 			$sql_filter = ($arr_sql_filter ? "AND (".implode(' OR ', $arr_sql_filter).")" : '');
 									
 			$sql_table = "LEFT JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_ANALYSES')." ".$table_name." ON (".$table_name.".object_id = nodegoat_to.id AND ".$table_name.".state = 1 ".$sql_filter.")";
-			
+
 			$this->arr_tables['query_object'] .= EOL_1100CC.$sql_table;
 			$this->arr_tables['filtering_object'] .= EOL_1100CC.$sql_table;
 		}
@@ -4021,19 +4247,25 @@ class GenerateTypeObjects {
 					if ($do_select_object_sub_details) {
 						
 						$str_sql_changed = '';
-				
-						foreach (StoreType::getValueTypeTables() as $str_sql_table_name_affix => $arr_value_type_table) {
-							$str_sql_changed .= " OR EXISTS (SELECT TRUE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." AS nodegoat_tos_def WHERE nodegoat_tos_def.object_sub_id = ".$table_name_tos.".id AND nodegoat_tos_def.active = FALSE AND nodegoat_tos_def.status > 0)";
+						
+						$arr_type_versionable = StoreType::getTypeVersionableIDs($this->type_id);
+			 
+						if ($arr_type_versionable['object_sub_details'][$object_sub_details_id]) {
+							
+							foreach (StoreType::getValueTypeTables() as $str_sql_table_name_affix => $arr_value_type_table) {
+								$str_sql_changed .= " OR EXISTS (SELECT TRUE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." AS nodegoat_tos_def WHERE nodegoat_tos_def.object_sub_id = ".$table_name_tos.".id AND nodegoat_tos_def.object_sub_description_id IN (".arr2String($arr_type_versionable['object_sub_details'][$object_sub_details_id], ',').") AND nodegoat_tos_def.active = FALSE AND nodegoat_tos_def.status > 0)";
+							}
 						}
 						
 						$str_sql_object_sub .= "(CASE
-							WHEN ".$table_name_tos.".status = 3 THEN 'deleted'
-							WHEN ".$table_name_tos.".status = 1 THEN 'added'
-							WHEN (".$table_name_tos.".status = 2".$str_sql_changed.") THEN 'changed'
+							WHEN ".$table_name_tos.".status = 3 THEN '".StoreTypeObjects::OBJECT_STATE_DELETED."'
+							WHEN ".$table_name_tos.".status = 1 THEN '".StoreTypeObjects::OBJECT_STATE_ADDED."'
+							WHEN (".$table_name_tos.".status = 2".$str_sql_changed.") THEN '".StoreTypeObjects::OBJECT_STATE_CHANGED."'
 							ELSE '' END
-						) AS object_sub_version";
+						) AS object_sub_state";
 					} else {
-						$str_sql_object_sub .= "NULL AS object_sub_version";
+						
+						$str_sql_object_sub .= "NULL AS object_sub_state";
 					} 
 				
 				$this->arr_columns_subs_as[$object_sub_details_id][] = $str_sql_object_sub;
@@ -4059,7 +4291,7 @@ class GenerateTypeObjects {
 						
 					$this->count_object_sub_descriptions[$object_sub_details_id]++;
 											
-					$arr_sql_columns = $this->generateTablesColumnsObjectSubDescription($object_sub_details_id, $object_sub_description_id, false, $table_name_tos.'.id', $table_name_tos.'.id', $table_name_tos.'.object_id');
+					$arr_sql_columns = $this->generateTablesColumnsObjectSubDescription($object_sub_details_id, $object_sub_description_id, null, $table_name_tos.'.id', $table_name_tos.'.id', $table_name_tos.'.object_id');
 					
 					$this->arr_columns_subs_descriptions[$object_sub_details_id][$object_sub_description_id]['select_id'] = $arr_sql_columns['select_id'];
 					$this->arr_columns_subs_descriptions[$object_sub_details_id][$object_sub_description_id]['select_value'] = $arr_sql_columns['select_value'];
@@ -4146,11 +4378,11 @@ class GenerateTypeObjects {
 		
 		$this->arr_sql_tables = [];
 			
-		foreach ($this->arr_order as $column_name => $value) {
+		foreach ($this->arr_order as $str_column_name => $value) {
 			
 			$value = (strtoupper($value) == 'ASC' ? 'ASC' : 'DESC');
 			
-			if ($column_name == 'object_name') {
+			if ($str_column_name == 'object_name') {
 				
 				if ($this->arr_combine_filters['search'] || $this->arr_combine_filters['search_name']) { // Apply additional advanced sorting based on filtering
 				
@@ -4168,20 +4400,24 @@ class GenerateTypeObjects {
 				}
 			}
 			
-			if ($this->arr_columns_object[$column_name]) {
+			if (isset($this->arr_columns_object[$str_column_name])) {
 				
-				$sql_column = $this->arr_columns_object[$column_name];
+				$sql_column = $this->arr_columns_object[$str_column_name];
 				
 				if (is_array($sql_column)) {
 					
 					foreach ($sql_column as $sql) {
-						
 						$this->arr_sql_order[] = $sql.' '.$value;
 					}
 				} else {
 					
 					$this->arr_sql_order[] = $sql_column.' '.$value;
 				}
+			} else if (isset($this->arr_columns_object_external[$str_column_name])) {
+				
+				$sql_column = $this->arr_columns_object_external[$str_column_name];
+				
+				$this->arr_sql_order[] = $sql_column.' '.$value;
 			}
 		}
 	}
@@ -4378,7 +4614,7 @@ class GenerateTypeObjects {
 		return $arr_dynamic_type_name_column;
 	}
 			
-	public function generateTablesColumnsObjectDescription($object_description_id, $arr_selection = false, $sql_table_reference = 'nodegoat_to_store.id', $sql_table_column_reference = 'nodegoat_to.id', $from_object_sub_details_id = false, $arr_object_description = false) {
+	public function generateTablesColumnsObjectDescription($object_description_id, $arr_selection = null, $sql_table_reference = 'nodegoat_to_store.id', $sql_table_column_reference = 'nodegoat_to.id', $from_object_sub_details_id = null, $arr_object_description = null) {
 		
 		$arr_object_description = ($arr_object_description ?: $this->arr_type_set['object_descriptions'][$object_description_id]);
 		$table_name = "nodegoat_to_def";
@@ -4416,11 +4652,11 @@ class GenerateTypeObjects {
 			$is_mutable = is_array($arr_object_description['object_description_ref_type_id']);
 			
 			if ($arr_object_description['object_description_is_referenced']) {
-				$sql_select_id = $table_name.".object_id";
-				$sql_from_id = $table_name.".ref_object_id";
+				$sql_select_id = $table_name.'.object_id';
+				$sql_from_id = $table_name.'.ref_object_id';
 			} else {
-				$sql_select_id = $table_name.".ref_object_id";
-				$sql_from_id = $table_name.".object_id";
+				$sql_select_id = $table_name.'.ref_object_id';
+				$sql_from_id = $table_name.'.object_id';
 			}
 			
 			$use_main_table = true;
@@ -4462,8 +4698,8 @@ class GenerateTypeObjects {
 			}
 		} else {
 			
-			$sql_from_id = $table_name.".object_id";
-			$sql_value = $table_name.".".StoreType::getValueTypeValue($arr_object_description['object_description_value_type']);
+			$sql_from_id = $table_name.'.object_id';
+			$sql_value = $table_name.'.'.StoreType::getValueTypeValue($arr_object_description['object_description_value_type']);
 
 			if ($arr_object_description['object_description_ref_type_id']) { // Dynamic with referencing; main/default value is not stored in the main value type table
 				
@@ -4475,8 +4711,8 @@ class GenerateTypeObjects {
 					
 					$use_main_table = true;
 					
-					$table_name_affix = StoreType::getValueTypeTable($arr_object_description['object_description_value_type']. 'view');
-					$sql_value = $table_name.".".StoreType::getValueTypeValue($arr_object_description['object_description_value_type'], 'view');
+					$table_name_affix = StoreType::getValueTypeTable($arr_object_description['object_description_value_type'], 'view');
+					$sql_value = $table_name.'.'.StoreType::getValueTypeValue($arr_object_description['object_description_value_type'], 'view');
 				}
 			} else {
 				
@@ -4532,7 +4768,7 @@ class GenerateTypeObjects {
 				
 				if ($arr_object_description['object_description_ref_type_id']) {
 					
-					$sql_value_order = $table_name.".".StoreType::getValueTypeValue($arr_object_description['object_description_value_type'], 'name');
+					$sql_value_order = $table_name.'.'.StoreType::getValueTypeValue($arr_object_description['object_description_value_type'], 'name');
 					$version_select_order = $this->generateVersion('name', $table_name, $arr_object_description['object_description_value_type']);
 					$table_name_affix_order = StoreType::getValueTypeTable($arr_object_description['object_description_value_type'], 'name');
 				} else {
@@ -4570,7 +4806,7 @@ class GenerateTypeObjects {
 		return ['select_value' => $sql_select_value, 'select_id' => $sql_select_id, 'group' => $sql_group, 'order' => $sql_order, 'column' => $sql_column, 'tables' => $sql_select_tables];
 	}
 		
-	public function generateTablesColumnsObjectSubDescription($object_sub_details_id, $object_sub_description_id, $arr_selection = false, $sql_table_reference = 'nodegoat_tos.id', $sql_table_column_reference = 'nodegoat_tos.id', $sql_table_object_reference = 'nodegoat_tos.object_id') {
+	public function generateTablesColumnsObjectSubDescription($object_sub_details_id, $object_sub_description_id, $arr_selection = null, $sql_table_reference = 'nodegoat_tos.id', $sql_table_column_reference = 'nodegoat_tos.id', $sql_table_object_reference = 'nodegoat_tos.object_id') {
 		
 		$arr_object_sub_description = $this->arr_type_set['object_sub_details'][$object_sub_details_id]['object_sub_descriptions'][$object_sub_description_id];
 		$table_name = 'nodegoat_tos_def';
@@ -4595,7 +4831,7 @@ class GenerateTypeObjects {
 			}
 			
 			$arr_use_selection = ['object_description_value' => $arr_selection['object_sub_description_value'], 'object_description_reference' => $arr_selection['object_sub_description_reference'], 'object_description_reference_value' => $arr_selection['object_sub_description_reference_value']];
-			$arr_object_description = (isset($this->arr_type_set['type']['include_referenced']['object_sub_details'][$object_sub_details_id]) ? $this->arr_type_set['type']['include_helpers']['object_descriptions'][$object_sub_description_use_object_description_id] : false);
+			$arr_object_description = (isset($this->arr_type_set['type']['include_referenced']['object_sub_details'][$object_sub_details_id]) ? $this->arr_type_set['type']['include_helpers']['object_descriptions'][$object_sub_description_use_object_description_id] : $this->arr_type_set['object_descriptions'][$object_sub_description_use_object_description_id]);
 			
 			$arr_sql_columns = $this->generateTablesColumnsObjectDescription($object_sub_description_use_object_description_id, $arr_use_selection, $sql_table_object_reference, $sql_table_object_reference, $object_sub_details_id, $arr_object_description);
 			
@@ -4606,7 +4842,7 @@ class GenerateTypeObjects {
 			$sql_column = $arr_sql_columns['column'];
 			$sql_select_tables = $arr_sql_columns['tables'];
 			
-			if (!$this->arr_selection['object_descriptions'][$object_sub_description_use_object_description_id]['object_description_value']) {
+			if (!$this->arr_selection['object_descriptions'][$object_sub_description_use_object_description_id]['object_description_value'] && !$arr_object_description['object_description_in_name']) {
 				unset($this->arr_type_object_name_object_description_ids[$object_sub_description_use_object_description_id]);
 			}
 			if ($arr_selection['object_sub_description_value']) {
@@ -4696,8 +4932,8 @@ class GenerateTypeObjects {
 						
 						$use_main_table = true;
 						
-						$table_name_affix = StoreType::getValueTypeTable($arr_object_sub_description['object_sub_description_value_type']. 'view');
-						$sql_value = $table_name.".".StoreType::getValueTypeValue($arr_object_sub_description['object_sub_description_value_type'], 'view');
+						$table_name_affix = StoreType::getValueTypeTable($arr_object_sub_description['object_sub_description_value_type'], 'view');
+						$sql_value = $table_name.'.'.StoreType::getValueTypeValue($arr_object_sub_description['object_sub_description_value_type'], 'view');
 					}
 				} else {
 					$use_main_table = true;
@@ -4743,7 +4979,7 @@ class GenerateTypeObjects {
 					
 					if ($arr_object_sub_description['object_sub_description_ref_type_id']) {
 						
-						$sql_value_order = $table_name.".".StoreType::getValueTypeValue($arr_object_sub_description['object_sub_description_value_type'], 'name');
+						$sql_value_order = $table_name.'.'.StoreType::getValueTypeValue($arr_object_sub_description['object_sub_description_value_type'], 'name');
 						$version_select_order = $this->generateVersion('name', $table_name, $arr_object_sub_description['object_sub_description_value_type']);
 						$table_name_affix_order = StoreType::getValueTypeTable($arr_object_sub_description['object_sub_description_value_type'], 'name');
 					} else {
@@ -4753,7 +4989,7 @@ class GenerateTypeObjects {
 						$table_name_affix_order = $table_name_affix;
 					}
 					
-					$sql_column = "(SELECT ".($arr_object_description['object_sub_description_has_multi'] ? DBFunctions::group2String($sql_value_order, ' ') : $sql_value_order)." AS column_value
+					$sql_column = "(SELECT ".($arr_object_sub_description['object_sub_description_has_multi'] ? DBFunctions::group2String($sql_value_order, ' ') : $sql_value_order)." AS column_value
 						FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$table_name_affix_order." AS ".$table_name."
 							".($is_filtering ? $func_sql_join_value_store($table_name) : "")."
 						WHERE ".$table_name.".object_sub_id = ".$sql_table_column_reference." AND ".$table_name.".object_sub_description_id = ".$object_sub_description_id." AND ".$version_select_order."
@@ -4803,11 +5039,11 @@ class GenerateTypeObjects {
 				
 				if ($date_updated) {
 					
-					status(getLabel('msg_building_cache_object'), false, getLabel('msg_wait'), ['identifier' => SiteStartEnvironment::getSessionId(true).'cache_object', 'duration' => 1000, 'persist' => true]);
+					status(getLabel('msg_building_cache_object'), false, getLabel('msg_wait'), ['identifier' => SiteStartEnvironment::getSessionID(true).'cache_object', 'duration' => 1000, 'persist' => true]);
 
 					cms_jobs::runJob($module, $method, $date_updated);
 					
-					clearStatus(SiteStartEnvironment::getSessionId(true).'cache_object');
+					clearStatus(SiteStartEnvironment::getSessionID(true).'cache_object');
 				}
 			}
 			
@@ -4895,7 +5131,7 @@ class GenerateTypeObjects {
 		if ($do_cache) {
 			$do_cache = $this->cacheTypeObjects();
 		}
-				
+		
 		return self::generateTablesColumnsObjectSubLocationReferencing($table_name, $do_reference_only, $do_readable, $do_cache);
 	}
 
@@ -5013,7 +5249,7 @@ class GenerateTypeObjects {
 	
 	public static function generateVersioning($versioning, $type, $table_name, $data_type = false) {
 		
-		$sql = false;
+		$sql = null;
 		
 		switch ($type) {
 			case 'object':
@@ -5120,35 +5356,42 @@ class GenerateTypeObjects {
 		return $arr;
 	}
 	
-	protected function addTypeFound($type, $type_id) {
+	protected function addDefinitionFound($str_type) {
+		
+		$this->arr_definitions_found[$str_type] = true;
+	}
+	
+	protected function addTypeFound($str_type, $type_id) {
 		
 		if (!$type_id) {
 			return;
 		}
 		
-		$this->arr_types_found[$type][$type_id] = $type_id;
+		$this->arr_types_found[$str_type][$type_id] = $type_id;
 	}
 	
-	public function getResultInfo($arr_options = [], $str_identifier = false) {
+	protected function addConditionFound($str_identifier, $str_value) {
+
+		$this->arr_conditions_found[$str_identifier] = $str_value;
+	}
+	
+	public function getResultInfo($arr_options = [], $str_identifier = null) {
 		
 		$arr_options = ($arr_options ?: []);
 		$do_include_objects = (bool)$arr_options['objects'];
 		$do_include_statistics = (bool)$arr_options['statistics'];
 		$version_select = $this->generateVersion('object', 'nodegoat_to');
+				
+		$str_identifier_value = 'object_'.$this->versioning.'_'.$do_include_objects.'_'.$do_include_statistics;
+		$arr_cache = $this->getCacheResultInfo($str_identifier, $str_identifier_value);
 		
-		$str_identifier = 'type_filter_result_'.$this->type_id.($str_identifier ? '_'.$str_identifier : '');		
-		$arr_cache_all = SiteStartEnvironment::getFeedback($str_identifier);
-		
-		$str_identifier_value = 'object_'.$this->versioning;
-		$arr_cache = ($arr_cache_all[$str_identifier_value] ?? []);
-		
-		if (!$arr_cache['total']) {
+		if (!isset($arr_cache['total'])) {
 			
-			$sql_select = 'COUNT(nodegoat_to.id)';
+			$str_sql_select = 'COUNT(nodegoat_to.id)';
 			
 			if ($do_include_statistics) {
 				
-				$sql_select .= ",
+				$str_sql_select .= ",
 					COUNT(CASE WHEN nodegoat_to.active = TRUE THEN 1 ELSE NULL END) AS active,
 					COUNT(CASE WHEN nodegoat_to.status = 1 THEN 1 ELSE NULL END) AS added,
 					COUNT(CASE WHEN nodegoat_to.status = 3 THEN 1 ELSE NULL END) AS deleted
@@ -5156,7 +5399,8 @@ class GenerateTypeObjects {
 			}
 			
 			// Total data set length
-			$res = DB::query("SELECT ".$sql_select."
+			
+			$res = DB::query("SELECT ".$str_sql_select."
 					FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to
 				WHERE nodegoat_to.type_id = ".$this->type_id
 					
@@ -5165,14 +5409,14 @@ class GenerateTypeObjects {
 				
 			$arr_row = $res->fetchRow();
 			
-			$arr_cache['total'] = $arr_row[0];
+			$arr_cache['total'] = (int)$arr_row[0];
 			
 			if ($do_include_statistics) {
 				
 				$arr_cache['statistics'] = [
-					'active' => $arr_row[1],
-					'added' => $arr_row[2],
-					'deleted' => $arr_row[3]
+					'active' => (int)$arr_row[1],
+					'added' => (int)$arr_row[2],
+					'deleted' => (int)$arr_row[3]
 				];
 			}
 		}
@@ -5184,69 +5428,69 @@ class GenerateTypeObjects {
 			
 			if ($str_cache_filter != $str_filter || $do_include_objects) {
 				
+				$str_sql_select = ($do_include_objects ? 'nodegoat_to.id' : 'COUNT(nodegoat_to.id)');
+				
+				if ($do_include_statistics) {
+					
+					if ($do_include_objects) {
+						
+						$str_sql_select .= ", CASE
+							WHEN nodegoat_to.active = TRUE THEN 'active'
+							WHEN nodegoat_to.status = 1 THEN 'added'
+							WHEN nodegoat_to.status = 3 THEN 'deleted'
+						END";
+					} else {
+						
+						$str_sql_select .= ",
+							COUNT(CASE WHEN nodegoat_to.active = TRUE THEN 1 ELSE NULL END) AS active,
+							COUNT(CASE WHEN nodegoat_to.status = 1 THEN 1 ELSE NULL END) AS added,
+							COUNT(CASE WHEN nodegoat_to.status = 3 THEN 1 ELSE NULL END) AS deleted
+						";
+					}
+				}
+				
 				// Data set length after filtering
 				
 				if ($this->table_name && !$this->arr_limit) {
 					
-					$sql_select = ($do_include_objects ? 'nodegoat_to.id' : 'COUNT(nodegoat_to.id)');
-					
-					if ($do_include_statistics) {
-						
-						if ($do_include_objects) {
-							
-							$sql_select .= ", CASE
-								WHEN nodegoat_to.active = TRUE THEN 'active'
-								WHEN nodegoat_to.status = 1 THEN 'added'
-								WHEN nodegoat_to.status = 3 THEN 'deleted'
-							END";
-						} else {
-							
-							$sql_select .= ",
-								COUNT(CASE WHEN nodegoat_to.active = TRUE THEN 1 ELSE NULL END) AS active,
-								COUNT(CASE WHEN nodegoat_to.status = 1 THEN 1 ELSE NULL END) AS added,
-								COUNT(CASE WHEN nodegoat_to.status = 3 THEN 1 ELSE NULL END) AS deleted
-							";
-						}
-					}
-										
 					if ($this->num_limit_generate) {
 						
 						// Need to make use of main table, could contain multiple rows per ID, group it first
 						
 						if ($do_include_statistics) {
 							
-							$str_sql_query = "(SELECT
+							$str_sql_query = "SELECT
 								nodegoat_to.id, nodegoat_to.active, nodegoat_to.status
 									FROM ".$this->table_name_all." AS nodegoat_to_to
 									JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." AS nodegoat_to ON (nodegoat_to.id = nodegoat_to_to.id AND ".$version_select.")
 								GROUP BY nodegoat_to.id, nodegoat_to.active, nodegoat_to.status
-							)";
+							";
 						} else {
 							
-							$str_sql_query = "(SELECT
+							$str_sql_query = "SELECT
 								nodegoat_to.id
 									FROM ".$this->table_name_all." AS nodegoat_to
 								GROUP BY nodegoat_to.id
-							)";
+							";
 						}
 						
 						$str_sql_query = "SELECT
-							".$sql_select."
-							FROM ".$str_sql_query." AS nodegoat_to
+							".$str_sql_select."
+							FROM (".$str_sql_query.") AS nodegoat_to
 						";
 					} else {
 						
 						if ($do_include_statistics) {
 							
 							$str_sql_query = "SELECT
-								".$sql_select."
+								".$str_sql_select."
 									FROM ".$this->table_name_objects." AS nodegoat_to_to
 									JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." AS nodegoat_to ON (nodegoat_to.id = nodegoat_to_to.id AND ".$version_select.")
 							";
 						} else {
 							
 							$str_sql_query = "SELECT
-								".$sql_select."
+								".$str_sql_select."
 									FROM ".$this->table_name_objects." AS nodegoat_to
 							";
 						}
@@ -5256,9 +5500,20 @@ class GenerateTypeObjects {
 				} else {
 					
 					if ($do_include_objects) {
-						$str_sql_query = $this->sqlQuery(($do_include_statistics ? 'object_ids_all_statistics' : 'object_ids_all'));
+						
+						$str_sql_query = $this->sqlQuery(['columns' => [$str_sql_select], 'type' => 'object_ids_all']);
 					} else {
-						$str_sql_query = $this->sqlQuery(($do_include_statistics ? 'count_statistics' : 'count'));
+						
+						$str_sql_table_name = static::sqlTableName();
+						$str_sql_select_prepare = $str_sql_table_name.'.id';
+						
+						if ($do_include_statistics) {
+							$str_sql_select_prepare .= ', '.$str_sql_table_name.'.active, '.$str_sql_table_name.'.status';
+						}
+
+						$str_sql_query = $this->sqlQuery(['columns' => [$str_sql_select_prepare], 'type' => 'select']);
+						
+						$str_sql_query = "SELECT ".$str_sql_select." FROM (".$str_sql_query.") nodegoat_to";
 					}
 					
 					$this->initPre();
@@ -5271,12 +5526,37 @@ class GenerateTypeObjects {
 				
 				if ($do_include_objects) {
 
+					$num_total = $res->getRowCount();
+					
 					$arr_objects = [];
+					$str_objects = '';
+
+					$func_write = function() use (&$arr_objects, &$str_objects) {
+						
+						if ($arr_objects === []) {
+							return;
+						}
+						
+						if ($str_objects !== '') {
+							$str_objects .= ',';
+						}
+						
+						$str_objects .= implode(',', $arr_objects);
+						$arr_objects = [];
+					};
+					
+					$num_i = 0;
 					
 					while ($arr_row = $res->fetchRow()) {
 						
 						$arr_objects[] = $arr_row[0];
-						$num_total++;
+						$num_i++;
+						
+						if ($num_i === 2000) {
+							
+							$func_write();
+							$num_i = 0;
+						}
 						
 						if ($do_include_statistics) {
 							
@@ -5293,16 +5573,18 @@ class GenerateTypeObjects {
 							}
 						}
 					}
+					
+					$func_write();
 				} else {
 				
 					$arr_row = $res->fetchRow();
-					$num_total = $arr_row[0];
+					$num_total = (int)$arr_row[0];
 					
 					if ($do_include_statistics) {
 						
-						$num_active = $arr_row[1];
-						$num_added = $arr_row[2];
-						$num_deleted = $arr_row[3];
+						$num_active = (int)$arr_row[1];
+						$num_added = (int)$arr_row[2];
+						$num_deleted = (int)$arr_row[3];
 					}
 				}
 				
@@ -5328,8 +5610,7 @@ class GenerateTypeObjects {
 			}
 		}
 		
-		$arr_cache_all[$str_identifier_value] = $arr_cache;
-		SiteEndEnvironment::setFeedback($str_identifier, $arr_cache_all, true);
+		$this->setCacheResultInfo($arr_cache, $str_identifier, $str_identifier_value);
 		
 		$arr_info = [
 			'total' => $arr_cache['total'],
@@ -5341,35 +5622,31 @@ class GenerateTypeObjects {
 			$arr_info['statistics_filtered'] = $arr_cache['query']['statistics'];
 		}
 		if ($do_include_objects) {
-			$arr_info['objects'] = $arr_objects;
+			$arr_info['objects'] = $str_objects;
 		}
 		
 		return $arr_info;
 	}
 	
-	public function getResultInfoObjectSubs($object_id, $object_sub_details_id, $str_identifier = false) {
+	public function getResultInfoObjectSubs($object_id, $object_sub_details_id, $str_identifier = null) {
 
-		$str_identifier = 'type_filter_result_'.$this->type_id.($str_identifier ? '_'.$str_identifier : '');		
-		$arr_cache_all = SiteStartEnvironment::getFeedback($str_identifier);
-		
 		$object_id = (is_array($object_id) ? serialize($object_id) : $object_id); // Possibility to get combined object results
 		
 		$str_identifier_value = 'object_sub_'.$this->versioning.'_'.$object_id.'_'.$object_sub_details_id;
-		$arr_cache = ($arr_cache_all[$str_identifier_value] ?? []);
+		$arr_cache = $this->getCacheResultInfo($str_identifier, $str_identifier_value);
 		
-		if (!$arr_cache['total']) {
+		if (!isset($arr_cache['total'])) {
 			
 			$version_select_tos = $this->generateVersion('object_sub', 'nodegoat_tos');
 			
-			$sql = false;
-			$sql_referenced = false;
+			$arr_sql = [];
 			
 			if ($object_sub_details_id == 'all' || !isset($this->arr_type_set['type']['include_referenced']['object_sub_details'][$object_sub_details_id])) {
 			
-				$sql = "SELECT COUNT(nodegoat_tos.id)
+				$arr_sql[] = "SELECT COUNT(nodegoat_tos.id) AS num_total
 						FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos
 						JOIN ".$this->table_name_objects." nodegoat_to ON (nodegoat_to.id = nodegoat_tos.object_id)
-					WHERE object_sub_details_id ".($object_sub_details_id == 'all' ? 'IN ('.implode(',', $this->arr_selection_object_sub_details_ids).')' : "= ".$object_sub_details_id)."
+					WHERE object_sub_details_id ".($object_sub_details_id == 'all' ? 'IN ('.implode(',', $this->arr_selection_object_sub_details_ids).')' : '= '.$object_sub_details_id)."
 						AND ".$version_select_tos;
 			}
 			
@@ -5377,87 +5654,103 @@ class GenerateTypeObjects {
 			
 			if ($arr_referenced_object_sub_description_ids) {
 								
-				$version_select = $this->generateVersion('record', "nodegoat_tos_def");
+				$version_select = $this->generateVersion('record', 'nodegoat_tos_def');
 				
-				if (count($arr_referenced_object_sub_description_ids) > 1) {
-					
-					$arr_sql_referenced = [];
-					
-					foreach ($arr_referenced_object_sub_description_ids as $str_sql_table_name_affix => $arr_ids) {
-					
-						$arr_sql_referenced[] = "(SELECT nodegoat_tos.id
-								FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." nodegoat_tos_def
-								JOIN ".$this->table_name_objects." nodegoat_to ON (nodegoat_to.id = nodegoat_tos_def.ref_object_id)
-								JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_def.object_sub_id AND ".$version_select_tos.")
-							WHERE nodegoat_tos_def.object_sub_description_id IN (".implode(',', $arr_ids).")
-								AND ".$version_select."
-						)";
-					}
-					
-					$sql_referenced = "SELECT COUNT(DISTINCT id) FROM (".implode(' UNION ALL ', $arr_sql_referenced).") AS foo";
-				} else {
-					
-					$str_sql_table_name_affix = key($arr_referenced_object_sub_description_ids);
-					$arr_ids = current($arr_referenced_object_sub_description_ids);
-					
-					$sql_referenced = "SELECT COUNT(nodegoat_tos.id)
+				$has_multi_referenced = (count($arr_referenced_object_sub_description_ids) > 1);
+				
+				$str_sql_select_referenced = 'COUNT(nodegoat_tos.id) AS num_total';
+				if ($has_multi_referenced) {
+					$str_sql_select_referenced = 'nodegoat_tos.id';
+				}
+				
+				$arr_sql_referenced = [];
+				
+				foreach ($arr_referenced_object_sub_description_ids as $str_sql_table_name_affix => $arr_ids) {
+				
+					$arr_sql_referenced[] = "SELECT ".$str_sql_select_referenced."
 							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." nodegoat_tos_def
 							JOIN ".$this->table_name_objects." nodegoat_to ON (nodegoat_to.id = nodegoat_tos_def.ref_object_id)
 							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_def.object_sub_id AND ".$version_select_tos.")
 						WHERE nodegoat_tos_def.object_sub_description_id IN (".implode(',', $arr_ids).")
-							AND ".$version_select;
+							AND ".$version_select."
+					";
+				}
+				
+				if ($has_multi_referenced) {
+					$arr_sql[] = "SELECT COUNT(id) AS num_total FROM ((".implode(') UNION (', $arr_sql_referenced).")) AS foo";
+				} else {
+					$arr_sql[] = $arr_sql_referenced[0];
 				}
 			}
 			
-			if ($sql && $sql_referenced) {
+			$str_sql_query = false;
+			
+			if (count($arr_sql) > 1) {
 				
-				$arr_res = DB::queryMulti($sql.';'.$sql_referenced.';');
+				if (DB::ENGINE_IS_MYSQL && !DB::ENGINE_IS_MARIADB) { // Cannot reopen temporary table...
+					$str_sql_query = false;
+				} else {
+					$str_sql_query = "SELECT SUM(num_total) FROM (".implode(' UNION ALL ', $arr_sql).") AS foo";
+				}
 			} else {
 				
-				if ($sql_referenced) {
-				
-					$sql = $sql_referenced;
-				}
-				
-				$arr_res[] = DB::query($sql);
+				$str_sql_query = $arr_sql[0];
 			}
 			
-			$arr_cache['total'] = 0;
+			$num_total = 0;
+			
+			if (!$str_sql_query) {
 
-			// Total data set length
-			foreach ($arr_res as $res) {
+				$arr_res = DB::queryMulti(implode(';', $arr_sql).';');
+				
+				foreach ($arr_res as $res) {
+					
+					$arr_row = $res->fetchRow();
+					$num_total += (int)$arr_row[0];
+				}
+			} else {
+				
+				$res = DB::query($str_sql_query);
 				
 				$arr_row = $res->fetchRow();
-			
-				$arr_cache['total'] += $arr_row[0];
+				$num_total = (int)$arr_row[0];
 			}
+			
+			$arr_cache['total'] = $num_total;
 		}
 		
 		if ($this->arr_combine_filters['object_subs'] || $this->arr_sql_filter_subs[$object_sub_details_id]) {
 			
+			$str_filter = ($this->arr_combine_filters ? value2Hash($this->arr_combine_filters) : 'filter_subs');
+			$str_cache_filter = ($arr_cache['query']['value'] ?? '');
+			
 			$contains_referenced = $this->arr_type_set['type']['include_referenced']['object_sub_details'];
-			
-			$str_filter = value2Hash($this->arr_combine_filters);
-			
-			if ($arr_cache['query']['value'] != $str_filter) {
+
+			if ($str_cache_filter != $str_filter) {
+				
+				$str_sql_select = 'COUNT(nodegoat_tos.id)';
 				
 				$is_referenced = ($contains_referenced && isset($this->arr_type_set['type']['include_referenced']['object_sub_details'][$object_sub_details_id]));
 				$has_referenced = ($is_referenced || ($object_sub_details_id == 'all' && $contains_referenced));
 				
+				$str_sql_select_prepare = static::sqlTableNameSub($object_sub_details_id).'.id';
+				
 				if ($has_referenced) {
-					$sql_query = $this->sqlQuerySub('count_object_sub_ids_object_ids_referenced_object_sub_description_ids', $object_sub_details_id, $this->table_name_objects);
+					$str_sql_query = $this->sqlQuerySub(['columns' => [$str_sql_select_prepare], 'referenced' => true, 'type' => 'select'], $object_sub_details_id, $this->table_name_objects);
 				} else {
-					$sql_query = $this->sqlQuerySub('count_object_sub_ids', $object_sub_details_id, $this->table_name_objects);
+					$str_sql_query = $this->sqlQuerySub(['columns' => [$str_sql_select_prepare], 'type' => 'select'], $object_sub_details_id, $this->table_name_objects);
 				}
+
+				$str_sql_query = "SELECT ".$str_sql_select." FROM (".$str_sql_query.") nodegoat_tos";
 
 				$this->initPre();
 				
-				$res = DB::query($sql_query);
+				$res = DB::query($str_sql_query);
 				
 				$arr_row = $res->fetchRow();
-				$total = $arr_row[0];
+				$num_total = (int)$arr_row[0];
 				
-				$arr_cache['query']['total'] = $total;
+				$arr_cache['query']['total'] = $num_total;
 				$arr_cache['query']['value'] = $str_filter;
 			}
 		} else {
@@ -5466,38 +5759,420 @@ class GenerateTypeObjects {
 			$arr_cache['query']['value'] = false;
 		}
 		
-		$arr_cache_all[$str_identifier_value] = $arr_cache;
-		SiteEndEnvironment::setFeedback($str_identifier, $arr_cache_all, true);
+		$this->setCacheResultInfo($arr_cache, $str_identifier, $str_identifier_value);
 		
 		return [
 			'total' => $arr_cache['total'],
-			'total_filtered' => (isset($arr_cache['query']['total']) ? $arr_cache['query']['total'] : $arr_cache['total'])
+			'total_filtered' => $arr_cache['query']['total']
 		];
 	}
 	
-	public function clearResultInfo($str_identifier = false) {
+	public function getResultInfoRangeValue($arr_options = [], $str_identifier = null) {
 		
-		$str_identifier = 'type_filter_result_'.$this->type_id.($str_identifier ? '_'.$str_identifier : '');		
+		$arr_options = ($arr_options ?: []);
+		$version_select = $this->generateVersion('object', 'nodegoat_to');
+
+		$str_identifier_value = 'range_'.$this->versioning.'_'.serialize($arr_options);
+		$arr_cache = $this->getCacheResultInfo($str_identifier, $str_identifier_value);
 		
-		SiteEndEnvironment::setFeedback($str_identifier, null, true);
+		$str_sql_select = '';
+		$str_sql_group = null;
+		$str_sql_wrap_select = null;
+		$str_sql_join = '';
+		
+		if ($arr_options['object_analysis_id']) {
+			
+			$arr_object_analysis_id = explode('_', $arr_options['object_analysis_id']);
+			$analysis_id = (int)$arr_object_analysis_id[0];
+			$analysis_user_id = (int)$arr_object_analysis_id[1];
+										
+			$str_sql_table_name = 'nodegoat_to_an';
+
+			if ($analysis_id && !$analysis_user_id) {
+				$analysis_user_id = 0;
+			} else if ($analysis_user_id) {
+				$analysis_user_id = ($this->arr_scope['users'] && in_array($analysis_user_id, $this->arr_scope['users']) ? $analysis_user_id : false);
+			} else if (!$analysis_id) {
+				$analysis_user_id = ($this->arr_scope['users'] ? current($this->arr_scope['users']) : false);
+			}
+			
+			if ($analysis_user_id === false) { // Make sure we have something
+				$analysis_user_id = 0;
+			}
+						
+			$str_sql_select = 'MIN('.$str_sql_table_name.'.number), MAX('.$str_sql_table_name.'.number)';
+			
+			$str_sql_join = "JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_ANALYSES')." AS ".$str_sql_table_name." ON (
+				".$str_sql_table_name.".object_id = nodegoat_to.id AND ".$str_sql_table_name.".user_id = ".$analysis_user_id." AND ".$str_sql_table_name.".analysis_id = ".$analysis_id." AND ".$str_sql_table_name.".state = 1
+			)";
+		}
+		
+		if ($arr_options['object_description_id']) {
+			
+			$object_description_id = $arr_options['object_description_id'];
+			$arr_object_description = $this->arr_type_set['object_descriptions'][$object_description_id];
+						
+			$str_sql_table_name = 'nodegoat_to_def';
+			$str_value_type = $arr_object_description['object_description_value_type'];
+			$str_sql_value = $str_sql_table_name.'.'.StoreType::getValueTypeValue($str_value_type);
+			if ($str_value_type == 'numeric') {
+				$str_sql_value = FormatTypeObjects::sqlInt2SQLNumeric($str_sql_value);
+			}
+
+			if (keyIsUncontested('multi_sum', $arr_options) && $arr_object_description['object_description_has_multi']) {
+				
+				$str_sql_select = 'SUM('.$str_sql_value.') AS num_total';
+				$str_sql_group = 'nodegoat_to.id';
+				
+				$str_sql_wrap_select = 'MIN(num_total), MAX(num_total)';
+			} else {
+				
+				$str_sql_select = 'MIN('.$str_sql_value.'), MAX('.$str_sql_value.')';
+			}
+			
+			$str_sql_join = "JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').StoreType::getValueTypeTable($str_value_type)." AS ".$str_sql_table_name." ON (
+				".$str_sql_table_name.".object_id = nodegoat_to.id AND ".$str_sql_table_name.".object_description_id = ".(int)$object_description_id." AND ".$this->generateVersion('record', $str_sql_table_name)."
+			)";
+		}
+		
+		if (!$arr_cache['range']) {
+									
+			// Total data set length
+			
+			$str_sql_query = "SELECT ".$str_sql_select."
+					FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to
+					".$str_sql_join."
+				WHERE nodegoat_to.type_id = ".$this->type_id
+					
+					." AND ".$version_select."
+				".($str_sql_group ? 'GROUP BY '.$str_sql_group : '')."
+			";
+			
+			if ($str_sql_wrap_select) {
+				$str_sql_query = "SELECT ".$str_sql_wrap_select." FROM (".$str_sql_query.") AS foo";
+			}
+			
+			$res = DB::query($str_sql_query);
+				
+			$arr_row = $res->fetchRow();
+			
+			$arr_cache['range'] = ['min' => ($arr_row[0] !== null ? (float)$arr_row[0] : null), 'max' => ($arr_row[1] !== null ? (float)$arr_row[1] : null)];
+		}
+		
+		if ($this->arr_combine_filters) {
+			
+			$str_filter = value2Hash($this->arr_combine_filters);
+			$str_cache_filter = ($arr_cache['query']['value'] ?? '');
+			
+			if ($str_cache_filter != $str_filter) {
+				
+				// Data range value after filtering
+				
+				if ($this->table_name && !$this->arr_limit) {
+					
+					if ($this->num_limit_generate) {
+						
+						// Need to make use of main table, could contain multiple rows per ID, group it first
+													
+						$str_sql_query = "SELECT
+							nodegoat_to.id, nodegoat_to.active, nodegoat_to.status
+								FROM ".$this->table_name_all." AS nodegoat_to_to
+								JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." AS nodegoat_to ON (nodegoat_to.id = nodegoat_to_to.id AND ".$version_select.")
+							GROUP BY nodegoat_to.id, nodegoat_to.active, nodegoat_to.status
+						";
+						
+						$str_sql_query = "SELECT
+							".$str_sql_select."
+								FROM (".$str_sql_query.") AS nodegoat_to
+								".$str_sql_join."
+							".($str_sql_group ? 'GROUP BY '.$str_sql_group : '')."
+						";
+					} else {
+													
+						$str_sql_query = "SELECT
+							".$str_sql_select."
+								FROM ".$this->table_name_objects." AS nodegoat_to_to
+								JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." AS nodegoat_to ON (nodegoat_to.id = nodegoat_to_to.id AND ".$version_select.")
+								".$str_sql_join."
+							".($str_sql_group ? 'GROUP BY '.$str_sql_group : '')."
+						";
+					}
+					
+					if ($str_sql_wrap_select) {
+						$str_sql_query = "SELECT ".$str_sql_wrap_select." FROM (".$str_sql_query.") AS foo";
+					}
+					
+					$res = DB::query($str_sql_query);
+				} else {
+					
+					$str_sql_query = $this->sqlQuery(['columns' => [$str_sql_select], 'tables' => [$str_sql_join], 'group' => ($str_sql_group ? [$str_sql_group] : false), 'type' => 'select']);
+					
+					if ($str_sql_wrap_select) {
+						$str_sql_query = "SELECT ".$str_sql_wrap_select." FROM (".$str_sql_query.") AS foo";
+					}
+					
+					$this->initPre();
+					
+					$res = DB::query($str_sql_query);
+				}
+				
+				$arr_row = $res->fetchRow();
+				
+				$arr_cache['query']['range'] = ['min' => ($arr_row[0] !== null ? (float)$arr_row[0] : null), 'max' => ($arr_row[1] !== null ? (float)$arr_row[1] : null)];
+				$arr_cache['query']['value'] = $str_filter;
+			}
+		} else {
+			
+			$arr_cache['query']['range'] = $arr_cache['range'];
+			$arr_cache['query']['value'] = false;
+		}
+		
+		$this->setCacheResultInfo($arr_cache, $str_identifier, $str_identifier_value);
+		
+		$arr_info = [
+			'range' => $arr_cache['range'],
+			'range_filtered' => $arr_cache['query']['range']
+		];
+				
+		return $arr_info;
+	}
+	
+	public function getResultInfoObjectsSubsRangeValue($object_sub_details_id, $arr_options = [], $str_identifier = null) {
+
+		$str_identifier_value = 'object_sub_range_'.$this->versioning.'_'.$object_sub_details_id.'_'.serialize($arr_options);
+		$arr_cache = $this->getCacheResultInfo($str_identifier, $str_identifier_value);
+		
+		$str_sql_table_name_type_objects = DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS');
+		$str_sql_table_name_tos = static::sqlTableNameSub($object_sub_details_id);
+		
+		$str_sql_select = '';
+		$str_sql_group = null;
+		$str_sql_wrap_select = null;
+		$str_sql_wrap_select_referenced = '';
+		$str_sql_join = '';
+		
+		if ($arr_options['object_sub_description_id']) {
+			
+			$object_sub_description_id = $arr_options['object_sub_description_id'];
+			$arr_object_sub_description = $this->arr_type_set['object_sub_details'][$object_sub_details_id]['object_sub_descriptions'][$object_sub_description_id];
+			
+			$str_sql_table_name = 'nodegoat_tos_def';
+			$str_value_type = $arr_object_sub_description['object_sub_description_value_type'];
+			$str_sql_value = $str_sql_table_name.'.'.StoreType::getValueTypeValue($str_value_type);
+			if ($str_value_type == 'numeric') {
+				$str_sql_value = FormatTypeObjects::sqlInt2SQLNumeric($str_sql_value);
+			}
+
+			if ($arr_options['multi_sum'] && !$this->arr_type_set['object_sub_details'][$object_sub_details_id]['object_sub_details']['object_sub_details_is_single']) {
+				
+				$str_sql_select = 'SUM('.$str_sql_value.') AS num_total';
+				$str_sql_group = $str_sql_table_name_tos.'.id';
+				
+				$str_sql_wrap_select_referenced = 'MIN(num_total) AS num_min, MAX(num_total) AS num_max';
+				$str_sql_wrap_select = 'MIN(num_total) AS num_min, MAX(num_total) AS num_max';
+			} else {
+				
+				$str_sql_select = 'MIN('.$str_sql_value.') AS num_min, MAX('.$str_sql_value.') AS num_max';
+				
+				$str_sql_wrap_select_referenced = 'MIN(num_min) AS num_min, MAX(num_max) AS num_max';
+			}
+			
+			$str_sql_join = "JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').StoreType::getValueTypeTable($str_value_type)." AS ".$str_sql_table_name." ON (
+				".$str_sql_table_name.".object_sub_id = ".$str_sql_table_name_tos.".id AND ".$str_sql_table_name.".object_sub_description_id = ".(int)$object_sub_description_id." AND ".$this->generateVersion('record', $str_sql_table_name)."
+			)";
+		}
+		
+		if (!$arr_cache['range']) {
+			
+			$version_select_tos = $this->generateVersion('object_sub', $str_sql_table_name_tos);
+			
+			$arr_sql = [];
+			
+			if ($object_sub_details_id == 'all' || !isset($this->arr_type_set['type']['include_referenced']['object_sub_details'][$object_sub_details_id])) {
+			
+				$arr_sql[] = "SELECT ".$str_sql_select."
+						FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." ".$str_sql_table_name_tos."
+						JOIN ".$str_sql_table_name_type_objects." nodegoat_to ON (nodegoat_to.id = ".$str_sql_table_name_tos.".object_id)
+						".$str_sql_join."
+					WHERE object_sub_details_id ".($object_sub_details_id == 'all' ? 'IN ('.implode(',', $this->arr_selection_object_sub_details_ids).')' : '= '.$object_sub_details_id)."
+						AND ".$version_select_tos."
+					".($str_sql_group ? 'GROUP BY '.$str_sql_group : '')."
+				";
+			}
+			
+			$arr_referenced_object_sub_description_ids = $this->generateReferencedTableObjectSubDescriptionIDs($object_sub_details_id);
+			
+			if ($arr_referenced_object_sub_description_ids) {
+				
+				$version_select = $this->generateVersion('record', 'nodegoat_tos_def');
+				
+				$has_multi_referenced = (count($arr_referenced_object_sub_description_ids) > 1);
+				
+				$str_sql_select_referenced = $str_sql_select;
+				$str_sql_join_referenced = $str_sql_join;
+				if ($has_multi_referenced) {
+					$str_sql_select_referenced = $str_sql_table_name_tos.'.id';
+					$str_sql_join_referenced = '';
+				}
+				
+				$arr_sql_referenced = [];
+				
+				foreach ($arr_referenced_object_sub_description_ids as $str_sql_table_name_affix => $arr_ids) {
+				
+					$arr_sql_referenced[] = "SELECT ".$str_sql_select_referenced."
+							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." nodegoat_tos_def
+							JOIN ".$str_sql_table_name_type_objects." nodegoat_to ON (nodegoat_to.id = nodegoat_tos_def.ref_object_id)
+							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." ".$str_sql_table_name_tos." ON (".$str_sql_table_name_tos.".id = nodegoat_tos_def.object_sub_id AND ".$version_select_tos.")
+							".$str_sql_join_referenced."
+						WHERE nodegoat_tos_def.object_sub_description_id IN (".implode(',', $arr_ids).")
+							AND ".$version_select."
+						".($str_sql_group ? 'GROUP BY '.$str_sql_group : '')."
+					";
+				}
+				
+				if ($has_multi_referenced) {
+					
+					$arr_sql[] = "SELECT ".$str_sql_select."
+							FROM ((".implode(') UNION (', $arr_sql_referenced).")) AS ".$str_sql_table_name_tos."
+							".$str_sql_join;
+				} else {
+					
+					$arr_sql[] = $arr_sql_referenced[0];
+				}
+			}
+
+			if (count($arr_sql) > 1) {
+				
+				$str_sql_query = "SELECT ".$str_sql_wrap_select_referenced." FROM (".implode(' UNION ALL ', $arr_sql).") AS foo";
+			} else {
+				
+				$str_sql_query = $arr_sql[0];
+				
+				if ($str_sql_wrap_select) {
+					$str_sql_query = "SELECT ".$str_sql_wrap_select." FROM (".$str_sql_query.") AS foo";
+				}
+			}
+			
+			$res = DB::query($str_sql_query);
+				
+			$arr_row = $res->fetchRow();
+				
+			$arr_range = ['min' => ($arr_row[0] !== null ? (float)$arr_row[0] : null), 'max' => ($arr_row[1] !== null ? (float)$arr_row[1] : null)];
+
+			$arr_cache['range'] = $arr_range;
+		}
+		
+		if ($this->arr_combine_filters || $this->arr_sql_filter_subs[$object_sub_details_id]) {
+			
+			$str_filter = ($this->arr_combine_filters ? value2Hash($this->arr_combine_filters) : 'filter_subs');
+			$str_cache_filter = ($arr_cache['query']['value'] ?? '');
+			
+			$contains_referenced = $this->arr_type_set['type']['include_referenced']['object_sub_details'];
+
+			if ($str_cache_filter != $str_filter) {
+				
+				$is_referenced = ($contains_referenced && isset($this->arr_type_set['type']['include_referenced']['object_sub_details'][$object_sub_details_id]));
+				$has_referenced = ($is_referenced || ($object_sub_details_id == 'all' && $contains_referenced));
+				
+				if ($has_referenced) {
+					$str_sql_query = $this->sqlQuerySub(['columns' => [$str_sql_select], 'referenced' => true, 'tables' => [$str_sql_join], 'group' => ($str_sql_group ? [$str_sql_group] : false), 'type' => 'select'], $object_sub_details_id, $this->table_name_objects);
+				} else {
+					$str_sql_query = $this->sqlQuerySub(['columns' => [$str_sql_select], 'tables' => [$str_sql_join], 'group' => ($str_sql_group ? [$str_sql_group] : false), 'type' => 'select'], $object_sub_details_id, $this->table_name_objects);
+				}
+
+				if ($str_sql_wrap_select) {
+					$str_sql_query = "SELECT ".$str_sql_wrap_select." FROM (".$str_sql_query.") AS foo";
+				}
+
+				$this->initPre();
+				
+				$res = DB::query($str_sql_query);
+				
+				$arr_row = $res->fetchRow();
+				
+				$arr_cache['query']['range'] = ['min' => ($arr_row[0] !== null ? (float)$arr_row[0] : null), 'max' => ($arr_row[1] !== null ? (float)$arr_row[1] : null)];
+				$arr_cache['query']['value'] = $str_filter;
+			}
+		} else {
+			
+			$arr_cache['query']['range'] = $arr_cache['range'];
+			$arr_cache['query']['value'] = false;
+		}
+		
+		$this->setCacheResultInfo($arr_cache, $str_identifier, $str_identifier_value);
+		
+		return [
+			'range' => $arr_cache['range'],
+			'range_filtered' => $arr_cache['query']['range']
+		];
+	}
+	
+	public function getCacheResultInfo($str_identifier = null, $str_identifier_value = null) {
+		
+		$str_identifier = 'type_filter_result_'.$this->type_id.($str_identifier ? '_'.$str_identifier : '');
+		$arr_cache_all = SiteStartEnvironment::getFeedback($str_identifier);
+		
+		if (isset($arr_cache_all['time'])) {
+			
+			$num_date = $arr_cache_all['time'];
+			
+			$has_updated = FilterTypeObjects::getTypesUpdatedAfter($num_date, $this->type_id, true);
+			
+			if (!$has_updated && isset($this->arr_use_extensions['analysis'])) {
+				$has_updated = FilterTypeObjects::getTypesAnalysesUpdateAfter($num_date, $this->arr_use_extensions['analysis']);
+			}
+			
+			if ($has_updated) { // Reset cache
+			
+				$arr_cache_all = ['time' => DBFunctions::numTimeNow()];
+				SiteEndEnvironment::setFeedback($str_identifier, $arr_cache_all, true);
+			}
+		} else { // Set cache
+			
+			$arr_cache_all = ['time' => DBFunctions::numTimeNow()];
+			SiteEndEnvironment::setFeedback($str_identifier, $arr_cache_all, true);
+		}
+		
+		if ($str_identifier_value) {
+			return ($arr_cache_all[$str_identifier_value] ?? []);
+		}
+		
+		return $arr_cache_all;
+	}
+	
+	public function setCacheResultInfo($arr_cache, $str_identifier = null, $str_identifier_value = null) {
+		
+		$str_identifier = 'type_filter_result_'.$this->type_id.($str_identifier ? '_'.$str_identifier : '');
+		$arr_cache_all = SiteStartEnvironment::getFeedback($str_identifier);
+		
+		if ($str_identifier_value) {
+			$arr_cache_all[$str_identifier_value] = $arr_cache;
+		} else {
+			$arr_cache_all = $arr_cache;
+		}
+		
+		SiteEndEnvironment::setFeedback($str_identifier, $arr_cache_all, true);
 	}
 	
 	public function getProcessedResultInfo() {
 		
 		return [
-			'types_found' => $this->arr_types_found
+			'definitions_found' => $this->arr_definitions_found,
+			'types_found' => $this->arr_types_found,
+			'conditions_found' => $this->arr_conditions_found
 		];
 	}
-	
+		
 	public function getInfoObjectSubs() {
 
 		$arr_sql = [];
 		
 		$version_select_tos = $this->generateVersion('object_sub', 'nodegoat_tos');
 
-		$arr_sql[] = "SELECT nodegoat_to.id, nodegoat_tos.object_sub_details_id, 0, COUNT(nodegoat_tos.id)
-			FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos
-			JOIN ".$this->table_name_objects." nodegoat_to ON (nodegoat_to.id = nodegoat_tos.object_id)
+		$arr_sql[] = "SELECT
+			nodegoat_to.id, nodegoat_tos.object_sub_details_id, 0, COUNT(nodegoat_tos.id)
+				FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos
+				JOIN ".$this->table_name_objects." nodegoat_to ON (nodegoat_to.id = nodegoat_tos.object_id)
 			WHERE ".$version_select_tos."
 			GROUP BY nodegoat_to.id, nodegoat_tos.object_sub_details_id
 		";
@@ -5510,10 +6185,11 @@ class GenerateTypeObjects {
 			
 			foreach ($arr_referenced_object_sub_description_ids as $str_sql_table_name_affix => $arr_ids) {
 				
-				$arr_sql[] = "SELECT nodegoat_to.id, nodegoat_tos.object_sub_details_id, nodegoat_tos_def.object_sub_description_id, COUNT(nodegoat_tos.id)
-					FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." nodegoat_tos_def
-					JOIN ".$this->table_name_objects." nodegoat_to ON (nodegoat_to.id = nodegoat_tos_def.ref_object_id)
-					JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_def.object_sub_id AND ".$version_select_tos.")
+				$arr_sql[] = "SELECT
+					nodegoat_to.id, nodegoat_tos.object_sub_details_id, nodegoat_tos_def.object_sub_description_id, COUNT(nodegoat_tos.id)
+						FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." nodegoat_tos_def
+						JOIN ".$this->table_name_objects." nodegoat_to ON (nodegoat_to.id = nodegoat_tos_def.ref_object_id)
+						JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_def.object_sub_id AND ".$version_select_tos.")
 					WHERE nodegoat_tos_def.object_sub_description_id IN (".implode(',', $arr_ids).")
 						AND ".$version_select."
 					GROUP BY nodegoat_to.id, nodegoat_tos.object_sub_details_id, nodegoat_tos_def.object_sub_description_id
@@ -5554,7 +6230,7 @@ class GenerateTypeObjects {
 		
 		$to = ($to === true ? $this->type_id : $to);
 		
-		$this->table_name_all = DB::getTableTemporary(DATABASE_NODEGOAT_TEMP.'.temp_type_object_filtering_'.value2Hash(SiteStartEnvironment::getSessionId(true).($to ? $to : '')));
+		$this->table_name_all = DB::getTableTemporary(DATABASE_NODEGOAT_TEMP.'.temp_type_object_filtering_'.value2Hash(SiteStartEnvironment::getSessionID(true).($to ? $to : '')));
 		
 		if ($this->arr_columns_object_conditions) {
 			$this->table_name_all_conditions = DB::getTableTemporary($this->table_name_all.'_co');
@@ -5591,7 +6267,7 @@ class GenerateTypeObjects {
 	
 	protected function getDifferentiationIdentifier() {
 	
-		return ($this->differentiation_id ?: SiteStartEnvironment::getSessionId(true));
+		return ($this->differentiation_id ?: SiteStartEnvironment::getSessionID(true));
 	}
 	
 	public function storeResultTemporarily($to = true, $return_table_objects_only = false) {
@@ -5608,7 +6284,7 @@ class GenerateTypeObjects {
 
 			$is_filtering = $this->isFilteringObject();
 			
-			$this->is_temporary = ((DB::ENGINE_IS_MYSQL && ($is_custom || $is_filtering)) || self::$do_keep_tables ? false : true);
+			$this->is_temporary = ((DB::ENGINE_IS_MYSQL && !DB::ENGINE_IS_MARIADB && ($is_custom || $is_filtering)) || self::$do_keep_tables ? false : true);
 			
 			// Prepare query
 			
@@ -5652,7 +6328,7 @@ class GenerateTypeObjects {
 
 			$sql_query = "CREATE ".($this->is_temporary ? "TEMPORARY" : "")." TABLE ".$this->table_name_all." (
 					".$arr_sql_keys['columns']."
-				) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
+				) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
 					".(DB::ENGINE_IS_MYSQL ? "AS (".$sql_query.")"
 					:
 					"; INSERT INTO ".$this->table_name_all." (".implode(',', $arr_sql_keys['select']).")
@@ -5716,7 +6392,7 @@ class GenerateTypeObjects {
 				CREATE ".(self::$arr_storage_tables[$this->table_name_objects]['temporary'] ? 'TEMPORARY' : '')." TABLE ".$this->table_name_objects." (
 					id INT,
 					PRIMARY KEY (id)
-				) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
+				) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
 
 				INSERT INTO ".$this->table_name_objects."
 					(SELECT DISTINCT id
@@ -5753,7 +6429,7 @@ class GenerateTypeObjects {
 					condition_match INT,
 					condition_key SMALLINT,
 					PRIMARY KEY (id, condition_match, condition_key)".(DBFunctions::INDEX_LTF ? " USING ".DBFunctions::INDEX_LTF : "")."
-				) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
+				) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
 
 				".implode(';', $this->arr_sql_conditions).";
 			");
@@ -5787,27 +6463,8 @@ class GenerateTypeObjects {
 		$this->arr_object_conditions = $this->arr_object_conditions_name = $this->arr_object_conditions_identifiers = [];
 	}
 	
-	private function parseObjectConditions(&$arr_condition_setting, $arr_row, $num_column_index_values) {
-			
-		$num_weight = 1;
-		
-		if (isset($arr_condition_setting['condition_actions']['weight'])) {
-			
-			$num_weight = ($arr_condition_setting['condition_actions']['weight']['number'] ?? null);
-		
-			if ($arr_condition_setting['condition_actions']['weight']['number_use_object_description_id'] || $arr_condition_setting['condition_actions']['weight']['number_use_object_analysis_id']) {
-			
-				$num_column_index = $num_column_index_values + $arr_condition_setting['condition_value_column_index'];
-				
-				$num_amount = (float)$arr_row[$num_column_index];
-				$arr_condition_setting['condition_actions']['weight']['object_description_value'] = (float)$num_amount;
-				
-				if ($num_amount > 0 && (!isset($num_weight) || $num_weight > 0)) { // Do apply only if weight calculation would not end up 0
-					$num_weight = (($num_weight ?: 1) * $num_amount);
-				}
-			}
-		}
-		
+	private function parseObjectConditions(&$arr_condition_setting, $arr_row) {
+
 		$str_condition_identifier = $arr_condition_setting['condition_identifier'];
 		
 		if ($arr_condition_setting['condition_in_object_nodes_referencing']) {
@@ -5820,9 +6477,68 @@ class GenerateTypeObjects {
 			}
 			
 			$this->arr_object_conditions_identifiers['self'][$str_condition_identifier] = null;
-			$this->arr_object_conditions_identifiers['descriptions'][$description_id][$str_condition_identifier] = ($num_weight ?? 1);
+			
+			$s_arr =& $this->arr_object_conditions_identifiers['descriptions'][$description_id][$str_condition_identifier];
 		} else {
-			$this->arr_object_conditions_identifiers['self'][$str_condition_identifier] = ($num_weight ?? 1);
+			
+			$s_arr =& $this->arr_object_conditions_identifiers['self'][$str_condition_identifier];
+		}
+		
+		$num_weight = 1;
+		$num_amount = null;
+		
+		if (isset($arr_condition_setting['condition_actions']['weight'])) {
+			
+			$num_weight = ($arr_condition_setting['condition_actions']['weight']['number'] ?? null);
+		
+			if ($arr_condition_setting['condition_actions']['weight']['number_use_object_description_id'] || $arr_condition_setting['condition_actions']['weight']['number_use_object_analysis_id']) {
+			
+				$num_column_index = ($this->num_generate_column_index_conditions_values + $arr_condition_setting['condition_value_column_index']);
+				
+				$num_amount = (float)$arr_row[$num_column_index];
+				$arr_condition_setting['condition_actions']['weight']['object_description_value'] = $num_amount;
+				
+				if ($num_weight === null || $num_weight > 0) { // Do apply only if num_weight is set
+				
+					$num_weight = (($num_weight ?? 1) * $num_amount);
+					
+					if ($num_weight < 1) {
+						$num_weight = 1; // Make sure when a value is calculated, it will never be smaller than 1
+					}
+				} else {
+					
+					$num_amount = null;
+				}
+			}
+			
+			$num_weight = ($num_weight ?? 1);
+		}
+		
+		$s_arr['weight'] = (int)$num_weight; // Eventual weight always will be integer
+		
+		if ($num_amount !== null && isset($arr_condition_setting['condition_value']['result'])) {
+			
+			$str_color_secondary = ($arr_condition_setting['condition_actions']['color']['color_secondary'] ?? null);
+			
+			if ($str_color_secondary !== null) {
+				
+				$str_color = $arr_condition_setting['condition_actions']['color']['color'];
+				$arr_range = $arr_condition_setting['condition_value']['result']['range'];
+				
+				if ($arr_range['min'] < 1) { // A calculated value will never be smaller than 1
+					$arr_range['min'] = (float)1;
+				}
+				if ($arr_range['max'] < 1) {
+					$arr_range['max'] = (float)1;
+				}
+				
+				if ($arr_range['min'] !== $arr_range['max']) {
+					
+					$num_weight_normalised = (($num_weight - $arr_range['min']) / ($arr_range['max'] - $arr_range['min']));
+				
+					$s_arr['color'] = CreateVisualisationPackage::color2WeightedColor($num_weight_normalised, $str_color, $str_color_secondary);
+				}
+			}
 		}
 	}
 	
@@ -6036,22 +6752,25 @@ class GenerateTypeObjects {
 							break;
 						case 'weight':
 							if ($this->conditions == static::CONDITIONS_MODE_FULL) {
-								$num_amount = (float)$arr_action['number'];
+								$num_weight = (float)$arr_action['number'];
 								if (isset($arr_action['object_description_value'])) {
-									if ($arr_action['object_description_value'] == 0 || (isset($arr_action['number']) && $num_amount == 0)) { // Do not apply if weight calculation would end up 0
+									if (isset($arr_action['number']) && $num_weight == 0) { // Do not apply if weight calculation would end up 0 anyhow
 										break;
 									}
-									$num_amount = (($num_amount ?: 1) * $arr_action['object_description_value']);
+									$num_weight = (($num_weight ?: 1) * $arr_action['object_description_value']);
+									if ($num_weight < 1) {
+										$num_weight = 1; // Make sure when a value is calculated, it will never be smaller than 1
+									}
 								}
 								if (!$arr_action['check']) {
-									$arr_style['weight'] = $num_amount;
+									$arr_style['weight'] = (int)$num_weight; // Eventual weight always will be integer
 								} else {
 									if (!isset($arr_style['weight'])) {
 										$arr_style['weight'] = [];
 									} else {
 										$arr_style['weight'] = (array)$arr_style['weight'];
 									}
-									$arr_style['weight'][] = $num_amount;
+									$arr_style['weight'][] = (int)$num_weight; // Eventual weight always will be integer
 								}
 							}
 							break;
@@ -6157,7 +6876,7 @@ class GenerateTypeObjects {
 			}
 		}
 	}
-	
+
 	public function setConditions($conditions = true, $arr_conditions = []) {
 		
 		// $conditions = true/"text" (only text conditions), "style/style_include", "visual"
@@ -6203,7 +6922,6 @@ class GenerateTypeObjects {
 		if (isset($arr_order['object_subs'])) {
 			
 			foreach ($arr_order['object_subs'] as $object_sub_details_id => $arr_order_object_sub) {
-				
 				$this->setOrderObjectSubs($object_sub_details_id, $arr_order_object_sub, $overwrite);
 			}
 		}
@@ -6280,7 +6998,7 @@ class GenerateTypeObjects {
 	
 	public function addColumns($arr_columns) {
 		
-		$this->arr_columns_object_extra += $arr_columns;
+		$this->arr_columns_object_external += $arr_columns;
 	}
 	
 	public function getView() {
@@ -6349,7 +7067,7 @@ class GenerateTypeObjects {
 		if ($object_sub_details_id) {
 			$in_query = ($this->arr_query_object_subs_details[$object_sub_details_id] && is_array($this->arr_query_object_subs_details[$object_sub_details_id]));
 		} else {
-			$in_query = is_array($this->arr_query_object_subs_details);
+			$in_query = !empty($this->arr_query_object_subs_details);
 		}
 		
 		return $in_query;
@@ -6494,9 +7212,12 @@ class GenerateTypeObjects {
 				$sql_column = "CASE WHEN ".$sql_column_value." IS NOT NULL THEN CONCAT('".static::NAME_REFERENCE_TYPE_OBJECT_OPEN."', ".$sql_reference_type_id.", '_', ".$table_name.".ref_object_id, '".static::NAME_REFERENCE_TYPE_OBJECT_CLOSE."') ELSE NULL END";
 
 				if ($object_sub_description_id) {
+					
 					$this->arr_type_object_name_object_sub_description_ids[$object_sub_details_id][$object_sub_description_id] = $object_sub_description_id;
 				} else {
+					
 					$this->arr_type_object_name_object_description_ids[$object_description_id] = $object_description_id;
+					
 					if ($has_multi) {
 						$sql_clause = 'ORDER BY '.$table_name.'.identifier ASC';
 					}
@@ -8460,9 +9181,9 @@ class GenerateTypeObjects {
 		
 	public function debug($do_debug = true) {
 		
-		$this->do_debug = $do_debug;
+		$this->do_debug = (bool)$do_debug;
 		
-		static::$do_keep_tables = $do_debug;
+		static::$do_keep_tables = $this->do_debug;
 	}
 	
 	// Direct calls
@@ -8757,7 +9478,8 @@ class GenerateTypeObjects {
 			if ($arr_element[0] == 'object') {
 				
 				if ($arr_element[1] == 'name') {
-					
+					$arr_collect[$element_identifier] = $arr_object['object']['object_name'];
+				} else if ($arr_element[1] == 'name_plain') {
 					$arr_collect[$element_identifier] = $arr_object['object']['object_name_plain'];
 				} else if ($arr_element[1] == 'id' || $arr_element[1] == 'nodegoat_id') {
 					$arr_collect[$element_identifier] = static::encodeTypeObjectID($type_id, $arr_object['object']['object_id']);
@@ -8768,10 +9490,10 @@ class GenerateTypeObjects {
 							
 				if ($has_select) {
 					
-					if (isset($arr_select['value']) || isset($arr_select['reference_value'])) {
+					if (isset($arr_select['use_value']) || isset($arr_select['use_reference_value'])) {
 						$arr_collect[$element_identifier] = $arr_object['object_definitions'][$object_description_id]['object_definition_value'];
 					}
-					if (isset($arr_select['reference'])) {
+					if (isset($arr_select['use_reference'])) {
 						$arr_collect[$element_identifier] = $arr_object['object_definitions'][$object_description_id]['object_definition_ref_object_id'];
 					}
 				} else if ((bool)$arr_select) {
@@ -8839,10 +9561,10 @@ class GenerateTypeObjects {
 																				
 							if ($has_select) {
 								
-								if (isset($arr_select['value']) || isset($arr_select['reference_value'])) {
+								if (isset($arr_select['use_value']) || isset($arr_select['use_reference_value'])) {
 									$arr_collect[$element_identifier][] = $arr_object_sub['object_sub_definitions'][$object_sub_description_id]['object_sub_definition_value'];
 								}
-								if (isset($arr_select['reference'])) {
+								if (isset($arr_select['use_reference'])) {
 									$arr_collect[$element_identifier][] = $arr_object_sub['object_sub_definitions'][$object_sub_description_id]['object_sub_definition_ref_object_id'];
 								}
 							} else if ((bool)$arr_select) {

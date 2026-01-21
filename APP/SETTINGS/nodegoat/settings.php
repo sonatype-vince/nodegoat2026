@@ -13,3 +13,5 @@
 		'host' => 'service',
 		'token' => 'none'
 	]);
+	
+	//Settings::set('value_type_vector', ['support' => true, 'versioning' => null]);

@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -489,16 +489,16 @@ abstract class ingest_source extends base_module {
 		
 		$unique = uniqid(cms_general::NAME_GROUP_ITERATOR);
 		
-		$html_pointer = '<select name="'.$this->form_name.'[pointers][filter_value]['.$unique.'][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_filter']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, true).'</select>'
+		$str_html_pointer = '<select name="'.$this->form_name.'[pointers][filter_value]['.$unique.'][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_filter']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, true).'</select>'
 			.'<input type="text" name="'.$this->form_name.'[pointers][filter_value]['.$unique.'][value]" title="'.getLabel('inf_ingest_filter_value').'" value="'.strEscapeHTML($arr_pointer['value']).'" />'
-			.($arr_pointer['pointer_id'] ? '<input name="'.$this->form_name.'[pointers][filter_value]['.$unique.'][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
+			.(!empty($arr_pointer['pointer_id']) ? '<input name="'.$this->form_name.'[pointers][filter_value]['.$unique.'][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
 		;
 		
 		$arr_html = [];
 	
-		$html_pointer = '<div>'.$html_pointer.'</div>';
+		$str_html_pointer = '<div>'.$str_html_pointer.'</div>';
 		
-		$arr_html[] = $html_pointer;
+		$arr_html[] = $str_html_pointer;
 			
 		return $arr_html;
 	}
@@ -511,16 +511,16 @@ abstract class ingest_source extends base_module {
 		
 		$unique = uniqid(cms_general::NAME_GROUP_ITERATOR);
 		
-		$html_pointer = '<select name="'.$this->form_name.'[pointers][query_value]['.$unique.'][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_query']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, true).'</select>'
+		$str_html_pointer = '<select name="'.$this->form_name.'[pointers][query_value]['.$unique.'][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_query']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, true).'</select>'
 			.'<input type="text" name="'.$this->form_name.'[pointers][query_value]['.$unique.'][value]" title="'.getLabel('inf_ingest_query_value').'" value="'.strEscapeHTML($arr_pointer['value']).'" />'
-			.($arr_pointer['pointer_id'] ? '<input name="'.$this->form_name.'[pointers][query_value]['.$unique.'][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
+			.(!empty($arr_pointer['pointer_id']) ? '<input name="'.$this->form_name.'[pointers][query_value]['.$unique.'][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
 		;
 		
 		$arr_html = [];
 	
-		$html_pointer = '<div>'.$html_pointer.'</div>';
+		$str_html_pointer = '<div>'.$str_html_pointer.'</div>';
 		
-		$arr_html[] = $html_pointer;
+		$arr_html[] = $str_html_pointer;
 			
 		return $arr_html;
 	}
@@ -533,11 +533,11 @@ abstract class ingest_source extends base_module {
 
 		$unique = uniqid(cms_general::NAME_GROUP_ITERATOR);
 		
-		$html_pointer = '<select name="'.$this->form_name.'[pointers][filter_object_identifier][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_data']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, false).'</select>'
-			.($arr_pointer['pointer_id'] ? '<input name="'.$this->form_name.'[pointers][filter_object_identifier][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
+		$str_html_pointer = '<select name="'.$this->form_name.'[pointers][filter_object_identifier][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_data']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, false).'</select>'
+			.(!empty($arr_pointer['pointer_id']) ? '<input name="'.$this->form_name.'[pointers][filter_object_identifier][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
 		;
 			
-		return $html_pointer;
+		return $str_html_pointer;
 	}
 	
 	private function createPointerFilterTypeObjectSubID($source_id, $arr_pointer = []) {
@@ -548,11 +548,11 @@ abstract class ingest_source extends base_module {
 
 		$unique = uniqid(cms_general::NAME_GROUP_ITERATOR);
 		
-		$html_pointer = '<select name="'.$this->form_name.'[pointers][filter_object_sub_identifier][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_data']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, true).'</select>'
-			.($arr_pointer['pointer_id'] ? '<input name="'.$this->form_name.'[pointers][filter_object_sub_identifier][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
+		$str_html_pointer = '<select name="'.$this->form_name.'[pointers][filter_object_sub_identifier][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_data']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, true).'</select>'
+			.(!empty($arr_pointer['pointer_id']) ? '<input name="'.$this->form_name.'[pointers][filter_object_sub_identifier][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
 		;
 			
-		return $html_pointer;
+		return $str_html_pointer;
 	}
 	
 	private function createPointerFilterTypeObjectURI($type_id, $arr_pointer = []) {
@@ -575,99 +575,91 @@ abstract class ingest_source extends base_module {
 
 		$unique = uniqid(cms_general::NAME_GROUP_ITERATOR);
 		
-		$html_pointer = '<select name="'.$this->form_name.'[pointers][filter_object_identifier][object_description_id]" title="'.getLabel('inf_ingest_target_element').'">'.cms_general::createDropdown($arr_object_descriptions, $object_description_id, false).'</select>'
-			.($arr_pointer['pointer_id'] ? '<input name="'.$this->form_name.'[pointers][filter_object_identifier][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
+		$str_html_pointer = '<select name="'.$this->form_name.'[pointers][filter_object_identifier][object_description_id]" title="'.getLabel('inf_ingest_target_element').'">'.cms_general::createDropdown($arr_object_descriptions, $object_description_id, false).'</select>'
+			.(!empty($arr_pointer['pointer_id']) ? '<input name="'.$this->form_name.'[pointers][filter_object_identifier][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
 		;
 			
-		return $html_pointer;
+		return $str_html_pointer;
 	}
 	
 	private function createPointerFilterTypeObjectValue($source_id, $type_id, $arr_pointer = []) {
 
-		$arr_type_set = StoreType::getTypeSetFlatMap($type_id, ['object' => true, 'references' => false]);
+		$arr_type_set = StoreType::getTypeSetFlatMap($type_id, ['object_id' => true, 'references' => false]);
 		$pointer_heading = $arr_pointer['pointer_heading'];
 		
 		$arr_pointer_headings = static::getPointerFilterHeadings($source_id, $pointer_heading);
 		
 		$element_id = $arr_pointer['element_id'];
 		
-		if (!$element_id) {
-			
+		if (!$element_id || !isset($arr_type_set[$element_id])) {
 			$element_id = key($arr_type_set);
 		}
 		
-		$arr_element_id = explode('_', $element_id);
-
 		$unique = uniqid(cms_general::NAME_GROUP_ITERATOR);
 		
-		$html_pointer = '<select name="'.$this->form_name.'[pointers][filter_object_value]['.$unique.'][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_filter']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, true).'</select>'
+		$str_html_pointer = '<select name="'.$this->form_name.'[pointers][filter_object_value]['.$unique.'][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_filter']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, true).'</select>'
 			.'<select name="'.$this->form_name.'[pointers][filter_object_value]['.$unique.'][element_id]" title="'.getLabel('inf_ingest_target_element').'">'.cms_general::createDropdown($arr_type_set, $element_id, false).'</select>'
-			.($arr_pointer['pointer_id'] ? '<input name="'.$this->form_name.'[pointers][filter_object_value]['.$unique.'][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
+			.(!empty($arr_pointer['pointer_id']) ? '<input name="'.$this->form_name.'[pointers][filter_object_value]['.$unique.'][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
 		;
 		
 		$arr_html = [];
 	
-		$html_pointer = '<div id="y:ingest_source:create_pointer-'.$source_id.'_'.$type_id.'_filter">'.$html_pointer.'</div>';
+		$str_html_pointer = '<div id="y:ingest_source:create_pointer-'.$source_id.'_'.$type_id.'_filter">'.$str_html_pointer.'</div>';
 		
-		$arr_html[] = $html_pointer;
+		$arr_html[] = $str_html_pointer;
 			
 		return $arr_html;
 	}
 	
 	private function createPointerQueryTypeObjectValue($source_id, $type_id, $arr_pointer = [], $str_name = 'query_object_value') {
 
-		$arr_type_set = StoreType::getTypeSetFlatMap($type_id, ['object' => true, 'references' => false]);
+		$arr_type_set = StoreType::getTypeSetFlatMap($type_id, ['object_id' => true, 'references' => false, 'reversals' => true]); // Include Reversal texts
 		$pointer_heading = $arr_pointer['pointer_heading'];
 		
 		$arr_pointer_headings = static::getPointerQueryHeadings($source_id, $pointer_heading);
 		
 		$element_id = $arr_pointer['element_id'];
 		
-		if (!$element_id) {
-			
+		if (!$element_id || !isset($arr_type_set[$element_id])) {
 			$element_id = key($arr_type_set);
 		}
-		
-		$arr_element_id = explode('_', $element_id);
 
 		$unique = uniqid(cms_general::NAME_GROUP_ITERATOR);
 		
-		$html_pointer = '<select name="'.$this->form_name.'[pointers]['.$str_name.']['.$unique.'][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_query']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, true).'</select>'
+		$str_html_pointer = '<select name="'.$this->form_name.'[pointers]['.$str_name.']['.$unique.'][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_query']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, true).'</select>'
 			.'<select name="'.$this->form_name.'[pointers]['.$str_name.']['.$unique.'][element_id]" title="'.getLabel('inf_ingest_target_element').'">'.cms_general::createDropdown($arr_type_set, $element_id, false).'</select>'
-			.($arr_pointer['pointer_id'] ? '<input name="'.$this->form_name.'[pointers]['.$str_name.']['.$unique.'][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
+			.(!empty($arr_pointer['pointer_id']) ? '<input name="'.$this->form_name.'[pointers]['.$str_name.']['.$unique.'][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
 		;
 		
 		$arr_html = [];
 	
-		$html_pointer = '<div id="y:ingest_source:create_pointer-'.$source_id.'_'.$type_id.'_query">'.$html_pointer.'</div>';
+		$str_html_pointer = '<div id="y:ingest_source:create_pointer-'.$source_id.'_'.$type_id.'_query">'.$str_html_pointer.'</div>';
 		
-		$arr_html[] = $html_pointer;
+		$arr_html[] = $str_html_pointer;
 			
 		return $arr_html;
 	}
 	
 	private function createPointerMap($source_id, $type_id, $arr_pointer = [], $is_update = false) {
 
-		$arr_type_set = StoreType::getTypeSetFlatMap($type_id, ['object' => false, 'references' => true]);
+		$arr_type_set = StoreType::getTypeSetFlatMap($type_id, ['object_id' => false, 'references' => true]);
 		$pointer_heading = $arr_pointer['pointer_heading'];
 	
 		$arr_pointer_headings = static::getPointerDataHeadings($source_id, $pointer_heading);
 		
 		$element_id = $arr_pointer['element_id'];
 		
-		if (!$element_id) {
+		if (!$element_id || !isset($arr_type_set[$element_id])) {
 			$element_id = key($arr_type_set);
 		}
 		
-		$arr_element_id = explode('_', $element_id);
-
 		$unique = uniqid(cms_general::NAME_GROUP_ITERATOR);
 		
-		$html_pointer = '<select name="'.$this->form_name.'[pointers][map]['.$unique.'][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_data']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, true).'</select>'
+		$str_html_pointer = '<select name="'.$this->form_name.'[pointers][map]['.$unique.'][pointer_heading]" title="'.getLabel(static::$arr_labels['inf_pointer_data']).'">'.cms_general::createDropdown($arr_pointer_headings, $pointer_heading, true).'</select>'
 			.'<input name="'.$this->form_name.'[pointers][map]['.$unique.'][value_split]" type="text" value="'.$arr_pointer['value_split'].'" title="'.getLabel('inf_ingest_pointer_value_split').'" />'
 			.'<select name="'.$this->form_name.'[pointers][map]['.$unique.'][value_index]"'.($arr_pointer['value_index'] && $arr_pointer['value_split'] ? '' : ' class="hide"').' title="'.getLabel('inf_ingest_pointer_value_index').'">'.cms_general::createDropdown(IngestTypeObjects::getValueIndexOptions(), $arr_pointer['value_index']).'</select>'
 			.'<select name="'.$this->form_name.'[pointers][map]['.$unique.'][element_id]" title="'.getLabel('inf_ingest_target_element').'">'.cms_general::createDropdown($arr_type_set, $element_id, false).'</select>'
-			.($arr_pointer['pointer_id'] ? '<input name="'.$this->form_name.'[pointers][map]['.$unique.'][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
+			.(!empty($arr_pointer['pointer_id']) ? '<input name="'.$this->form_name.'[pointers][map]['.$unique.'][pointer_id]" type="hidden" value="'.$arr_pointer['pointer_id'].'" />' : '')
 		;
 		
 		if ($arr_type_set[$element_id]['ref_type_id'] || $arr_type_set[$element_id]['is_location_reference']) {
@@ -693,9 +685,9 @@ abstract class ingest_source extends base_module {
 			}
 			
 			$arr_types = StoreType::getTypes($arr_types);		
-			$arr_ref_type_set = StoreType::getTypeSetFlatMap($ref_type_id, ['object' => true, 'references' => false]);
+			$arr_ref_type_set = StoreType::getTypeSetFlatMap($ref_type_id, ['object_id' => true, 'references' => false]);
 
-			$html_pointer .= '<select name="'.$this->form_name.'[pointers][map]['.$unique.'][element_type_id]" title="'.getLabel('inf_import_type_of_target_element').'"'.($is_disabled ? ' disabled="disabled"' : '').'>'.Labels::parseTextVariables(cms_general::createDropdown($arr_types, $ref_type_id, false)).'</select>';
+			$str_html_pointer .= '<select name="'.$this->form_name.'[pointers][map]['.$unique.'][element_type_id]" title="'.getLabel('inf_import_type_of_target_element').'"'.($is_disabled ? ' disabled="disabled"' : '').'>'.Labels::parseTextVariables(cms_general::createDropdown($arr_types, $ref_type_id, false)).'</select>';
 			
 			if ($arr_type_set[$element_id]['is_location_reference']) {
 				
@@ -709,16 +701,16 @@ abstract class ingest_source extends base_module {
 					$object_sub_details_id = $arr_type_set[$element_id]['object_sub_details_id'];
 				}
 						
-				$html_pointer .= '<select name="'.$this->form_name.'[pointers][map]['.$unique.'][element_type_object_sub_id]" title="'.getLabel('inf_import_sub_object_of_location_reference_type').'"'.($is_disabled_sub ? ' disabled="disabled"' : '').'>'.Labels::parseTextVariables(cms_general::createDropdown(StoreType::getTypeObjectSubsDetails($ref_type_id), $object_sub_details_id, false, 'object_sub_details_name', 'object_sub_details_id')).'</select>';
+				$str_html_pointer .= '<select name="'.$this->form_name.'[pointers][map]['.$unique.'][element_type_object_sub_id]" title="'.getLabel('inf_import_sub_object_of_location_reference_type').'"'.($is_disabled_sub ? ' disabled="disabled"' : '').'>'.Labels::parseTextVariables(cms_general::createDropdown(StoreType::getTypeObjectSubsDetails($ref_type_id), $object_sub_details_id, false, 'object_sub_details_name', 'object_sub_details_id')).'</select>';
 			} else {
 				
-				$html_pointer .= '<input name="'.$this->form_name.'[pointers][map]['.$unique.'][element_type_object_sub_id]" type="hidden"/>';
+				$str_html_pointer .= '<input name="'.$this->form_name.'[pointers][map]['.$unique.'][element_type_object_sub_id]" type="hidden"/>';
 			}
 			 
-			$html_pointer .= '<select name="'.$this->form_name.'[pointers][map]['.$unique.'][element_type_element_id]" title="'.getLabel('inf_import_element_used_for_reference').'">'.cms_general::createDropdown((array)$arr_ref_type_set, $arr_pointer['element_type_element_id'], true).'</select>';
+			$str_html_pointer .= '<select name="'.$this->form_name.'[pointers][map]['.$unique.'][element_type_element_id]" title="'.getLabel('inf_import_element_used_for_reference').'">'.cms_general::createDropdown((array)$arr_ref_type_set, $arr_pointer['element_type_element_id'], true).'</select>';
 		} else {
 			
-			$html_pointer .= '<input name="'.$this->form_name.'[pointers][map]['.$unique.'][element_type_id]" type="hidden" value="0" />'
+			$str_html_pointer .= '<input name="'.$this->form_name.'[pointers][map]['.$unique.'][element_type_id]" type="hidden" value="0" />'
 				.'<input name="'.$this->form_name.'[pointers][map]['.$unique.'][element_type_object_sub_id]" type="hidden" value="0" />'
 				.'<input name="'.$this->form_name.'[pointers][map]['.$unique.'][element_type_element_id]" type="hidden" value="0" />';
 		}
@@ -728,29 +720,31 @@ abstract class ingest_source extends base_module {
 
 		$arr_html = [];
 
-		$html_pointer = '<div id="y:ingest_source:create_pointer-'.$source_id.'_'.$type_id.'">'.$html_pointer.'</div>';
+		$str_html_pointer = '<div id="y:ingest_source:create_pointer-'.$source_id.'_'.$type_id.'">'.$str_html_pointer.'</div>';
 		
-		$arr_html[] = $html_pointer;
+		$arr_html[] = $str_html_pointer;
 		
 		$is_mode_overwrite = ($arr_pointer['mode_write'] == 'overwrite' || !$is_appendable);
 		$is_mode_append = ($arr_pointer['mode_write'] == 'append' || $is_only_append || !$is_mode_overwrite);
-	
-		$html_options = '<div>'
-			.'<label><input type="radio" name="'.$this->form_name.'[pointers][map]['.$unique.'][mode_write]" value="overwrite"'.($is_only_append ? ' disabled="disabled"' : ($is_mode_overwrite ? ' checked="checked"' : '')).'/><span>'.getLabel('lbl_overwrite').'</span></label>'
-			.'<label><input type="radio" name="'.$this->form_name.'[pointers][map]['.$unique.'][mode_write]" value="append"'.(!$is_appendable ? ' disabled="disabled"' : ($is_mode_append ? ' checked="checked"' : '')).' /><span>'.getLabel('lbl_append').'</span></label>'
-			.'<label><input type="checkbox" name="'.$this->form_name.'[pointers][map]['.$unique.'][ignore_empty]" value="1"'.($arr_pointer['ignore_empty'] ? ' checked="checked"' : '').'/><span>'.getLabel('lbl_import_ignore_empty').'</span></label>'
-			.'<label><input type="checkbox" name="'.$this->form_name.'[pointers][map]['.$unique.'][ignore_identical]"'.($arr_type_set[$element_id]['has_multi'] || $is_only_append ? ' disabled="disabled"' : '').' value="1"'.($arr_pointer['ignore_identical'] ? ' checked="checked"' : '').'/><span>'.getLabel('lbl_import_ignore_identical').'</span></label>'
-		.'</div>';
+		$has_more_options = ($arr_pointer['ignore_empty'] || $arr_pointer['ignore_identical']);
 		
-		$has_set_options = ($arr_pointer['mode_write'] == 'overwrite' || $arr_pointer['ignore_empty'] || $arr_pointer['ignore_identical']);
+		$str_html_options = '<label><input type="radio" name="'.$this->form_name.'[pointers][map]['.$unique.'][mode_write]" value="overwrite"'.($is_only_append ? ' disabled="disabled"' : ($is_mode_overwrite ? ' checked="checked"' : '')).'/><span>'.getLabel('lbl_overwrite').'</span></label>'
+			.'<label><input type="radio" name="'.$this->form_name.'[pointers][map]['.$unique.'][mode_write]" value="append"'.(!$is_appendable ? ' disabled="disabled"' : ($is_mode_append ? ' checked="checked"' : '')).' /><span>'.getLabel('lbl_append').'</span></label>';
 		
-		$html_options = '<fieldset class="pointer-options">
+		$str_html_options_more = '<label><input type="checkbox" name="'.$this->form_name.'[pointers][map]['.$unique.'][ignore_empty]" value="1"'.($arr_pointer['ignore_empty'] ? ' checked="checked"' : '').'/><span>'.getLabel('lbl_import_ignore_empty').'</span></label>'
+			.'<label><input type="checkbox" name="'.$this->form_name.'[pointers][map]['.$unique.'][ignore_identical]"'.($arr_type_set[$element_id]['has_multi'] || $is_only_append ? ' disabled="disabled"' : '').' value="1"'.($arr_pointer['ignore_identical'] ? ' checked="checked"' : '').'/><span>'.getLabel('lbl_import_ignore_identical').'</span></label>';
+				
+		if (!$is_update || !$has_more_options) {
+			$str_html_options_more = '<div class="hide-edit hide">'.$str_html_options_more.'</div><input type="button" class="data neutral" title="'.getLabel('lbl_import_specify_additional_options').'" value="more" />';
+		}
+		
+		$str_html_options = '<fieldset class="pointer-options">
 			<ul><li>
-				'.($is_update && $has_set_options ? $html_options : '<div class="hide-edit hide">'.$html_options.'</div><input type="button" class="data neutral" title="'.getLabel('lbl_import_specify_additional_options').'" value="more" />').'
+				<div>'.$str_html_options.$str_html_options_more.'</div>
 			</li></ul>
 		</fieldset>';
 		
-		$arr_html[] = $html_options;
+		$arr_html[] = $str_html_options;
 
 		return $arr_html;
 	}
@@ -776,7 +770,6 @@ abstract class ingest_source extends base_module {
 		$source_id = $arr_template['source_id'];
 		
 		if (!$arr_types[$type_id]) {
-			
 			error(getLabel('msg_type_does_not_exist'), TROUBLE_ERROR, LOG_CLIENT);
 		}
 		
@@ -932,7 +925,7 @@ abstract class ingest_source extends base_module {
 		return $html;
 	}
 	
-	protected function createProcessTemplateStoreCheck($arr_result) {
+	protected function createProcessTemplateStoreCheck($arr_template, $arr_result) {
 		
 		if ($arr_result['locked'] !== null) {
 
@@ -942,10 +935,8 @@ abstract class ingest_source extends base_module {
 			$str_message = parseBody(getLabel('msg_ingest_stopped').' '.getLabel('msg_object_locked_multi')).parseBody($str_locked);
 			
 		} else if ($arr_result['error'] !== null) {
-				
-			$error_pointer_row = $arr_result['error'] + 1;
-			Labels::setVariable('row_number', $error_pointer_row);				
-			$str_message = parseBody(getLabel('msg_ingest_error_at_row_number'));
+						
+			$str_message = parseBody($arr_result['error']['message']);
 		} else {
 
 			Labels::setVariable('count', (int)$arr_result['count']);
@@ -955,7 +946,6 @@ abstract class ingest_source extends base_module {
 		}
 		
 		if ($arr_template['use_log']) {
-			
 			$str_message .= parseBody(getLabel('msg_import_log_created').' <span class="a popup" id="y:data_import:log_template-'.$arr_template['id'].'">'.getLabel('lbl_import_log_open').'</span>');
 		} 
 		
@@ -1258,7 +1248,9 @@ abstract class ingest_source extends base_module {
 					
 					runElementSelectorFunction(elm_form, '[id^=y\\\:ingest_source\\\:set_pointers-]:not([id$=query_type_object_value])', function(elm_found) {
 						
-						COMMANDS.setData(elm_found, {source_id: source_id, type_id: type_id, template_mode: template_mode, form_name: FORMMANAGING.getElementNameBase(elm_found)});
+						const arr_state = serializeArrayByName(elm_found);
+						
+						COMMANDS.setData(elm_found, {source_id: source_id, type_id: type_id, template_mode: template_mode, form_state: arr_state, form_name: FORMMANAGING.getElementNameBase(elm_found)});
 						COMMANDS.quickCommand(elm_found, function(elm) {
 							
 							$(elm_found).html(elm);
@@ -1293,7 +1285,10 @@ abstract class ingest_source extends base_module {
 				elm_type_selector.next('[name$=\"[query_type_filter]\"]').val('');
 				
 				runElementSelectorFunction(elm_form, '[id=y\\\:ingest_source\\\:set_pointers-query_type_object_value]', function(elm_found) {
-					COMMANDS.setData(elm_found, {source_id: source_id, type_id: type_id, form_name: FORMMANAGING.getElementNameBase(elm_found)});
+					
+					const arr_state = serializeArrayByName(elm_found);
+				
+					COMMANDS.setData(elm_found, {source_id: source_id, type_id: type_id, form_state: arr_state, form_name: FORMMANAGING.getElementNameBase(elm_found)});
 					COMMANDS.quickCommand(elm_found, function(elm) {
 						
 						$(elm_found).html(elm);
@@ -1454,65 +1449,116 @@ abstract class ingest_source extends base_module {
 			
 			$this->form_name = ($value['form_name'] ?: $this->form_name);
 			
+			$arr_current_pointers = [];
+			
+			if ($value['form_state']) {
+
+				$arr_current_pointers = arrValuesRecursive('pointers', $value['form_state']);
+				$arr_current_pointers = (($arr_current_pointers[0][$id] ?? null) ?: []); // Access the pointers in the form by pointer kind ($id), e.g. map/filter_value/query_type_object_value;
+			}
+			
 			if ($id == 'filter_object_identifier') {
+				
+				$arr_pointer = $arr_current_pointers;
 				
 				if (static::$use_object_identifier_uri) {
 					if ($value['type_id']) {
-						$this->html = $this->createPointerFilterTypeObjectURI($value['type_id']);
+						$this->html = $this->createPointerFilterTypeObjectURI($value['type_id'], $arr_pointer);
 					}
 				} else {
-					$this->html = $this->createPointerFilterTypeObjectID($value['source_id']);
+					$this->html = $this->createPointerFilterTypeObjectID($value['source_id'], $arr_pointer);
 				}
 			} else if ($id == 'filter_object_sub_identifier') {
 				
-				$this->html = $this->createPointerFilterTypeObjectSubID($value['source_id']);
+				$arr_pointer = $arr_current_pointers;
+				
+				$this->html = $this->createPointerFilterTypeObjectSubID($value['source_id'], $arr_pointer);
 			} else {
 				
 				$arr_sorter = [];
 				
 				if ($value['type_id']) {
+					
+					foreach ($arr_current_pointers as $key => $arr_pointer) {
 						
+						if ($arr_pointer['pointer_heading']) {
+							continue;
+						}
+						
+						unset($arr_current_pointers[$key]);
+					}
+
 					if ($id == 'map') {
 						
 						$arr_pointers = static::getPointerDataHeadings($value['source_id']);
-						array_unshift($arr_pointers, []); // Empty run for sorter source
+						$arr_pointer_headings = [];
 						
+						foreach ($arr_pointers as $arr_pointer) {
+							$arr_pointer_headings[$arr_pointer['id']] = false; // Source id = pointer_heading
+						}
+						
+						if ($arr_current_pointers) {
+							$arr_pointers = arrMerge($arr_current_pointers, $arr_pointers); // Prepend current pointers
+						}
+						
+						array_unshift($arr_pointers, []); // Empty run for sorter source
+
 						foreach ($arr_pointers as $key => $arr_pointer) {
 							
-							$arr_pointer['pointer_heading'] = $arr_pointer['id'];
+							if ($arr_pointer) {
+								
+								if ($arr_pointer['id']) { // Source
+									
+									$arr_pointer['pointer_heading'] = $arr_pointer['id'];
+									
+									if ($arr_pointer_headings[$arr_pointer['pointer_heading']] === true) { // Touched by current pointers
+										continue;
+									}
+								} else { // Current
+									
+									if (isset($arr_pointer_headings[$arr_pointer['pointer_heading']])) {
+										$arr_pointer_headings[$arr_pointer['pointer_heading']] = true;
+									} else {
+										continue;
+									}
+								}
+							}
 							
 							$arr_sorter[] = ['source' => ($key === 0 ? true : false), 'value' => $this->createPointerMap($value['source_id'], $value['type_id'], $arr_pointer, ($value['template_mode'] == IngestTypeObjects::MODE_UPDATE))];
 						}
 					} else {
 						
-						$arr_pointers = [[], []]; // Empty run for sorter source
-
+						$arr_pointers = ($arr_current_pointers ?: [[]]);
+						array_unshift($arr_pointers, []); // Empty run for sorter source
+						
 						foreach ($arr_pointers as $key => $arr_pointer) {
 							
-							$html = '';
+							$str_html = '';
 							
 							switch ($id) {
 								case 'filter_value':
-									$html = $this->createPointerFilterValue($value['source_id'], $arr_pointer);
+									$str_html = $this->createPointerFilterValue($value['source_id'], $arr_pointer);
 									break;
 								case 'query_value':
-									$html = $this->createPointerQueryValue($value['source_id'], $arr_pointer);
+									$str_html = $this->createPointerQueryValue($value['source_id'], $arr_pointer);
 									break;
 								case 'filter_object_value':
-									$html = $this->createPointerFilterTypeObjectValue($value['source_id'], $value['type_id'], $arr_pointer);
+									$str_html = $this->createPointerFilterTypeObjectValue($value['source_id'], $value['type_id'], $arr_pointer);
 									break;
 								case 'query_object_value':
-									$html = $this->createPointerQueryTypeObjectValue($value['source_id'], $value['type_id'], $arr_pointer, 'query_object_value');
+									$str_html = $this->createPointerQueryTypeObjectValue($value['source_id'], $value['type_id'], $arr_pointer, 'query_object_value');
 									break;
 								case 'query_type_object_value':
-									$html = $this->createPointerQueryTypeObjectValue($value['source_id'], $value['type_id'], $arr_pointer, 'query_type_object_value');
+									$str_html = $this->createPointerQueryTypeObjectValue($value['source_id'], $value['type_id'], $arr_pointer, 'query_type_object_value');
 									break;
 							}
 							
-							$arr_sorter[] = ['source' => ($key === 0 ? true : false), 'value' => $html];
+							$arr_sorter[] = ['source' => ($key === 0 ? true : false), 'value' => $str_html];
 						}
 					}
 				}
+				
+				ksort($arr_sorter);
 				
 				$this->html = cms_general::createSorter($arr_sorter, true);
 			}

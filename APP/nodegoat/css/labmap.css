@@ -1,5 +1,5 @@
 
-.labmap { position: relative; width: 100%; height:100%; overflow: hidden; }
+.labmap { position: relative; width: 100%; height: 100%; overflow: hidden; container: labmap / size; }
 
 .labmap > .map { position: relative; width: 100%; height:100%; overflow: hidden; z-index: 1; }
 .labmap .map .paint > *,
@@ -13,21 +13,21 @@
 .labmap.line > .controls .legends > figure.types { display: none; margin-top: 0px; }
 .labmap.soc > .controls .legends > figure.object-sub-details { display: none; margin-top: 0px; }
 
-.labmap.soc > .controls .legends > figure.selected-node dt,
-.labmap.soc > .controls .legends > figure.selected-node dd { white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
-.labmap.soc > .controls .legends > figure.selected-node span { cursor: pointer; }
-.labmap.soc > .controls .legends > figure.selected-node > span { display: block; white-space: nowrap; width: 200px; overflow: hidden; text-overflow: ellipsis;}
-.labmap.soc > .controls .legends > figure.search-nodes > ul { max-width: 190px;  }
-.labmap.soc > .controls .legends > figure.search-nodes > ul > li { text-align: left; }
-.labmap.soc > .controls .legends > figure.search-nodes > ul > li > a { overflow: hidden; text-overflow: ellipsis; }
+.labmap.soc > .controls .legends > figure.selected-node > h2 { width: 100%; background-color: rgba(255, 255, 255, 0.75); padding: 4px 4px; margin: 0px; margin-bottom: 4px; font-size: 1em; font-weight: normal; white-space: nowrap; box-sizing: border-box; }
+.labmap.soc > .controls .legends > figure.selected-node > h2 > span { display: inline-block; vertical-align: top; max-width: 250px; overflow: hidden; text-overflow: ellipsis; }
+.labmap.soc > .controls .legends > figure.selected-node > dl { margin-left: auto; margin-right: auto; }
+.labmap.soc > .controls .legends > figure.selected-node > dl > div > dt { vertical-align: top; white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.labmap.soc > .controls .legends > figure.selected-node > dl > div > dd { text-align: left; white-space: nowrap; max-width: 250px; }
+.labmap.soc > .controls .legends > figure.selected-node > dl > div > dd li { overflow: hidden; text-overflow: ellipsis; }
+
+.labmap.soc > .controls .legends > figure.search-nodes > input[type="search"] { width: 150px; }
+div:is(.content, .mod):has(> .toolbox > dialog.popout.search-nodes[open]) .labmap.soc > .controls .legends > figure.search-nodes > input[type="search"] { width: 300px; }
+dialog.popout.search-nodes > ul > li > a { cursor: crosshair; }
+
 .labmap.soc > .controls .legends > figure.run-layout { text-align: right; }
 .labmap.soc > .controls .legends > figure.run-layout:not(.running) > select + button + button { display: none; }
 .labmap.soc > .controls .legends > figure.run-layout.running > select + button { display: none; }
 .labmap.soc > .controls .legends > figure.run-layout > div:first-child > p { margin-top: 0px; }
-
-.labmap.soc div.hover-node-label,
-.labmap.soc div.top-node-label { position: absolute; display: block; padding: 2px; font-size: 1.1rem; background: rgba(245, 245, 245, 0.6); white-space: nowrap; }
-.labmap.soc div.top-node-label { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
 
 .labmap.soc .background,
 .labmap.line .background { background-color: #fafafa; }
@@ -57,10 +57,20 @@
 .labmap > .controls .soc { top: 140px; right: 40px; }
 
 .labmap > .controls .timeline { position: absolute; bottom: 40px; width: 100%; text-align: center; }
-.labmap > .controls .timeline > div { display: inline-block; position: relative; text-align: left; width: calc(100% - 500px); min-width: 450px; max-width: 700px; padding: 10px; background: rgba(128, 128, 128, 0.35); z-index: 1; }
+.labmap > .controls .timeline > div { display: inline-block; position: relative; text-align: left; width: calc(100% - 500px); min-width: 575px; max-width: 700px; padding: 10px; box-sizing: border-box; background: rgba(128, 128, 128, 0.35); z-index: 1; }
 .labmap > .controls .timeline .slider { position: relative; z-index: 1; }
 .labmap > .controls .timeline .buttons { position: relative; float: right; margin-top: 8px; }
 .labmap > .controls .timeline .buttons input { margin: 0px; }
+@container labmap (width < 575px) {
+	.labmap > .controls .timeline { bottom: 0px; }
+	.labmap > .controls .timeline > div { width: 100cqw; min-width: auto; }
+	.labmap > .controls .timeline .slider input.date,
+	.labmap > .controls .timeline .slider .split { display: none; }
+	.labmap > .controls .timeline .slider .split + * { margin-left: 0px; }
+}
+@container labmap (width < 340px) {
+	.labmap > .controls .timeline .buttons { display: none; }
+}
 
 .labmap > .controls .legends { position: absolute; top: 40px; right: 40px; z-index: 1; pointer-events: none; }
 .labmap > .controls .legends > figure { margin: 0px; margin-top: 10px; float: right; clear: both; padding: 10px; font-size: 1.1rem; background: rgba(245, 245, 245, 0.75); pointer-events: auto; }
@@ -95,7 +105,15 @@
 .labmap > .controls .legends > figure.metric > .result > ul > li span.name { white-space: nowrap; width: 150px; overflow: hidden; text-overflow: ellipsis;  }
 .labmap > .controls .legends > figure.metric.repositioned { position: fixed; }
 
-.labmap[data-tools=""] > .controls .timeline,
+.labmap[data-tools=""] > .controls .timeline { visibility: hidden; }
 .labmap[data-tools=""] > .map > .controls > .main,
 .labmap.soc[data-tools=""] > .controls .legends > figure.search-nodes,
 .labmap.soc[data-tools=""] > .controls .legends > figure.run-layout { display: none; }
+
+@container labmap (height < 800px) or (width < 1000px) {
+	.labmap > .controls .legends > figure.selected-node > * { zoom: 0.5; }
+}
+@container labmap (height < 600px) or (width < 550px) {
+	.labmap > .map > .controls > .main > .zoomer > button:not(.plus, .min),
+	.labmap > .controls .legends > figure.selected-node { display: none; }
+}

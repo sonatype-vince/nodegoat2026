@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -226,8 +226,8 @@ class data_visualise extends base_module {
 		$arr_display = [['id' => 1, 'name' => getLabel('lbl_display_vector')], ['id' => 2, 'name' => getLabel('lbl_display_pixel')]];
 		$arr_location_position = [['id' => 0, 'name' => getLabel('lbl_static')], ['id' => 1, 'name' => getLabel('lbl_algorithmic')]];
 
-		$str_geo_advanced = ParseTypeFeatures::parseVisualSettingsOutputAdvanced($arr_settings['settings']['geo_advanced']);
-		$str_social_advanced = ParseTypeFeatures::parseVisualSettingsOutputAdvanced($arr_settings['social']['settings']['social_advanced']);
+		$str_geo_advanced = ParseTypeFeatures::parseSettingAdvancedOutput($arr_settings['settings']['geo_advanced']);
+		$str_social_advanced = ParseTypeFeatures::parseSettingAdvancedOutput($arr_settings['social']['settings']['social_advanced']);
 		
 		$return = '<div class="tabs visual-settings">
 			<ul>
@@ -246,7 +246,7 @@ class data_visualise extends base_module {
 					<fieldset><legend>'.getLabel('lbl_design').'</legend><ul>
 						<li><label>'.getLabel('lbl_show').' '.getLabel('lbl_dot').'</label><span>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[dot][show]', $arr_settings['dot']['show']).'</span></li>
 						<li><label>'.getLabel('lbl_dot').' '.getLabel('lbl_color').'</label><span>'
-							.'<input name="visual_settings[dot][color]" type="text" value="'.$arr_settings['dot']['color'].'" class="colorpicker" />'
+							.cms_general::createPickColor($arr_settings['dot']['color'], 'visual_settings[dot][color]')
 							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[dot][opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['dot']['opacity'].'" />'
 						.'</span></li>
 						<li><label>'.getLabel('lbl_dot').' '.getLabel('lbl_color').' '.getLabel('lbl_condition').'</label><input name="visual_settings[dot][color_condition]" type="text" value="'.$arr_settings['dot']['color_condition'].'" /></li>
@@ -259,13 +259,13 @@ class data_visualise extends base_module {
 							.'<input name="visual_settings[dot][size][stop]" type="number" step="1" min="0" value="'.$arr_settings['dot']['size']['stop'].'" title="'.getLabel('inf_size_stop').'" />'
 						.'</span></li>
 						<li><label>'.getLabel('lbl_dot').' '.getLabel('lbl_stroke_color').'</label><span>'
-							.'<input name="visual_settings[dot][stroke_color]" type="text" value="'.$arr_settings['dot']['stroke_color'].'" class="colorpicker" />'
+							.cms_general::createPickColor($arr_settings['dot']['stroke_color'], 'visual_settings[dot][stroke_color]')
 							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[dot][stroke_opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['dot']['stroke_opacity'].'" />'
 						.'</span></li>
 						<li><label>'.getLabel('lbl_dot').' '.getLabel('lbl_stroke_width').'</label><input name="visual_settings[dot][stroke_width]" type="number" step="0.5" min="0" value="'.$arr_settings['dot']['stroke_width'].'" /></li>
 						<li><label>'.getLabel('lbl_show').' '.getLabel('lbl_location').'</label><span>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[location][show]', $arr_settings['location']['show']).'</span></li>
 						<li><label>'.getLabel('lbl_location').' '.getLabel('lbl_color').'</label><span>'
-							.'<input name="visual_settings[location][color]" type="text" value="'.$arr_settings['location']['color'].'" class="colorpicker" />'
+							.cms_general::createPickColor($arr_settings['location']['color'], 'visual_settings[location][color]')
 							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[location][opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['location']['opacity'].'" />'
 						.'</span></li>
 						<li><label>'.getLabel('lbl_location').' '.getLabel('lbl_size').'</label><input name="visual_settings[location][size]" type="number" step="1" min="1" value="'.$arr_settings['location']['size'].'" /></li>
@@ -275,7 +275,7 @@ class data_visualise extends base_module {
 						<li><label>'.getLabel('lbl_location').' '.getLabel('lbl_condition').'</label><input name="visual_settings[location][condition]" type="text" value="'.$arr_settings['location']['condition'].'" /></li>
 						<li><label>'.getLabel('lbl_show').' '.getLabel('lbl_line').'</label><span>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[line][show]', $arr_settings['line']['show']).'</span></li>
 						<li><label>'.getLabel('lbl_line').' '.getLabel('lbl_color').'</label><span>'
-							.'<input name="visual_settings[line][color]" type="text" value="'.$arr_settings['line']['color'].'" class="colorpicker" />'
+							.cms_general::createPickColor($arr_settings['line']['color'], 'visual_settings[line][color]')
 							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[line][opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['line']['opacity'].'" />'
 						.'</span></li>
 						<li><label>'.getLabel('lbl_line').' '.getLabel('lbl_width_min').'</label><input name="visual_settings[line][width][min]" type="number" step="0.5" min="1" value="'.$arr_settings['line']['width']['min'].'" /></li>
@@ -283,22 +283,22 @@ class data_visualise extends base_module {
 						<li><label>'.getLabel('lbl_line').' '.getLabel('lbl_offset').'</label><input name="visual_settings[line][offset]" type="number" step="1" min="0" value="'.$arr_settings['line']['offset'].'" /></li>
 						<li><label>'.getLabel('lbl_show').' '.getLabel('lbl_geometry').'</label><span>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[geometry][show]', $arr_settings['geometry']['show']).'</span></li>
 						<li><label>'.getLabel('lbl_geometry').' '.getLabel('lbl_color').'</label><span>'
-							.'<input name="visual_settings[geometry][color]" type="text" value="'.$arr_settings['geometry']['color'].'" class="colorpicker" />'
+							.cms_general::createPickColor($arr_settings['geometry']['color'], 'visual_settings[geometry][color]')
 							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[geometry][opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['geometry']['opacity'].'" />'
 						.'</span></li>
 						<li><label>'.getLabel('lbl_geometry').' '.getLabel('lbl_stroke_color').'</label><span>'
-							.'<input name="visual_settings[geometry][stroke_color]" type="text" value="'.$arr_settings['geometry']['stroke_color'].'" class="colorpicker" />'
+							.cms_general::createPickColor($arr_settings['geometry']['stroke_color'], 'visual_settings[geometry][stroke_color]')
 							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[geometry][stroke_opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['geometry']['stroke_opacity'].'" />'
 						.'</span></li>
 						<li><label>'.getLabel('lbl_geometry').' '.getLabel('lbl_stroke_width').'</label><input name="visual_settings[geometry][stroke_width]" type="number" step="0.5" min="0" value="'.$arr_settings['geometry']['stroke_width'].'" /></li>
 						<li><label>'.getLabel('lbl_show').' '.getLabel('lbl_visual_hint').'</label><span>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[hint][show]', $arr_settings['hint']['show']).'</span></li>
 						<li><label>'.getLabel('lbl_visual_hint').' '.getLabel('lbl_color').'</label><span>'
-							.'<input name="visual_settings[hint][color]" type="text" value="'.$arr_settings['hint']['color'].'" class="colorpicker" />'
+							.cms_general::createPickColor($arr_settings['hint']['color'], 'visual_settings[hint][color]')
 							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[hint][opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['hint']['opacity'].'" />'
 						.'</span></li>
 						<li><label>'.getLabel('lbl_visual_hint').' '.getLabel('lbl_size').'</label><input name="visual_settings[hint][size]" type="number" step="0.5" min="1" value="'.$arr_settings['hint']['size'].'" /></li>
 						<li><label>'.getLabel('lbl_visual_hint').' '.getLabel('lbl_stroke_color').'</label><span>'
-							.'<input name="visual_settings[hint][stroke_color]" type="text" value="'.$arr_settings['hint']['stroke_color'].'" class="colorpicker" />'
+							.cms_general::createPickColor($arr_settings['hint']['stroke_color'], 'visual_settings[hint][stroke_color]')
 							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[hint][stroke_opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['hint']['stroke_opacity'].'" />'
 						.'</span></li>
 						<li><label>'.getLabel('lbl_visual_hint').' '.getLabel('lbl_stroke_width').'</label><input name="visual_settings[hint][stroke_width]" type="number" step="0.5" min="0" value="'.$arr_settings['hint']['stroke_width'].'" /></li>
@@ -338,7 +338,7 @@ class data_visualise extends base_module {
 								$return .= cms_general::createSorter($arr_sorter, true, true);
 								
 						$return .= '</li>
-						<li><label>'.getLabel('lbl_background_color').'</label><span><input name="visual_settings[settings][geo_background_color]" type="text" value="'.$arr_settings['settings']['geo_background_color'].'" class="colorpicker" /></span></li>
+						<li><label>'.getLabel('lbl_background_color').'</label><span>'.cms_general::createPickColor($arr_settings['settings']['geo_background_color'], 'visual_settings[settings][geo_background_color]').'</span></li>
 						<li><label>'.getLabel('lbl_advanced').'</label><span><textarea name="visual_settings[settings][geo_advanced]">'.$str_geo_advanced.'</textarea></span></li>
 					</ul></fieldset>
 				</div></div>
@@ -347,7 +347,10 @@ class data_visualise extends base_module {
 			<div>
 				<div class="options fieldsets"><div>
 					<fieldset><legend>'.getLabel('lbl_design').'</legend><ul>
-						<li><label>'.getLabel('lbl_dot').' '.getLabel('lbl_color').'</label><span><input name="visual_settings[social][dot][color]" type="text" value="'.$arr_settings['social']['dot']['color'].'" class="colorpicker" /></span></li>
+						<li><label>'.getLabel('lbl_dot').' '.getLabel('lbl_color').'</label><span>'
+							.cms_general::createPickColor($arr_settings['social']['dot']['color'], 'visual_settings[social][dot][color]')
+							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[social][dot][opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['social']['dot']['opacity'].'" />'
+						.'</span></li>
 						<li><label>'.getLabel('lbl_dot').' '.getLabel('lbl_size_min').'</label><span>'
 							.'<input name="visual_settings[social][dot][size][min]" type="number" step="0.5" min="1" value="'.$arr_settings['social']['dot']['size']['min'].'" />'
 							.'<input name="visual_settings[social][dot][size][start]" type="number" step="1" min="0" value="'.$arr_settings['social']['dot']['size']['start'].'" title="'.getLabel('inf_size_start').'" />'
@@ -356,14 +359,22 @@ class data_visualise extends base_module {
 							.'<input name="visual_settings[social][dot][size][max]" type="number" step="0.5" min="1" value="'.$arr_settings['social']['dot']['size']['max'].'" />'
 							.'<input name="visual_settings[social][dot][size][stop]" type="number" step="1" min="0" value="'.$arr_settings['social']['dot']['size']['stop'].'" title="'.getLabel('inf_size_stop').'" />'
 						.'<span></li>
-						<li><label>'.getLabel('lbl_dot').' '.getLabel('lbl_stroke_color').'</label><span><input name="visual_settings[social][dot][stroke_color]" type="text" value="'.$arr_settings['social']['dot']['stroke_color'].'" class="colorpicker" /></span></li>
+						<li><label>'.getLabel('lbl_dot').' '.getLabel('lbl_stroke_color').'</label><span>'
+							.cms_general::createPickColor($arr_settings['social']['dot']['stroke_color'], 'visual_settings[social][dot][stroke_color]')
+							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[social][dot][stroke_opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['social']['dot']['stroke_opacity'].'" />'
+						.'</span></li>
 						<li><label>'.getLabel('lbl_dot').' '.getLabel('lbl_stroke_width').'</label><input name="visual_settings[social][dot][stroke_width]" type="number" step="0.5" min="0" value="'.$arr_settings['social']['dot']['stroke_width'].'" /></li>
 						<li><label>'.getLabel('lbl_show').' '.getLabel('lbl_label').'</label><span>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[social][label][show]', $arr_settings['social']['label']['show']).'</span></li>
 						<li><label>'.getLabel('lbl_label').' '.getLabel('lbl_threshold').'</label><input name="visual_settings[social][label][threshold]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['social']['label']['threshold'].'" /></li>
+						<li><label>'.getLabel('lbl_label').' '.getLabel('lbl_color').'</label><span>'
+							.cms_general::createPickColor($arr_settings['social']['label']['color'], 'visual_settings[social][label][color]')
+							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[social][label][opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['social']['label']['opacity'].'" />'
+						.'</span></li>
+						<li><label>'.getLabel('lbl_label').' '.getLabel('lbl_size').'</label><input name="visual_settings[social][label][size]" type="number" step="1" min="1" value="'.$arr_settings['social']['label']['size'].'" /></li>
 						<li><label>'.getLabel('lbl_label').' '.getLabel('lbl_condition').'</label><input name="visual_settings[social][label][condition]" type="text" value="'.$arr_settings['social']['label']['condition'].'" /></li>
 						<li><label>'.getLabel('lbl_show').' '.getLabel('lbl_line').'</label><span>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[social][line][show]', $arr_settings['social']['line']['show']).'</span></li>
 						<li><label>'.getLabel('lbl_line').' '.getLabel('lbl_color').'</label><span>'
-							.'<input name="visual_settings[social][line][color]" type="text" value="'.$arr_settings['social']['line']['color'].'" class="colorpicker" />'
+							.cms_general::createPickColor($arr_settings['social']['line']['color'], 'visual_settings[social][line][color]')
 							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[social][line][opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['social']['line']['opacity'].'" />'
 						.'</span></li>
 						<li><label>'.getLabel('lbl_line').' '.getLabel('lbl_width_min').'</label><input name="visual_settings[social][line][width][min]" type="number" step="0.5" min="1" value="'.$arr_settings['social']['line']['width']['min'].'" /></li>
@@ -394,7 +405,7 @@ class data_visualise extends base_module {
 						<li><label>'.getLabel('lbl_display').'</label><span>'.cms_general::createSelectorRadio($arr_display, 'visual_settings[social][settings][display]', $arr_settings['social']['settings']['display']).'</span></li>
 						<li><label>'.getLabel('lbl_show').' '.getLabel('lbl_disconnected').' '.getLabel('lbl_dot').'</label><span>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[social][settings][disconnected_dot_show]', $arr_settings['social']['settings']['disconnected_dot_show']).'</span></li>
 						<li><label>'.getLabel('lbl_include').' '.getLabel('lbl_location_references').'</label><span>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[social][settings][include_location_references]', $arr_settings['social']['settings']['include_location_references']).'</span></li>
-						<li><label>'.getLabel('lbl_background_color').'</label><span><input name="visual_settings[social][settings][background_color]" type="text" value="'.$arr_settings['social']['settings']['background_color'].'" class="colorpicker" /></span></li>
+						<li><label>'.getLabel('lbl_background_color').'</label><span>'.cms_general::createPickColor($arr_settings['social']['settings']['background_color'], 'visual_settings[social][settings][background_color]').'</span></li>
 						<li><label>'.getLabel('lbl_static').' '.getLabel('lbl_layout').'</label><span>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[social][settings][static_layout]', $arr_settings['social']['settings']['static_layout']).'</span></li>
 						<li><label>'.getLabel('lbl_static').' '.getLabel('lbl_layout').' '.getLabel('lbl_interval').'</label><input name="visual_settings[social][settings][static_layout_interval]" type="number" min="0" value="'.$arr_settings['social']['settings']['static_layout_interval'].'" /></li>
 						<li><label>'.getLabel('lbl_advanced').'</label><span><textarea name="visual_settings[social][settings][social_advanced]">'.$str_social_advanced.'</textarea></span></li>					
@@ -406,10 +417,10 @@ class data_visualise extends base_module {
 				<div class="options fieldsets"><div>
 					<fieldset><legend>'.getLabel('lbl_settings').'</legend><ul>
 						<li><label>'.getLabel('lbl_chart_bar').' '.getLabel('lbl_color').'</label><span>'
-							.'<input name="visual_settings[time][bar][color]" type="text" value="'.$arr_settings['time']['bar']['color'].'" class="colorpicker" />'
+							.cms_general::createPickColor($arr_settings['time']['bar']['color'], 'visual_settings[time][bar][color]')
 							.'<input title="'.getLabel('lbl_opacity').'" name="visual_settings[time][bar][opacity]" type="number" step="0.01" min="0" max="1" value="'.$arr_settings['time']['bar']['opacity'].'" />'
 						.'</span></li>
-						<li><label>'.getLabel('lbl_background_color').'</label><span><input name="visual_settings[time][settings][background_color]" type="text" value="'.$arr_settings['time']['settings']['background_color'].'" class="colorpicker" /></span></li>
+						<li><label>'.getLabel('lbl_background_color').'</label><span>'.cms_general::createPickColor($arr_settings['time']['settings']['background_color'], 'visual_settings[time][settings][background_color]').'</span></li>
 						<li><label>'.getLabel('lbl_relative').' '.getLabel('lbl_graph').'</label><span>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[time][settings][relative_graph]', $arr_settings['time']['settings']['relative_graph']).'</span></li>	
 						<li><label>'.getLabel('lbl_cumulative').' '.getLabel('lbl_graph').'</label><span>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[time][settings][cumulative_graph]', $arr_settings['time']['settings']['cumulative_graph']).'</span></li>			
 					</ul></fieldset>
@@ -592,7 +603,7 @@ class data_visualise extends base_module {
 							var obj_options = {
 								call_class_paint: MapGeo,
 								arr_class_paint_settings: {arr_visual: obj_data.visual},
-								arr_class_data_settings: obj_data.data.options,
+								arr_class_data_settings: obj_data.data.settings,
 								arr_levels: arr_levels,
 								arr_layers: (arr_layers.length ? arr_layers : false),
 								attribution: obj_data.data.attribution,
@@ -645,7 +656,7 @@ class data_visualise extends base_module {
 							var obj_options = {
 								call_class_paint: MapSocial,
 								arr_class_paint_settings: {arr_visual: obj_data.visual},
-								arr_class_data_settings: obj_data.data.options,
+								arr_class_data_settings: obj_data.data.settings,
 								arr_levels: arr_levels,
 								arr_layers: false,
 								attribution: obj_data.data.attribution,
@@ -672,7 +683,7 @@ class data_visualise extends base_module {
 							var obj_options = {
 								call_class_paint: MapTimeline,
 								arr_class_paint_settings: {arr_visual: obj_data.visual},
-								arr_class_data_settings: obj_data.data.options,
+								arr_class_data_settings: obj_data.data.settings,
 								arr_levels: arr_levels,
 								arr_layers: false,
 								attribution: obj_data.data.attribution,
@@ -817,7 +828,7 @@ class data_visualise extends base_module {
 		
 		SCRIPTER.dynamic('.labmap', function(elm_scripter) {
 
-			elm_scripter.on('click.review', '[id=y\\\:data_visualise\\\:review_data-date]', function() {
+			elm_scripter.on('click', '[id=y\\\:data_visualise\\\:review_data-date]', function() {
 
 				var cur = $(this);
 				
@@ -934,7 +945,7 @@ class data_visualise extends base_module {
 				
 				COMMANDS.setData(cur[0], arr_value);
 				cur.popupCommand();
-			}).on('click', '.paint', function(e) {
+			}).on('click review', '.paint', function(e) {
 			
 				var cur = $(this);
 				var arr_link = cur[0].arr_link;
@@ -1052,7 +1063,7 @@ class data_visualise extends base_module {
 				
 				COMMANDS.setData(cur[0], arr_value);
 				cur.attr('id', 'y:data_visualise:review_data-object').popupCommand();
-			}).on('click.review', 'figure.types dl > div, figure.object-sub-details dl > div, figure.conditions dl > div', function() {
+			}).on('click', 'figure.types dl > div, figure.object-sub-details dl > div, figure.conditions dl > div', function() {
 				
 				var cur = $(this);
 				var elm_source = cur.closest('figure');
@@ -1222,20 +1233,25 @@ class data_visualise extends base_module {
 			$arr_scope = self::getTypeScope($type_id);
 			$arr_context = self::getTypeContext($type_id);
 			$arr_conditions = toolbar::getTypeConditions($type_id);
-			$arr_model_condition_ids = toolbar::getTypeModelConditionIDs($type_id);
 			$arr_frame = self::getTypeFrame($type_id);
 			$arr_visual_settings = self::getVisualSettings(true, true);
 			
 			$collect = self::getVisualisationCollector($type_id, $arr_filters, $arr_scope, $arr_conditions, $arr_ordering);
 			$arr_collect_info = $collect->getResultInfo();
 			$arr_collect_info['settings'] = $collect->getPathOptions();
+			
+			$arr_model_condition_ids = toolbar::getTypeModelConditionIDs($type_id); // Only needed for state-hashing
 			$arr_collect_info['model_conditions'] = $arr_model_condition_ids;
 
 			$active_scenario_id = toolbar::checkActiveScenario();
-			$active_scenario_hash = ($active_scenario_id ? CacheProjectTypeScenario::generateHashVisualise($_SESSION['custom_projects']['project_id'], $active_scenario_id, $arr_collect_info) : false);
-						
+			$active_scenario_hash = false;
+			
+			if ($active_scenario_id) {
+				$active_scenario_hash = CacheProjectTypeScenario::generateHashVisualise($_SESSION['custom_projects']['project_id'], $active_scenario_id, $arr_collect_info);
+			}
+			
 			$identifier_data = $type_id.'_'.value2Hash(serialize($arr_collect_info).'_'.serialize($arr_context));
-			$identifier_date = time();
+			$identifier_date = DBFunctions::numTimeNow();
 			$has_data = ($value['identifier'] && $value['identifier']['data'] == $identifier_data);
 			
 			if ($has_data) {
@@ -1243,6 +1259,7 @@ class data_visualise extends base_module {
 				$is_updated = FilterTypeObjects::getTypesUpdatedAfter($value['identifier']['date'], StoreCustomProject::getScopeTypes($_SESSION['custom_projects']['project_id']), true);
 				
 				if ($is_updated) {
+					
 					$has_data = false;
 				} else {
 					
@@ -1299,7 +1316,7 @@ class data_visualise extends base_module {
 				if (!$arr['data']['pack'][0]['objects']) { // No usable data
 					
 					$this->html = false;
-					$this->msg = getLabel('msg_visualisation_not_set');
+					$this->message = getLabel('msg_visualisation_not_set');
 					
 					return;
 				}
@@ -1329,12 +1346,12 @@ class data_visualise extends base_module {
 						SiteEndEnvironment::setFeedback('condition_id', ($arr_context_scenario['condition_id'] ?: false), true);
 						$arr_conditions = toolbar::getTypeConditions($context_type_id);
 						SiteEndEnvironment::setFeedback('condition_id', $cur_condition_id, true);
-						
-						$arr_model_condition_ids = toolbar::getTypeModelConditionIDs($context_type_id);
-						
+
 						$collect = self::getVisualisationCollector($context_type_id, $arr_filters, $arr_scope, $arr_conditions);
 						$arr_collect_info = $collect->getResultInfo();
 						$arr_collect_info['settings'] = $collect->getPathOptions();
+						
+						$arr_model_condition_ids = toolbar::getTypeModelConditionIDs($context_type_id);
 						$arr_collect_info['model_conditions'] = $arr_model_condition_ids;
 						
 						$context_scenario_hash = CacheProjectTypeScenario::generateHashVisualise($_SESSION['custom_projects']['project_id'], $context_scenario_id, $arr_collect_info);
@@ -1368,7 +1385,7 @@ class data_visualise extends base_module {
 				.'<input type="submit" data-tab="visual-settings" name="default_visual_settings" value="'.getLabel('lbl_default').' '.getLabel('lbl_visual_settings').'" />'
 				.'<input type="submit" value="'.getLabel('lbl_apply').' '.getLabel('lbl_settings').'" />'
 			.'</form>';
-		}		
+		}
 		
 		if ($method == "update_visualisation_settings") {
 			
@@ -1433,8 +1450,8 @@ class data_visualise extends base_module {
 				
 				$arr_visual_settings = $_POST['visual_settings'];
 				
-				$arr_visual_settings['settings']['geo_advanced'] = ParseTypeFeatures::parseVisualSettingsInputAdvanced($arr_visual_settings['settings']['geo_advanced']);		
-				$arr_visual_settings['social']['settings']['social_advanced'] = ParseTypeFeatures::parseVisualSettingsInputAdvanced($arr_visual_settings['social']['settings']['social_advanced']);
+				$arr_visual_settings['settings']['geo_advanced'] = ParseTypeFeatures::parseSettingAdvancedInput($arr_visual_settings['settings']['geo_advanced']);		
+				$arr_visual_settings['social']['settings']['social_advanced'] = ParseTypeFeatures::parseSettingAdvancedInput($arr_visual_settings['social']['settings']['social_advanced']);
 				
 				$arr_visual_settings = ParseTypeFeatures::parseVisualSettings($arr_visual_settings);
 
@@ -1452,8 +1469,8 @@ class data_visualise extends base_module {
 			}
 			
 			toolbar::checkActiveSettings();
-									
-			$this->msg = true;
+			
+			$this->message = true;
 		}
 		
 		if ($method == "review_data") {
@@ -1792,7 +1809,8 @@ class data_visualise extends base_module {
 		});
 		
 		$collect->setTypeOptions([$type_id => ['order' => $arr_ordering]]);
-		$collect->init($arr_filters, false);
+		$collect->setFilter($arr_filters);
+		$collect->init(false);
 			
 		$arr_collect_info = $collect->getResultInfo();
 		
@@ -1809,7 +1827,9 @@ class data_visualise extends base_module {
 			foreach ($arr_paths as $path) {
 				
 				$source_path = $path;
+				
 				if ($source_path) { // path includes the target type id, remove it
+					
 					$source_path = explode('-', $source_path);
 					array_pop($source_path);
 					$source_path = implode('-', $source_path);

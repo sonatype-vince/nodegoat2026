@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -33,7 +33,11 @@ class StoreType {
 	protected static $arr_types_touched = [];
 	
 	public static $num_mutable_references = 5;
-	public static $num_path_mutable_references = 5;
+	public static $num_path_limiting_references = 5;
+	public static $num_path_limiting_sequence = 50;
+	
+	protected static $stmt_object_description_serial = null;
+	protected static $stmt_object_sub_description_serial = null;
 	
 	// Static call caching
 	protected static $arr_system_type_ids = [];
@@ -79,6 +83,8 @@ class StoreType {
 	const VALUE_TYPE_LOCATION_REFERENCE = 2;
 	const VALUE_TYPE_LOCATION_GEOMETRY = 3;
 	const VALUE_TYPE_LOCATION_POINT = 4;
+	
+	const TYPE_NAMESPACE_SCHEMA = 'SCHEMA';
 	
     public function __construct($type_id, $user_id = false) {
 		
@@ -129,6 +135,8 @@ class StoreType {
 		if ($this->do_check) {
 			$this->checkStore($arr_details, $arr_object_descriptions, $arr_object_subs_details);
 		}
+		
+		DB::startTransaction('store_type');
 		
 		$num_type_class = (int)(!$this->type_id ? $arr_details['class'] : $this->arr_type_set['type']['class']);
 		$num_type_mode = $this->parseTypeMode($arr_details['mode']);
@@ -344,6 +352,7 @@ class StoreType {
 			
 			if ($arr_object_descriptions) {
 				
+				$arr_value_types_base = StoreType::getValueTypesBase();
 				$num_sort = 0;
 				
 				foreach ($arr_object_descriptions as $arr_object_description) {
@@ -358,41 +367,36 @@ class StoreType {
 						
 						continue;
 					}
-					
-					$arr_value_types = StoreType::getValueTypesBase();
-					$arr_option_multi_value_types = [];
-					$arr_option_identifier_value_types = [];
-					
-					foreach ($arr_value_types as $arr_value_type) {
-						
-						if ($arr_value_type['has_support_multi']) {
-							$arr_option_multi_value_types[] = $arr_value_type['id'];
-						}
-						if ($arr_value_type['has_support_identifier']) {
-							$arr_option_identifier_value_types[] = $arr_value_type['id'];
-						}
-					}
-					
+
 					$object_description_value_type_base = $arr_object_description['object_description_value_type_base'];
 					$object_description_ref_type_id = $arr_object_description['object_description_ref_type_id'];
 										
-					$this->parseTypeObjectDescriptionReference($object_description_value_type_base, $object_description_ref_type_id);
+					$this->parseTypeObjectDescriptionValueType($object_description_value_type_base, $object_description_ref_type_id);
+					
+					$arr_value_type_base = $arr_value_types_base[$object_description_value_type_base];
 
 					$object_description_is_required = ($arr_object_description['object_description_is_required'] && !in_array($object_description_value_type_base, ['reversal']) ? 1 : 0);
 					
+					$object_description_has_multi = false;
 					if ($object_description_value_type_base == 'reversal') {
 						$object_description_has_multi = true;
-					} else {
-						$object_description_has_multi = (in_array($object_description_value_type_base, $arr_option_multi_value_types) ? (bool)$arr_object_description['object_description_has_multi'] : false);
+					} else if ($arr_value_type_base['has_support_multi']) {
+						$object_description_has_multi = (bool)$arr_object_description['object_description_has_multi'];
 					}
 					
-					$object_description_is_identifier = $arr_object_description['object_description_is_identifier'];
-					if ($object_description_is_identifier !== null) {
-						$object_description_is_identifier = (in_array($object_description_value_type_base, $arr_option_identifier_value_types) ? $object_description_is_identifier : 0);
+					$object_description_is_identifier = null;
+					if ($arr_object_description['object_description_is_identifier'] !== null && $arr_value_type_base['has_support_identifier']) {
+						$object_description_is_identifier = (bool)$arr_object_description['object_description_is_identifier'];
 					}
 					
 					$object_description_has_default_value = true;
+					
 					$object_description_in_name = (bool)$arr_object_description['object_description_in_name'];
+					$object_description_in_search = (bool)$arr_object_description['object_description_in_search'];
+					if ($arr_value_type_base['has_support_text'] === false) {
+						$object_description_in_name = false;
+						$object_description_in_search = false;
+					}
 										
 					$object_description_value_type_settings = $this->parseTypeObjectDescriptionValueTypeOptions($object_description_value_type_base, $object_description_ref_type_id, $object_description_has_multi, $object_description_has_default_value, $object_description_in_name, $arr_object_description['object_description_value_type_settings']);
 					
@@ -421,7 +425,7 @@ class StoreType {
 								has_multi = ".DBFunctions::escapeAs($object_description_has_multi, DBFunctions::TYPE_BOOLEAN).",
 								ref_type_id = ".(int)$object_description_ref_type_id.",
 								in_name = ".DBFunctions::escapeAs($object_description_in_name, DBFunctions::TYPE_BOOLEAN).",
-								in_search = ".DBFunctions::escapeAs($arr_object_description['object_description_in_search'], DBFunctions::TYPE_BOOLEAN).",
+								in_search = ".DBFunctions::escapeAs($object_description_in_search, DBFunctions::TYPE_BOOLEAN).",
 								in_overview = ".DBFunctions::escapeAs($arr_object_description['object_description_in_overview'], DBFunctions::TYPE_BOOLEAN)."
 								".($object_description_is_identifier !== null ? 
 									", is_identifier = ".DBFunctions::escapeAs($object_description_is_identifier, DBFunctions::TYPE_BOOLEAN)
@@ -463,8 +467,8 @@ class StoreType {
 								".DBFunctions::escapeAs($arr_object_description['object_description_is_unique'], DBFunctions::TYPE_BOOLEAN).",
 								".DBFunctions::escapeAs($object_description_has_multi, DBFunctions::TYPE_BOOLEAN).",
 								".(int)$object_description_ref_type_id.",
-								".DBFunctions::escapeAs($arr_object_description['object_description_in_name'], DBFunctions::TYPE_BOOLEAN).",
-								".DBFunctions::escapeAs($arr_object_description['object_description_in_search'], DBFunctions::TYPE_BOOLEAN).",
+								".DBFunctions::escapeAs($object_description_in_name, DBFunctions::TYPE_BOOLEAN).",
+								".DBFunctions::escapeAs($object_description_in_search, DBFunctions::TYPE_BOOLEAN).",
 								".DBFunctions::escapeAs($arr_object_description['object_description_in_overview'], DBFunctions::TYPE_BOOLEAN).",
 								".DBFunctions::escapeAs($object_description_is_identifier, DBFunctions::TYPE_BOOLEAN).",
 								".(int)$clearance_edit.",
@@ -783,6 +787,7 @@ class StoreType {
 				
 				if ($arr_object_sub_details['object_sub_descriptions']) {
 					
+					$arr_value_types_base = StoreType::getValueTypesBase();
 					$num_sort_sub = 0;
 					
 					foreach ($arr_object_sub_details['object_sub_descriptions'] as $arr_object_sub_description) {
@@ -801,16 +806,22 @@ class StoreType {
 						$object_sub_description_value_type_base = $arr_object_sub_description['object_sub_description_value_type_base'];
 						$object_sub_description_ref_type_id = $arr_object_sub_description['object_sub_description_ref_type_id'];
 						
-						$this->parseTypeObjectDescriptionReference($object_sub_description_value_type_base, $object_sub_description_ref_type_id);
+						$this->parseTypeObjectDescriptionValueType($object_sub_description_value_type_base, $object_sub_description_ref_type_id);
+						
+						$arr_value_type_base = $arr_value_types_base[$object_sub_description_value_type_base];
 												
 						$object_sub_description_is_required = ($arr_object_sub_description['object_sub_description_is_required'] && !in_array($object_sub_description_value_type_base, ['reversal']) ? true : false);
-						
-						$object_sub_description_has_multi = (($arr_object_sub_description['object_sub_description_has_multi'] || $object_sub_description_value_type_base == 'reversal') ? true : false);
-							
+													
 						$object_sub_description_use_object_description_id = ($object_sub_description_value_type_base == 'object_description' ? $arr_object_sub_description['object_sub_description_use_object_description_id'] : 0);
 						
 						$object_description_has_default_value = true;
+
 						$object_sub_description_in_name = (bool)$arr_object_sub_description['object_sub_description_in_name'];
+						$object_sub_description_in_search = (bool)$arr_object_sub_description['object_sub_description_in_search'];
+						if ($arr_value_type_base['has_support_text'] === false) {
+							$object_sub_description_in_name = false;
+							$object_sub_description_in_search = false;
+						}
 						
 						$object_sub_description_value_type_settings = $this->parseTypeObjectDescriptionValueTypeOptions($object_sub_description_value_type_base, $object_sub_description_ref_type_id, false, $object_description_has_default_value, $object_sub_description_in_name, $arr_object_sub_description['object_sub_description_value_type_settings']);
 						
@@ -838,7 +849,7 @@ class StoreType {
 									use_object_description_id = ".(int)$object_sub_description_use_object_description_id.",
 									ref_type_id = ".(int)$object_sub_description_ref_type_id.",
 									in_name = ".DBFunctions::escapeAs($object_sub_description_in_name, DBFunctions::TYPE_BOOLEAN).",
-									in_search = ".DBFunctions::escapeAs($arr_object_sub_description['object_sub_description_in_search'], DBFunctions::TYPE_BOOLEAN).",
+									in_search = ".DBFunctions::escapeAs($object_sub_description_in_search, DBFunctions::TYPE_BOOLEAN).",
 									in_overview = ".DBFunctions::escapeAs($arr_object_sub_description['object_sub_description_in_overview'], DBFunctions::TYPE_BOOLEAN)."
 									".($clearance_view !== null ? 
 										", clearance_edit = ".$clearance_edit."
@@ -876,8 +887,8 @@ class StoreType {
 									".DBFunctions::escapeAs($object_sub_description_is_required, DBFunctions::TYPE_BOOLEAN).",
 									".(int)$object_sub_description_use_object_description_id.",
 									".(int)$object_sub_description_ref_type_id.",
-									".DBFunctions::escapeAs($arr_object_sub_description['object_sub_description_in_name'], DBFunctions::TYPE_BOOLEAN).",
-									".DBFunctions::escapeAs($arr_object_sub_description['object_sub_description_in_search'], DBFunctions::TYPE_BOOLEAN).",
+									".DBFunctions::escapeAs($object_sub_description_in_name, DBFunctions::TYPE_BOOLEAN).",
+									".DBFunctions::escapeAs($object_sub_description_in_search, DBFunctions::TYPE_BOOLEAN).",
 									".DBFunctions::escapeAs($arr_object_sub_description['object_sub_description_in_overview'], DBFunctions::TYPE_BOOLEAN).",
 									".(int)$clearance_edit.",
 									".(int)$clearance_view.",
@@ -988,7 +999,9 @@ class StoreType {
 			");
 		}
 		
-		// Caching & processing
+		// Processing & caching
+
+		DB::commitTransaction('store_type');
 		
 		if ($arr_touched_cache_object_sub_details_ids) { // Update the state of the objects when there could be cache-related changes to their sub-objects
 			
@@ -1012,51 +1025,55 @@ class StoreType {
 		
 		$num_type_class = (int)(!$this->type_id ? $arr_details['class'] : $this->arr_type_set['type']['class']);
 		$num_type_mode = $this->parseTypeMode($arr_details['mode']);
+				
+		$arr_reference_type_ids = [];
+		$num_count_mutable = 0;
+		$has_name = false;
+		
+		foreach ($arr_object_descriptions as $arr_object_description) {
+			
+			if (!$arr_object_description['object_description_name']) {
+				continue;
+			}
+			
+			$value_type_base = $arr_object_description['object_description_value_type_base'];
+			$reference_type_id = $arr_object_description['object_description_ref_type_id'];
+			
+			$this->parseTypeObjectDescriptionValueType($value_type_base, $reference_type_id, true);
+			
+			/*if ($this->type_id && $reference_type_id == $this->type_id) { // Possible recursion in the name or search
+				if ($arr_object_description['object_description_in_name']) {
+					error(getLabel('msg_model_recursion_in_name'));
+				}
+				if ($arr_object_description['object_description_in_search']) {
+					error(getLabel('msg_model_recursion_in_search'));
+				}
+			}*/
+				
+			if ($arr_object_description['object_description_in_name'] && !($this->type_id && $reference_type_id == $this->type_id)) { // Self-reference does not count
+				$has_name = true;
+			}
+			
+			if ($value_type_base == 'reference_mutable') {
+				$num_count_mutable++;
+			}
+			
+			if ($reference_type_id) {
+				
+				if (is_array($reference_type_id)) {
+					$arr_reference_type_ids += $reference_type_id;
+				} else {
+					$arr_reference_type_ids[$reference_type_id] = $reference_type_id;
+				}
+			}
+		}
 		
 		if ($num_type_class != self::TYPE_CLASS_REVERSAL) {
 			
 			if ($this->mode == self::MODE_OVERWRITE) {
-
-				$has_name = false;
-				
-				foreach ($arr_object_descriptions as $arr_object_description) {
-					
-					if (!$arr_object_description['object_description_name']) {
-						continue;
-					}
-					
-					$arr_object_description['object_description_ref_type_id'] = (in_array($arr_object_description['object_description_value_type_base'], ['type', 'classification', 'reversal']) ? $arr_object_description['object_description_ref_type_id'] : 0);
-					
-					/*if ($this->type_id && $arr_object_description['object_description_ref_type_id'] == $this->type_id) { // Possible recursion in the name or search
-						if ($arr_object_description['object_description_in_name']) {
-							error(getLabel('msg_model_recursion_in_name'));
-						}
-						if ($arr_object_description['object_description_in_search']) {
-							error(getLabel('msg_model_recursion_in_search'));
-						}
-					}*/
-					
-					if ($arr_object_description['object_description_in_name'] && !($this->type_id && $arr_object_description['object_description_ref_type_id'] == $this->type_id)) { // Self-reference does not count
-						$has_name = true;
-					}
-				}
-				
+		
 				if (!$arr_details['use_object_name'] && !$has_name) {
 					error(getLabel('msg_model_no_object_name'));
-				}
-			}
-			
-			$num_count_mutable = 0;
-			
-			foreach ($arr_object_descriptions as $arr_object_description) {
-				
-				$value_type_base = $arr_object_description['object_description_value_type_base'];
-				$ref_type_id = $arr_object_description['object_description_ref_type_id'];
-				
-				$this->parseTypeObjectDescriptionReference($value_type_base, $ref_type_id, true);
-				
-				if ($value_type_base == 'reference_mutable') {
-					$num_count_mutable++;
 				}
 			}
 			
@@ -1065,22 +1082,48 @@ class StoreType {
 				Labels::setVariable('what', getLabel('msg_model_reference_mutable_overflow'));
 				error(getLabel('msg_model_illogical'));
 			}
+		}
+		
+		foreach ($arr_object_subs_details as $arr_object_sub_details) {
 			
-			foreach ($arr_object_subs_details as $arr_object_sub_details) {
+			if (!$arr_object_sub_details['object_sub_details']['object_sub_details_name']) {
+				continue;
+			}
+			
+			if ($arr_object_sub_details['object_sub_details']['object_sub_details_location_ref_type_id']) {
 				
-				$num_count_mutable = 0;
+				$reference_type_id = (int)$arr_object_sub_details['object_sub_details']['object_sub_details_location_ref_type_id'];
+				$arr_reference_type_ids[$reference_type_id] = $reference_type_id;
+			}
+			
+			$num_count_mutable = 0;
+			
+			foreach ((array)$arr_object_sub_details['object_sub_descriptions'] as $arr_object_sub_description) {
 				
-				foreach ((array)$arr_object_sub_details['object_sub_descriptions'] as $arr_object_sub_description) {
-					
-					$value_type_base = $arr_object_sub_description['object_sub_description_value_type_base'];
-					$ref_type_id = $arr_object_sub_description['object_sub_description_ref_type_id'];
+				if (!$arr_object_sub_description['object_sub_description_name']) {
+					continue;
+				}
 				
-					$this->parseTypeObjectDescriptionReference($value_type_base, $ref_type_id, true);
-					
-					if ($value_type_base == 'reference_mutable') {
-						$num_count_mutable++;
+				$value_type_base = $arr_object_sub_description['object_sub_description_value_type_base'];
+				$reference_type_id = $arr_object_sub_description['object_sub_description_ref_type_id'];
+			
+				$this->parseTypeObjectDescriptionValueType($value_type_base, $reference_type_id, true);
+				
+				if ($value_type_base == 'reference_mutable') {
+					$num_count_mutable++;
+				}
+				
+				if ($reference_type_id) {
+				
+					if (is_array($reference_type_id)) {
+						$arr_reference_type_ids += $reference_type_id;
+					} else {
+						$arr_reference_type_ids[$reference_type_id] = $reference_type_id;
 					}
 				}
+			}
+			
+			if ($num_type_class != self::TYPE_CLASS_REVERSAL) {
 				
 				if ($num_count_mutable > 2) {
 					
@@ -1128,7 +1171,7 @@ class StoreType {
 		");
 	}
 	
-	protected function parseTypeObjectDescriptionReference(&$value_type_base, &$ref_type_id, $do_check = false) {
+	protected function parseTypeObjectDescriptionValueType(&$value_type_base, &$ref_type_id, $do_check = false) {
 				
 		if ($value_type_base == 'reference_mutable') {
 			
@@ -1157,6 +1200,7 @@ class StoreType {
 			}
 			
 			if (!$store_ref_type_id) {
+				
 				$value_type_base = '';
 				$store_ref_type_id = 0;
 			}
@@ -1164,13 +1208,25 @@ class StoreType {
 			$ref_type_id = $store_ref_type_id;
 		} else {
 			
+			if ($value_type_base == 'string') {
+				$value_type_base = '';
+			} else if ($value_type_base == 'float') {
+				$value_type_base = 'numeric';
+			} else if ($value_type_base == 'int') {
+				$value_type_base = 'integer';
+			} else if ($value_type_base == 'bool') {
+				$value_type_base = 'boolean';
+			}
+			
 			$ref_type_id = $this->getTypeID($ref_type_id);
 			
 			if (in_array($value_type_base, ['type', 'classification', 'reversal'])) {
+				
 				if (!$ref_type_id) {
 					$value_type_base = '';
 				}
 			} else {
+				
 				$ref_type_id = 0;
 			}
 		}
@@ -1222,7 +1278,7 @@ class StoreType {
 			
 			$value_default = ($arr_value_type_settings['default']['value'] ?? null);
 			
-			if ($has_default_value && $value_default) {
+			if ($has_default_value && $value_default !== null) {
 					
 				if ($ref_type_id) {
 					
@@ -1238,22 +1294,33 @@ class StoreType {
 						
 						$value_default = arrParseRecursive($value_default, TYPE_INTEGER);
 					}
+					
+					if (!$value_default) {
+						$value_default = null;
+					}
 				} else {
 
-					$default_value = FormatTypeObjects::formatToSQLValue($value_type_base, $value_default);
+					$value_default = FormatTypeObjects::formatToSQLValue($value_type_base, $value_default);
 					
-					if ($value_default === false || $value_default === '') {
+					if ($value_default === false || $value_default === '') { // Boolean false is returned as '0'
 						$value_default = null;
 					}
 				}
 				
-				if ($has_multi) {
+				if ($value_default !== null) {
 					
-					$value_default = (is_array($value_default) ? array_values($value_default) : (array)$value_default);
-					$value_default = array_unique(array_filter($value_default));
+					if ($has_multi) {
+						
+						$value_default = (is_array($value_default) ? array_values($value_default) : (array)$value_default);
+						$value_default = array_unique(array_filter($value_default));
+						
+						if (!$value_default) {
+							$value_default = null;
+						}
+					}
+					
+					$arr_value['default']['value'] = $value_default;
 				}
-				
-				$arr_value['default']['value'] = $value_default;
 			}
 			
 			if ($has_multi) {
@@ -1294,18 +1361,18 @@ class StoreType {
 			case 'text';
 			case 'text_layout';
 			case 'text_tags';
-				if ($value_type_base == '' || $value_type_base == 'int' || $value_type_base == 'numeric') {
+				if ($value_type_base == '' || $value_type_base == 'integer' || $value_type_base == 'numeric') {
 					$do_convert = true;
 				}
 				break;
 			case '';
-				if ($value_type_base == 'text' || $value_type_base == 'text_layout' || $value_type_base == 'text_tags' || $value_type_base == 'int' || $value_type_base == 'numeric') {
+				if ($value_type_base == 'text' || $value_type_base == 'text_layout' || $value_type_base == 'text_tags' || $value_type_base == 'integer' || $value_type_base == 'numeric') {
 					$do_convert = true;
 				}
 				break;
-			case 'int';
+			case 'integer';
 			case 'numeric';
-				if ($value_type_base == 'int' || $value_type_base == 'numeric') {
+				if ($value_type_base == 'integer' || $value_type_base == 'numeric') {
 					$do_convert = true;
 				}
 				break;
@@ -1372,36 +1439,51 @@ class StoreType {
 	public static function getTypeObjectDescriptionSerialNext($type_id, $object_description_id) {
 		
 		$num_serial = false;
+
+		if (static::$stmt_object_description_serial === null) {
+			
+			DB::setConnection(null, DB::MODE_CONNECT_SECONDARY); // Use secondary connection, outside any transaction
+			
+			if (DB::ENGINE_IS_MYSQL) {
+			
+				static::$stmt_object_description_serial[0] = DB::prepare("
+					UPDATE ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS')." SET
+						value_type_serial = (@num_serial := COALESCE(value_type_serial, 0) + 1)
+					WHERE id = ".DBStatement::assign('object_description_id', 'i')."
+						AND type_id = ".DBStatement::assign('type_id', 'i')."
+				");
+				static::$stmt_object_description_serial[1] = DB::prepare("
+					SELECT @num_serial
+				");
+			} else {
+				
+				static::$stmt_object_description_serial = DB::prepare("
+					UPDATE ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS')." SET
+						value_type_serial = COALESCE(value_type_serial, 0) + 1
+					WHERE id = ".DBStatement::assign('object_description_id', 'i')."
+						AND type_id = ".DBStatement::assign('type_id', 'i')."
+					RETURNING value_type_serial
+				");
+			}
+			
+			DB::setConnection();
+		}
 		
 		if (DB::ENGINE_IS_MYSQL) {
 			
-			$arr_res = DB::queryMulti("				
-				UPDATE ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS')." SET
-					value_type_serial = (@num_serial := COALESCE(value_type_serial, 0) + 1)
-				WHERE id = ".(int)$object_description_id."
-					AND type_id = ".(int)$type_id."
-				;
-					
-				SELECT @num_serial;
-			");
+			static::$stmt_object_description_serial[0]->bindParameters(['type_id' => (int)$type_id, 'object_description_id' => (int)$object_description_id]);
+			static::$stmt_object_description_serial[0]->execute();
 			
-			$num_serial = $arr_res[1]->fetchRow();
-			$num_serial = $num_serial[0];
+			$res = static::$stmt_object_description_serial[1]->execute();
 		} else {
 			
-			$res = DB::query("
-				UPDATE ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS')." SET
-					value_type_serial = COALESCE(value_type_serial, 0) + 1
-				WHERE id = ".(int)$object_description_id."
-					AND type_id = ".(int)$type_id."
-				RETURNING value_type_serial
-			");
-			
-			$num_serial = $res->fetchRow();
-			$num_serial = $num_serial[0];
+			static::$stmt_object_description_serial->bindParameters(['type_id' => (int)$type_id, 'object_description_id' => (int)$object_description_id]);
+			$res = static::$stmt_object_description_serial->execute();
 		}
 		
-		
+		$num_serial = $res->fetchRow();
+		$num_serial = (int)$num_serial[0];
+
 		return $num_serial;
 	}
 	
@@ -1409,34 +1491,49 @@ class StoreType {
 		
 		$num_serial = false;
 		
-		if (DB::ENGINE_IS_MYSQL) {
+		if (static::$stmt_object_sub_description_serial === null) {
 			
-			$arr_res = DB::queryMulti("
-				UPDATE ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DESCRIPTIONS')." SET
-					value_type_serial = (@num_serial := COALESCE(value_type_serial, 0) + 1)
-				WHERE id = ".(int)$object_sub_description_id."
-					AND object_sub_details_id = ".(int)$object_sub_details_id."
-				;
-					
-				SELECT @num_serial;
-			");
+			DB::setConnection(null, DB::MODE_CONNECT_SECONDARY); // Use secondary connection, outside any transaction
 			
-			$num_serial = $arr_res[1]->fetchRow();
-			$num_serial = $num_serial[0];
-		} else {
+			if (DB::ENGINE_IS_MYSQL) {
 			
-			$res = DB::query("
-				UPDATE ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DESCRIPTIONS')." SET
-					value_type_serial = COALESCE(value_type_serial, 0) + 1
-				WHERE id = ".(int)$object_sub_description_id."
-					AND object_sub_details_id = ".(int)$object_sub_details_id."
-				RETURNING value_type_serial
-			");
+				static::$stmt_object_sub_description_serial[0] = DB::prepare("
+					UPDATE ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DESCRIPTIONS')." SET
+						value_type_serial = (@num_serial := COALESCE(value_type_serial, 0) + 1)
+					WHERE id = ".DBStatement::assign('object_sub_description_id', 'i')."
+						AND object_sub_details_id = ".DBStatement::assign('object_sub_details_id', 'i')."
+				");
+				static::$stmt_object_sub_description_serial[1] = DB::prepare("
+					SELECT @num_serial
+				");
+			} else {
+				
+				static::$stmt_object_sub_description_serial = DB::prepare("
+					UPDATE ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DESCRIPTIONS')." SET
+						value_type_serial = COALESCE(value_type_serial, 0) + 1
+					WHERE id = ".DBStatement::assign('object_sub_description_id', 'i')."
+						AND object_sub_details_id = ".DBStatement::assign('object_sub_details_id', 'i')."
+					RETURNING value_type_serial
+				");
+			}
 			
-			$num_serial = $res->fetchRow();
-			$num_serial = $num_serial[0];
+			DB::setConnection();
 		}
 		
+		if (DB::ENGINE_IS_MYSQL) {
+			
+			static::$stmt_object_sub_description_serial[0]->bindParameters(['object_sub_details_id' => (int)$object_sub_details_id, 'object_sub_description_id' => (int)$object_sub_description_id]);
+			static::$stmt_object_sub_description_serial[0]->execute();
+			
+			$res = static::$stmt_object_sub_description_serial[1]->execute();
+		} else {
+			
+			static::$stmt_object_sub_description_serial->bindParameters(['object_sub_details_id' => (int)$object_sub_details_id, 'object_sub_description_id' => (int)$object_sub_description_id]);
+			$res = static::$stmt_object_sub_description_serial->execute();
+		}
+		
+		$num_serial = $res->fetchRow();
+		$num_serial = (int)$num_serial[0];
 		
 		return $num_serial;
 	}
@@ -1458,7 +1555,7 @@ class StoreType {
 		$arr_type_ids = (array)$arr_type_ids;
 	
 		$cur_type_id = 0;
-		$num_sort = 0;
+		$num_sequence = 0;
 		
 		$stmt_insert_path = DB::prepare("INSERT INTO ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_'.($path == 'name' ? 'NAME' : 'SEARCH').'_PATH')."
 			(type_id, ref_type_id, ref_object_description_id, ref_object_sub_details_id, org_object_description_id, org_object_sub_details_id, is_reference, sort)
@@ -1503,8 +1600,11 @@ class StoreType {
 				AND nodegoat_tos_des.in_".($path == 'name' ? 'name' : 'search')." = TRUE
 			ORDER BY nodegoat_to_det.type_id ASC, nodegoat_to_det.sort ASC, nodegoat_tos_des.sort ASC
 		");
-	
-		$func_insert_object_description_name_ids = function($ref_type_id, $org_object_description_id, $org_object_sub_details_id, &$arr_path_types, &$num_limit = false) use (&$cur_type_id, &$num_sort, &$func_insert_object_description_name_ids, $path, $stmt_insert_path, $stmt_select_use_name, $stmt_select_object_descriptions, $stmt_select_object_sub_descriptions) {
+		
+		$num_limiting_sequence = (Settings::get('data_model_path_limiting_sequence', $path) ?? static::$num_path_limiting_sequence);
+		$num_limiting_references = (Settings::get('data_model_path_limiting_references', $path) ?? static::$num_path_limiting_references);
+			
+		$func_insert_object_description_name_ids = function($ref_type_id, $org_object_description_id, $org_object_sub_details_id, &$arr_path_types, &$num_limit = false) use (&$cur_type_id, &$num_sequence, &$func_insert_object_description_name_ids, $path, $stmt_insert_path, $stmt_select_use_name, $stmt_select_object_descriptions, $stmt_select_object_sub_descriptions, $num_limiting_sequence, $num_limiting_references) {
 			
 			$str_identifier = (int)$ref_type_id.'_'.(int)$org_object_description_id.'_'.(int)$org_object_sub_details_id;
 			
@@ -1512,13 +1612,14 @@ class StoreType {
 				return;
 			}
 			
+			$is_path_origin = ($org_object_description_id == 0);
 			$arr_path_types[$str_identifier] = true;
 			$is_limit_owner = false;
 			
 			if ($num_limit === true) {
 				
 				$is_limit_owner = true;
-				$num_limit = (Settings::get('data_model_path_mutable_references', $path) ?? static::$num_path_mutable_references);
+				$num_limit = $num_limiting_references;
 			}
 			
 			$stmt_select_use_name->bindParameters(['ref_type_id' => $ref_type_id]);
@@ -1536,11 +1637,11 @@ class StoreType {
 					'type_id' => $cur_type_id, 'ref_type_id' => $ref_type_id,
 					'ref_object_description_id' => 0, 'ref_object_sub_details_id' => 0,
 					'org_object_description_id' => $org_object_description_id, 'org_object_sub_details_id' => $org_object_sub_details_id,
-					'is_reference' => 0, 'sort' => $num_sort
+					'is_reference' => 0, 'sort' => $num_sequence
 				]);
 				$res_insert = $stmt_insert_path->execute();
 
-				$num_sort++;
+				$num_sequence++;
 			}
 			
 			$stmt_select_object_descriptions->bindParameters(['ref_type_id' => $ref_type_id]);
@@ -1562,7 +1663,7 @@ class StoreType {
 				
 				if ($num_limit !== false) {
 					
-					if ($is_limit_owner) {
+					if ($is_limit_owner) { // Make sure to at least include all non-reference fields
 
 						if ($new_ref_type_id) {
 							
@@ -1584,14 +1685,18 @@ class StoreType {
 					'type_id' => $cur_type_id, 'ref_type_id' => $arr_row['type_id'],
 					'ref_object_description_id' => $arr_row['id'], 'ref_object_sub_details_id' => 0,
 					'org_object_description_id' => $org_object_description_id, 'org_object_sub_details_id' => $org_object_sub_details_id,
-					'is_reference' => $is_reference, 'sort' => $num_sort
+					'is_reference' => $is_reference, 'sort' => $num_sequence
 				]);
 				$res_insert = $stmt_insert_path->execute();
 
-				$num_sort++;
+				$num_sequence++;
 					
 				if (!$new_ref_type_id) {
 					continue;
+				}
+				
+				if ($is_path_origin) { // Reset the path's trace only at the initial/departing Type.
+					$arr_path_types = [];
 				}
 					
 				if (is_array($new_ref_type_id)) {
@@ -1599,7 +1704,7 @@ class StoreType {
 					foreach ($new_ref_type_id as $cur_ref_type_id) {
 						
 						if ($num_limit === false) {
-							$num_use_limit = true; // Initialise limit relation to x fields
+							$num_use_limit = true; // Initialise limit references
 						} else {
 							$num_use_limit =& $num_limit;
 						}
@@ -1608,7 +1713,13 @@ class StoreType {
 					}
 				} else {
 					
-					$func_insert_object_description_name_ids($new_ref_type_id, $arr_row['id'], 0, $arr_path_types, $num_limit);
+					if ($num_limit === false) {
+						$num_use_limit = ($num_sequence > $num_limiting_sequence ? true : $num_limit); // Initialise limit references?
+					} else {
+						$num_use_limit =& $num_limit;
+					}
+					
+					$func_insert_object_description_name_ids($new_ref_type_id, $arr_row['id'], 0, $arr_path_types, $num_use_limit);
 				}
 			}
 			
@@ -1631,7 +1742,7 @@ class StoreType {
 				
 				if ($num_limit !== false) {
 					
-					if ($is_limit_owner) {
+					if ($is_limit_owner) { // Make sure to at least include all non-reference fields
 
 						if ($new_ref_type_id) {
 							
@@ -1655,14 +1766,18 @@ class StoreType {
 					'type_id' => $cur_type_id, 'ref_type_id' => $arr_row['type_id'],
 					'ref_object_description_id' => $arr_row['id'], 'ref_object_sub_details_id' => $arr_row['object_sub_details_id'],
 					'org_object_description_id' => $org_object_description_id, 'org_object_sub_details_id' => $org_object_sub_details_id,
-					'is_reference' => $is_reference, 'sort' => $num_sort
+					'is_reference' => $is_reference, 'sort' => $num_sequence
 				]);
 				$res_insert = $stmt_insert_path->execute();
 				
-				$num_sort++;
+				$num_sequence++;
 				
 				if (!$new_ref_type_id) {
 					continue;
+				}
+				
+				if ($is_path_origin) { // Reset the path trace's only at the initial/departing Type.
+					$arr_path_types = [];
 				}
 					
 				if (is_array($new_ref_type_id)) {
@@ -1670,7 +1785,7 @@ class StoreType {
 					foreach ($new_ref_type_id as $cur_ref_type_id) {
 						
 						if ($num_limit === false) {
-							$num_use_limit = true; // Initialise limit relation to x fields
+							$num_use_limit = true; // Initialise limit references
 						} else {
 							$num_use_limit =& $num_limit;
 						}
@@ -1679,7 +1794,13 @@ class StoreType {
 					}
 				} else {
 					
-					$func_insert_object_description_name_ids($new_ref_type_id, $arr_row['id'], $arr_row['object_sub_details_id'], $arr_path_types, $num_limit);
+					if ($num_limit === false) {
+						$num_use_limit = ($num_sequence > $num_limiting_sequence ? true : $num_limit); // Initialise limit references?
+					} else {
+						$num_use_limit =& $num_limit;
+					}
+					
+					$func_insert_object_description_name_ids($new_ref_type_id, $arr_row['id'], $arr_row['object_sub_details_id'], $arr_path_types, $num_use_limit);
 				}
 			}
 		};
@@ -1714,7 +1835,7 @@ class StoreType {
 			$res_delete = $stmt_delete_types->execute();
 
 			$arr_path_types = [];
-			$num_sort = 0;
+			$num_sequence = 0;
 			
 			$func_insert_object_description_name_ids($cur_type_id, 0, 0, $arr_path_types);
 		}
@@ -1758,7 +1879,6 @@ class StoreType {
 		$is_name = (is_numeric($value) ? false : true);
 		
 		if (!$this->arr_types_all) {
-			
 			$this->arr_types_all = self::getTypes();
 		}
 				
@@ -1952,7 +2072,6 @@ class StoreType {
 		}
 				
 		if (!$this->arr_types_all) {
-			
 			$this->arr_types_all = self::getTypes();
 		}
 				
@@ -2021,9 +2140,7 @@ class StoreType {
 		return $value;
 	}
 	
-	public function getReferencingTypesMode($arr_object_descriptions, $arr_object_subs_details) {
-		
-		$arr_type_ids = arrMergeValues(arrValuesRecursive('object_description_ref_type_id', $arr_object_descriptions), arrValuesRecursive(['object_sub_details_location_ref_type_id' => true, 'object_sub_description_ref_type_id' => true], $arr_object_subs_details));
+	public function getReferencingTypesMode($arr_type_ids) {
 		
 		$arr_types_mode = [];
 		$arr_types_mode[$this->type_id] = false; // Do not trace self
@@ -2496,8 +2613,8 @@ class StoreType {
 					-5 => [ // Store processing state
 						'object_description_id' => -5,
 						'object_description_name' => false,
-						'object_description_value_type_base' => 'int',
-						'object_description_value_type' => 'int',
+						'object_description_value_type_base' => 'integer',
+						'object_description_value_type' => 'integer',
 						'object_description_has_multi' => false,
 						'object_description_in_name' => false,
 						'object_description_is_required' => false,
@@ -2531,8 +2648,8 @@ class StoreType {
 					-8 => [ // Store processing state
 						'object_description_id' => -8,
 						'object_description_name' => false,
-						'object_description_value_type_base' => 'int',
-						'object_description_value_type' => 'int',
+						'object_description_value_type_base' => 'integer',
+						'object_description_value_type' => 'integer',
 						'object_description_has_multi' => false,
 						'object_description_in_name' => false,
 						'object_description_is_required' => false,
@@ -2709,28 +2826,37 @@ class StoreType {
 		return $arr;
 	}
 	
-	public static function getTypeSetFlatMap($type_id, $arr_options = ['object' => false, 'references' => true]) {
+	public static function getTypeSetFlatMap($type_id, $arr_options = ['object_id' => false, 'object_name' => false, 'references' => true, 'reversals' => false]) {
 	
 		$arr_type_set = StoreType::getTypeSet($type_id);
 		$arr = [];
 		
 		//$arr_ref['object-sources'] = ['id' => 'object-sources', 'name' => 'Object Sources']; 
 
-		if ($arr_options['object']) {
+		if ($arr_options['object_id']) {
 			$arr['object-id'] = ['id' => 'object-id', 'name' => getLabel('lbl_nodegoat_id')]; 
 		}
 				
+		if ($arr_options['object_name']) {
+			$arr['object-name'] = ['id' => 'object-name', 'name' => 'Object Name (Full)']; 
+		}
 		if ($arr_type_set['type']['use_object_name']) {
-			$arr['object-name'] = ['id' => 'object-name', 'name' => 'Object Name']; 
+			$arr['object-name_plain'] = ['id' => 'object-name_plain', 'name' => 'Object Name']; 
 		}
 		
 		foreach ($arr_type_set['object_descriptions'] as $object_description_id => $arr_object_description) {
 		
 			if ($arr_object_description['object_description_value_type_base'] == 'reversal') {
-				continue;
-			}
-			
-			if (!keyIsUncontested('references', $arr_options) && $arr_object_description['object_description_ref_type_id']) {
+				
+				if (!$arr_options['reversals']) {
+					continue;
+				}
+
+				if ($arr_object_description['object_description_value_type'] == 'reversed_classification' && !keyIsUncontested('references', $arr_options)) {
+					continue;
+				}
+			} else if ($arr_object_description['object_description_ref_type_id'] && !keyIsUncontested('references', $arr_options)) {
+				
 				continue;
 			}
 			
@@ -2814,7 +2940,17 @@ class StoreType {
 					
 					foreach ($arr_object_sub_details['object_sub_descriptions'] as $object_sub_description_id => $arr_object_sub_description) {
 						
-						if (!keyIsUncontested('references', $arr_options) && $arr_object_sub_description['object_sub_description_ref_type_id']) {
+						if ($arr_object_sub_description['object_sub_description_value_type_base'] == 'reversal') {
+							
+							if (!$arr_options['reversals']) {
+								continue;
+							}
+							
+							if ($arr_object_sub_description['object_sub_description_value_type'] == 'reversed_classification' && !keyIsUncontested('references', $arr_options)) {
+								continue;
+							}
+						} else if ($arr_object_sub_description['object_sub_description_ref_type_id'] && !keyIsUncontested('references', $arr_options)) {
+							
 							continue;
 						}
 						
@@ -2846,8 +2982,7 @@ class StoreType {
 			
 			if ($arr_element[0] == 'object') {
 				
-				if ($arr_element[1] == 'name') {
-					
+				if ($arr_element[1] == 'name' || $arr_element[1] == 'name_plain') {
 					$arr_selection['object']['all'] = true;
 				}
 			} else if ($arr_element[0] == 'object_description') {
@@ -2870,6 +3005,7 @@ class StoreType {
 					
 					$arr_collect = ['object_description_id' => $object_description_id];
 				} else {
+					
 					if ($arr_select) {
 						$arr_collect = ['object_description_id' => $object_description_id];
 					} else {
@@ -2936,6 +3072,7 @@ class StoreType {
 							
 							$arr_collect['object_sub_description_id'] = $object_sub_description_id;
 						} else {
+							
 							if ($arr_select) {
 								$arr_collect = ['object_sub_description_id' => $object_sub_description_id];
 							} else {
@@ -2966,7 +3103,6 @@ class StoreType {
 			if ($arr_element[0] == 'object') {
 				
 				if ($arr_element[1] == 'name') {
-					
 					$arr_selection['type'] = $arr_type_set['type'];
 				}
 			} else if ($arr_element[0] == 'object_description') {
@@ -3186,7 +3322,7 @@ class StoreType {
 			return true;
 		}
 		
-		if (!$str_value_type_base || $str_value_type_base == 'int' || strpos($str_value_type_base, 'text') !== false) {
+		if (!$str_value_type_base || $str_value_type_base == 'integer' || strpos($str_value_type_base, 'text') !== false) {
 			return true;
 		}
 		
@@ -3209,11 +3345,48 @@ class StoreType {
 			return true;
 		}
 		
-		if (!$str_value_type_base || $str_value_type_base == 'int' || strpos($str_value_type_base, 'text') !== false) {
+		if (!$str_value_type_base || $str_value_type_base == 'integer' || strpos($str_value_type_base, 'text') !== false) {
 			return true;
 		}
 		
 		return false;
+	}
+	
+	public static function getTypeVersionableIDs($type_id) {
+
+		$arr_type_set = self::getTypeSet($type_id);
+		
+		$arr_type_versionable = [];
+		
+		foreach ($arr_type_set['object_descriptions'] as $object_description_id => $arr_object_description) {
+		
+			if ($arr_object_description['object_description_value_type_base'] == 'reversal' || isset($arr_type_set['type']['include_referenced']['object_descriptions'][$object_description_id])) {
+				continue;
+			}
+			
+			$arr_type_versionable['object_descriptions'][$object_description_id] = $object_description_id;
+		}
+		
+		foreach ($arr_type_set['object_sub_details'] as $object_sub_details_id => $arr_object_sub_details) {
+			
+			if (isset($arr_type_set['type']['include_referenced']['object_sub_details'][$object_sub_details_id])) {
+				continue;
+			}
+			
+			$arr_type_versionable['object_sub_details'][$object_sub_details_id] = [];
+			
+			foreach ($arr_object_sub_details['object_sub_descriptions'] as $object_sub_description_id => $arr_object_sub_description) {
+			
+				if ($arr_object_sub_description['object_sub_description_value_type_base'] == 'reversal') {
+					continue;
+				}
+				
+				$arr_type_versionable['object_sub_details'][$object_sub_details_id][$object_sub_description_id] = $object_sub_description_id;
+				$arr_type_versionable['object_sub_descriptions'][$object_sub_description_id] = $object_sub_description_id;
+			}
+		}
+		
+		return $arr_type_versionable;
 	}
 	
 	public static function hasReferenceTypeID($reference_type_id, $check_type_id) {
@@ -3246,11 +3419,11 @@ class StoreType {
 		}
 		
 		$system_reversal_module_object_description_id = static::getSystemTypeObjectDescriptionID(static::getSystemTypeID('reversal'), 'module');
-		$num_path_mutable_references = (Settings::get('data_model_path_mutable_references', $path) ?? static::$num_path_mutable_references);
+		$num_path_limiting_references = (Settings::get('data_model_path_limiting_references', $path) ?? static::$num_path_limiting_references);
 		
 		if ($is_mutable) {
 			
-			$sql_type_id = 'IN ('.implode(',', $type_id).') AND nodegoat_to_path.sort < '.$num_path_mutable_references; // This should get a valid sort on a first field
+			$sql_type_id = 'IN ('.implode(',', $type_id).') AND nodegoat_to_path.sort < '.$num_path_limiting_references; // This should get a valid sort on a first field
 			$sql_sort = DBFunctions::fieldToPosition('nodegoat_to_path.type_id', $type_id).', ';
 		} else {
 			
@@ -3327,7 +3500,7 @@ class StoreType {
 			
 			$arr[] = $arr_row;
 			
-			if ($is_mutable && $arr_row['sort'] == $num_path_mutable_references-1 && $arr_row['is_reference']) { // Make sure the referencing type's last section is not a reference
+			if ($is_mutable && $arr_row['sort'] == $num_path_limiting_references-1 && $arr_row['is_reference']) { // Make sure the referencing type's last section is not a reference
 				
 				$num_key = count($arr)-1;
 				
@@ -3408,18 +3581,19 @@ class StoreType {
 			'reference_mutable' => ['id' => 'reference_mutable', 'name' => getLabel('lbl_reference').': '.getLabel('lbl_reference_mutable'), 'name_base' => getLabel('lbl_reference_mutable'), 'has_support_multi' => true],
 			'reversal' => ['id' => 'reversal', 'name' => getLabel('lbl_reference').': '.getLabel('lbl_nodegoat_reversal'), 'name_base' => getLabel('lbl_nodegoat_reversal'), 'has_support_multi' => true],
 			'' => ['id' => '', 'name' => getLabel('unit_data_string'), 'name_base' => getLabel('unit_data_string'), 'has_support_multi' => true, 'has_support_identifier' => true],
-			'int' => ['id' => 'int', 'name' => getLabel('unit_data_number'), 'name_base' => getLabel('unit_data_number'), 'has_support_multi' => true],
+			'integer' => ['id' => 'integer', 'name' => getLabel('unit_data_number'), 'name_base' => getLabel('unit_data_number'), 'has_support_multi' => true],
 			'numeric' => ['id' => 'numeric', 'name' => getLabel('unit_data_numeric_decimal'), 'name_base' => getLabel('unit_data_numeric'), 'has_support_multi' => true],
 			'text' => ['id' => 'text', 'name' => getLabel('unit_data_text'), 'name_base' => getLabel('unit_data_text')],
 			'text_layout' => ['id' => 'text_layout', 'name' => getLabel('unit_data_text').' ('.getLabel('lbl_layout').')', 'name_base' => getLabel('unit_data_text')],
 			'text_tags' => ['id' => 'text_tags', 'name' => getLabel('unit_data_text').' ('.getLabel('lbl_tags').' & '.getLabel('lbl_layout').')', 'name_base' => getLabel('unit_data_text')],
 			'boolean' => ['id' => 'boolean', 'name' => getLabel('unit_data_boolean_true_false'), 'name_base' => getLabel('unit_data_boolean')],
 			'date' => ['id' => 'date', 'name' => getLabel('unit_data_date'), 'name_base' => getLabel('unit_data_date')],
-			'serial_varchar' => ['id' => 'serial_varchar', 'name' => getLabel('unit_data_serial_varchar'), 'name_base' => getLabel('unit_data_serial'), 'has_support_multi' => true, 'has_support_identifier' => true],
+			'serial_string' => ['id' => 'serial_string', 'name' => getLabel('unit_data_serial_string'), 'name_base' => getLabel('unit_data_serial'), 'has_support_multi' => true, 'has_support_identifier' => true],
 			'media' => ['id' => 'media', 'name' => getLabel('lbl_media'), 'name_base' => getLabel('lbl_media'), 'has_support_multi' => true],
 			'media_external' => ['id' => 'media_external', 'name' => getLabel('lbl_media').' ('.getLabel('lbl_external').')', 'name_base' => getLabel('lbl_media'), 'has_support_multi' => true],
 			'module' => ['id' => 'module', 'name' => getLabel('lbl_application'), 'name_base' => getLabel('lbl_application')],
 			'external' => ['id' => 'external', 'name' => getLabel('lbl_external'), 'name_base' => getLabel('lbl_external'), 'has_support_multi' => true, 'has_support_identifier' => true],
+			'vector' => ['id' => 'vector', 'name' => getLabel('unit_data_vector'), 'name_base' => getLabel('unit_data_vector'), 'support' => (Settings::get('value_type_vector', 'support') ?? false), 'has_support_multi' => true, 'has_support_text' => false],
 			'object_description' => ['id' => 'object_description', 'name' => getLabel('lbl_object_description'), 'name_base' => getLabel('lbl_object_description')]
 		];
 		
@@ -3441,7 +3615,7 @@ class StoreType {
 			'reversed_classification' => ['id' => 'reversed_classification', 'name' => getLabel('lbl_reversed_classification'), 'base' => 'reversal', 'table' => '_references', 'value' => 'ref_object_id'],
 			'reversed_collection' => ['id' => 'reversed_collection', 'name' => getLabel('lbl_reversed_collection'), 'base' => 'reversal', 'table' => '_references', 'value' => 'ref_object_id', 'purpose' => ['name' => ['table' => '', 'value' => 'value_text'], 'search' => ['table' => '', 'value' => 'value_text'], 'view' => null]],
 			'reversed_collection_resource_path' => ['id' => 'reversed_collection_resource_path', 'name' => getLabel('lbl_reversed_collection_resource_path'), 'base' => 'reversal', 'table' => '_references', 'value' => 'ref_object_id', 'purpose' => ['name' => ['table' => '', 'value' => 'value_text'], 'search' => ['table' => '', 'value' => 'value_text'], 'view' => ['table' => '', 'value' => 'value_text']]],
-			'int' => ['id' => 'int', 'name' => getLabel('unit_data_number'), 'base' => 'int', 'table' => '', 'value' => 'value_int'],
+			'integer' => ['id' => 'integer', 'name' => getLabel('unit_data_number'), 'base' => 'integer', 'table' => '', 'value' => 'value_int'],
 			'numeric' => ['id' => 'numeric', 'name' => getLabel('unit_data_numeric_decimal'), 'base' => 'numeric', 'table' => '', 'value' => 'value_int'],
 			'text' => ['id' => 'text', 'name' => getLabel('unit_data_text'), 'base' => 'text', 'table' => '', 'value' => 'value_text'],
 			'text_layout' => ['id' => 'text_layout', 'name' => getLabel('unit_data_text').' ('.getLabel('lbl_layout').')', 'base' => 'text_layout', 'table' => '', 'value' => 'value_text'],
@@ -3450,11 +3624,12 @@ class StoreType {
 			'date' => ['id' => 'date', 'name' => getLabel('unit_data_date'), 'base' => 'date', 'table' => '', 'value' => 'value_int'],
 			'date_cycle' => ['id' => 'date_cycle', 'name' => getLabel('unit_data_date').' '.getLabel('lbl_date_cycle'), 'base' => 'date', 'table' => '', 'value' => 'value_int'],
 			'date_compute' => ['id' => 'date_compute', 'name' => getLabel('unit_data_date').' '.getLabel('lbl_date_compute'), 'base' => 'date', 'table' => '', 'value' => 'value_int'],
-			'serial_varchar' => ['id' => 'serial_varchar', 'name' => getLabel('unit_data_serial_varchar'), 'base' => 'serial_varchar', 'table' => '', 'value' => 'value'],
+			'serial_string' => ['id' => 'serial_string', 'name' => getLabel('unit_data_serial_string'), 'base' => 'serial_string', 'table' => '', 'value' => 'value'],
 			'media' => ['id' => 'media', 'name' => getLabel('lbl_media'), 'base' => 'media', 'table' => '', 'value' => 'value'],
 			'media_external' => ['id' => 'media_external', 'name' => getLabel('lbl_media').' ('.getLabel('lbl_external').')', 'base' => 'media_external', 'table' => '', 'value' => 'value'],
 			'module' => ['id' => 'module', 'name' => '', 'base' => 'module', 'table' => '_modules', 'value' => 'object', 'is_module' => true],
 			'external' => ['id' => 'external', 'name' => getLabel('lbl_external'), 'base' => 'external', 'table' => '', 'value' => 'value'],
+			'vector' => ['id' => 'vector', 'name' => getLabel('unit_data_vector'), 'base' => 'vector', 'table' => '_vectors', 'value' => 'embed', 'value_secondary' => 'embed_normalise', 'do_versioning' => (Settings::get('value_type_vector', 'versioning') ?? false), 'purpose' => ['name' => null, 'search' => ['table' => '_vectors', 'value' => 'embed_normalise'], 'view' => null]],
 			'external_module' => ['id' => 'external_module', 'name' => '', 'base' => 'module', 'table' => '_modules', 'value' => 'object', 'is_module' => true, 'module_class' => 'data_ingest'],
 			'object_description' => ['id' => 'object_description', 'name' => getLabel('lbl_object_description'), 'base' => 'object_description', 'table' => '', 'value' => 'value'],
 			'reconcile_module' => ['id' => 'reconcile_module', 'name' => '', 'base' => 'module', 'table' => '_modules', 'value' => 'object', 'is_module' => true, 'module_class' => 'data_reconcile'],
@@ -3488,11 +3663,10 @@ class StoreType {
 		$arr_value_type = self::$arr_value_types[$str_type];
 		
 		if ($str_purpose && isset($arr_value_type['purpose'][$str_purpose])) {
-
 			$arr_value_type = $arr_value_type['purpose'][$str_purpose];
 		}
 				
-		return ($str_property ? $arr_value_type[$str_property] : $arr_value_type);
+		return ($str_property ? ($arr_value_type[$str_property] ?? null) : $arr_value_type);
 	}
 	
 	public static function isValueTypeValueTextual($str_type, $str_purpose = false) {
@@ -3676,7 +3850,7 @@ class StoreType {
 		
 		return true;
 	}
-	
+
 	public static function parseTypeNetwork($arr, $value_type = false, $num_user_clearance = 0) {
 		
 		$arr = ($arr ?? []);

@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -15,8 +15,7 @@ abstract class ExportTypesObjectsNetwork {
 	protected $arr_options = [];
 	protected $arr_type_network_types = [];
 	
-	protected $arr_filters = [];
-	protected $class_collect = false;
+	protected $class_collect = null;
 
     protected static $num_objects_stream = 5000;
     
@@ -28,10 +27,9 @@ abstract class ExportTypesObjectsNetwork {
 		$this->arr_type_network_types = $arr_type_network_types;
     }
 		
-    public function init($collect, $arr_filters = []) {
+    public function init($collect) {
 		
 		$this->class_collect = $collect;
-		$this->arr_filters = $arr_filters;
 	}
 		
 	abstract public function createPackage($arr_options_file);

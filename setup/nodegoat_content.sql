@@ -295,6 +295,29 @@ CREATE TABLE `data_type_object_version` (
   `date_audited` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `data_type_object_definitions_vectors` (
+  `object_id` int NOT NULL,
+  `object_description_id` int NOT NULL,
+  `embed` blob NOT NULL,
+  `embed_normalise` varchar(50000) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'Converts to VECTOR on database support: CMS -> Admin -> Setup.',
+  `identifier` smallint NOT NULL DEFAULT '0',
+  `state` smallint NOT NULL DEFAULT '0',
+  `version` smallint NOT NULL DEFAULT '1',
+  `active` tinyint(1) NOT NULL DEFAULT '0',
+  `status` tinyint NOT NULL DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `data_type_object_sub_definitions_vectors` (
+  `object_sub_id` int NOT NULL,
+  `object_sub_description_id` int NOT NULL,
+  `embed` blob NOT NULL,
+  `embed_normalise` varchar(50000) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'Converts to VECTOR on database support: CMS -> Admin -> Setup.',
+  `state` smallint NOT NULL DEFAULT '0',
+  `version` smallint NOT NULL DEFAULT '1',
+  `active` tinyint(1) NOT NULL DEFAULT '0',
+  `status` tinyint NOT NULL DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `def_types` (
   `id` int NOT NULL,
   `class` tinyint NOT NULL,
@@ -570,6 +593,16 @@ ALTER TABLE `data_type_object_version`
   ADD KEY `user_id_audited` (`user_id_audited`),
   ADD KEY `object_id` (`object_id`,`date_audited`),
   ADD KEY `system_object_id` (`system_object_id`,`object_id`) USING BTREE;
+
+ALTER TABLE `data_type_object_definitions_vectors`
+  ADD PRIMARY KEY (`object_id`,`object_description_id`,`identifier`,`version`) USING BTREE,
+  ADD KEY `object_description_id` (`object_description_id`),
+  ADD KEY `active` (`active`,`status`);
+
+ALTER TABLE `data_type_object_sub_definitions_vectors`
+  ADD PRIMARY KEY (`object_sub_id`,`object_sub_description_id`,`version`),
+  ADD KEY `object_sub_description_id` (`object_sub_description_id`),
+  ADD KEY `active` (`active`,`status`);
 
 ALTER TABLE `def_types`
   ADD PRIMARY KEY (`id`),

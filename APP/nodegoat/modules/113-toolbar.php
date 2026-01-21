@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -389,7 +389,7 @@ class toolbar extends base_module {
 								var elm_analysis_header = elm_table[0].querySelector('[data-identifier=analysis]');
 								
 								if (data.analysis_column || (!data.analysis_column && elm_analysis_header)) {
-									datatable.handleColumn('[data-identifier=analysis]', data.analysis_column, '[data-identifier=version]');
+									datatable.handleColumn('[data-identifier=analysis]', data.analysis_column, '[data-identifier=status]');
 								}
 							}
 						}
@@ -471,8 +471,6 @@ class toolbar extends base_module {
 						
 			if ($this->is_download) {
 				
-				Response::setOutputUpdates(false); // Do not output anything that could mess up the export headers
-				
 				$arr_filters = current(self::getFilter());
 				$arr_ordering = current(self::getOrder());
 				$arr_conditions = toolbar::getTypeConditions($type_id);
@@ -492,13 +490,13 @@ class toolbar extends base_module {
 					memoryBoost($arr_nodegoat_details['processing_memory']);
 				}
 			
-				$export->init($collect, $arr_filters);
+				$export->init($collect);
 								
 				$has_package = $export->createPackage($arr_export_settings['format']['settings'][$str_format_type]);
 				
 				if (!$has_package) {
 										
-					$this->msg = getLabel('msg_export_not_available');
+					$this->message = getLabel('msg_export_not_available');
 					return;
 				}
 
@@ -537,7 +535,7 @@ class toolbar extends base_module {
 			
 			cms_nodegoat_custom_projects::handleProjectTypeExportSettings($_SESSION['custom_projects']['project_id'], $_SESSION['USER_ID'], 0, $type_id, [], $arr_export_settings);
 			
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "store_export_settings") {
@@ -907,7 +905,7 @@ class toolbar extends base_module {
 			$arr_set_cache['result'] = $cache_scenario->getCache();
 		} else {
 			
-			status(getLabel('msg_building_cache_scenario_filter'), false, getLabel('msg_wait'), ['identifier' => SiteStartEnvironment::getSessionId(true).'cache_scenario_filter', 'duration' => 1000, 'persist' => true]);
+			status(getLabel('msg_building_cache_scenario_filter'), false, getLabel('msg_wait'), ['identifier' => SiteStartEnvironment::getSessionID(true).'cache_scenario_filter', 'duration' => 1000, 'persist' => true]);
 		}
 		
 		$has_set_cache = ($arr_set_cache['result'] !== null);
@@ -943,7 +941,7 @@ class toolbar extends base_module {
 			
 			$cache_scenario->updateCache($arr_set_result);
 			
-			clearStatus(SiteStartEnvironment::getSessionId(true).'cache_scenario_filter');
+			clearStatus(SiteStartEnvironment::getSessionID(true).'cache_scenario_filter');
 			
 			$arr_filter = ['objects' => $arr_set_result['objects']];
 		}
@@ -1374,7 +1372,8 @@ class toolbar extends base_module {
 			$generate->setFormatMode(FormatTypeObjects::FORMAT_DATE_YMD);
 		});
 		$collect->setTypeOptions([$type_id => ['order' => $arr_ordering]]);
-		$collect->init($arr_filters, false);
+		$collect->setFilter($arr_filters);
+		$collect->init(false);
 			
 		$arr_collect_info = $collect->getResultInfo();
 		
@@ -1404,7 +1403,6 @@ class toolbar extends base_module {
 				$arr_filtering = [];
 				
 				if ($arr_scope_settings['filter']) {
-					
 					$arr_filtering = ['all' => true];
 				}
 
@@ -1415,7 +1413,6 @@ class toolbar extends base_module {
 				];
 				
 				if ($arr_scope_settings['name'] || $arr_scope_settings['sources']) {
-					
 					$arr_selection['object']['all'] = true;
 				}
 				
@@ -1424,7 +1421,7 @@ class toolbar extends base_module {
 					$arr_analyses_active = data_analysis::getTypeAnalysesActive($cur_type_id);
 					
 					if ($arr_analyses_active) {
-						$arr_selection['object']['analysis'] = $arr_analyses_active;
+						$arr_selection['object']['object_analysis'] = $arr_analyses_active;
 					}
 				}
 				

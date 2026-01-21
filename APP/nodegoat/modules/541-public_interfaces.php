@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -293,7 +293,7 @@ class public_interfaces extends base_module {
 				<div class="options fieldsets"><div>
 				
 					<fieldset><ul>
-						<li><label>'.getLabel('lbl_color').'</label><input name="settings[color]" type="text" value="'.$arr_public_interface['interface']['settings']['color'].'" class="colorpicker" /></li>
+						<li><label>'.getLabel('lbl_color').'</label>'.cms_general::createPickColor($arr_public_interface['interface']['settings']['color'], 'settings[color]').'</li>
 						<li><label>'.getLabel('lbl_disable_responsive_layout').'</label><input name="settings[disable_responsive_layout]" type="checkbox" value="1" '.($arr_public_interface['interface']['settings']['disable_responsive_layout'] ? 'checked="checked"' : '').' /></li>
 					</ul></fieldset>
 									
@@ -881,7 +881,7 @@ class public_interfaces extends base_module {
 				$arr_object_description['object_description_value_type_base'] == 'reference_mutable' || 
 				$arr_object_description['object_description_value_type_base'] == 'type' || 
 				$arr_object_description['object_description_value_type_base'] == 'boolean' ||
-				$arr_object_description['object_description_value_type_base'] == 'int') {
+				$arr_object_description['object_description_value_type_base'] == 'integer') {
 				$arr_descriptions[$str_id] = $arr_type_set_flat[$str_id];
 			}
 			
@@ -900,7 +900,7 @@ class public_interfaces extends base_module {
 					$arr_object_sub_description['object_sub_description_value_type_base'] == 'classification' || 
 					$arr_object_sub_description['object_sub_description_value_type_base'] == 'type' || 
 					$arr_object_sub_description['object_sub_description_value_type_base'] == 'boolean' ||
-					$arr_object_sub_description['object_sub_description_value_type_base'] == 'int') {
+					$arr_object_sub_description['object_sub_description_value_type_base'] == 'integer') {
 					$arr_descriptions[$str_id] = $arr_type_set_flat[$str_id];
 				}
 				
@@ -1262,7 +1262,7 @@ class public_interfaces extends base_module {
 			
 			$this->html = self::createAddPublicInterface();						
 			$this->refresh_table = true;
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "del" && (int)$id) {
@@ -1273,7 +1273,7 @@ class public_interfaces extends base_module {
 		
 			cms_nodegoat_public_interfaces::delPublicInterface($id);
 								
-			$this->msg = true;
+			$this->message = true;
 		}
 	}	
 }

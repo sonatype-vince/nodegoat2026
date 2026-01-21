@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -10,6 +10,11 @@
  */
 
 class TraceTypesNetwork {
+	
+	const PATH_START = 'start';
+	const PATH_IN = 'in';
+	const PATH_OUT = 'out';
+	const PATH_CONNECTIONS = 'connections';
 	
 	protected $type_id = false;
 	protected $to_type_id = false;
@@ -46,7 +51,7 @@ class TraceTypesNetwork {
 		$version_select_tos = GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ACTIVE, 'object_sub', 'nodegoat_tos');
 		$version_select_to2 = GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ACTIVE, 'object', 'nodegoat_to2');
 		
-		$this->stmt_object['in'] = DB::prepare("SELECT
+		$this->stmt_object[static::PATH_IN] = DB::prepare("SELECT
 			nodegoat_to_des.type_id, nodegoat_to_des.id AS object_description_id, nodegoat_to_des.id_id AS object_description_id_id, CASE WHEN nodegoat_to_des.id_id IS NOT NULL THEN nodegoat_to_des_id_id.has_multi ELSE nodegoat_to_des.has_multi END AS has_multi
 				FROM ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS')." nodegoat_to_des
 				LEFT JOIN ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS')." nodegoat_to_des_id_id ON (nodegoat_to_des_id_id.id = nodegoat_to_des.id_id)
@@ -56,7 +61,7 @@ class TraceTypesNetwork {
 			GROUP BY nodegoat_to_des.id, nodegoat_to_des_id_id.id
 		");
 					
-		$this->stmt_object['out'] = DB::prepare("SELECT
+		$this->stmt_object[static::PATH_OUT] = DB::prepare("SELECT
 			nodegoat_to_des.ref_type_id AS ref_type_id, nodegoat_to_des.id AS object_description_id, nodegoat_to_des.id_id AS object_description_id_id, CASE WHEN nodegoat_to_des.id_id IS NOT NULL THEN nodegoat_to_des_id_id.has_multi ELSE nodegoat_to_des.has_multi END AS has_multi
 				FROM ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS')." nodegoat_to_des
 				LEFT JOIN ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS')." nodegoat_to_des_id_id ON (nodegoat_to_des_id_id.id = nodegoat_to_des.id_id)
@@ -66,7 +71,7 @@ class TraceTypesNetwork {
 			GROUP BY nodegoat_to_des.id, nodegoat_to_des_id_id.id
 		");
 		
-		$this->stmt_object_sub['in'] = DB::prepare("SELECT
+		$this->stmt_object_sub[static::PATH_IN] = DB::prepare("SELECT
 			nodegoat_tos_det.type_id, nodegoat_tos_det.id AS object_sub_details_id, nodegoat_tos_des.id AS object_sub_description_id, nodegoat_tos_des.id_id AS object_sub_description_id_id, nodegoat_tos_des.use_object_description_id
 				FROM ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DETAILS')." nodegoat_tos_det
 				JOIN ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DESCRIPTIONS')." nodegoat_tos_des ON (nodegoat_tos_des.object_sub_details_id = nodegoat_tos_det.id)
@@ -80,7 +85,7 @@ class TraceTypesNetwork {
 			GROUP BY nodegoat_tos_des.id, nodegoat_tos_det.id
 		");
 					
-		$this->stmt_object_sub['out'] = DB::prepare("SELECT
+		$this->stmt_object_sub[static::PATH_OUT] = DB::prepare("SELECT
 			CASE
 				WHEN nodegoat_tos_des.use_object_description_id != 0 THEN nodegoat_to_des.ref_type_id
 				ELSE nodegoat_tos_des.ref_type_id
@@ -100,7 +105,7 @@ class TraceTypesNetwork {
 					
 		if ($do_dynamic) {
 			
-			$this->stmt_object_dynamic['in'] = DB::prepare("SELECT
+			$this->stmt_object_dynamic[static::PATH_IN] = DB::prepare("SELECT
 				nodegoat_to_des.type_id, nodegoat_to_des.id AS object_description_id, nodegoat_to_des.has_multi
 					FROM ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS')." nodegoat_to_des
 				WHERE (
@@ -117,7 +122,7 @@ class TraceTypesNetwork {
 				GROUP BY nodegoat_to_des.id
 			");
 			
-			$this->stmt_object_dynamic['out'] = DB::prepare("SELECT
+			$this->stmt_object_dynamic[static::PATH_OUT] = DB::prepare("SELECT
 				nodegoat_t.id AS ref_type_id, nodegoat_to_des.id AS object_description_id, nodegoat_to_des.has_multi
 					FROM ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_DESCRIPTIONS')." nodegoat_to_des
 					JOIN ".DB::getTable('DEF_NODEGOAT_TYPES')." nodegoat_t ON (
@@ -137,7 +142,7 @@ class TraceTypesNetwork {
 				GROUP BY nodegoat_to_des.id, nodegoat_t.id
 			");
 												
-			$this->stmt_object_sub_dynamic['in'] = DB::prepare("SELECT
+			$this->stmt_object_sub_dynamic[static::PATH_IN] = DB::prepare("SELECT
 				nodegoat_tos_det.type_id, nodegoat_tos_det.id AS object_sub_details_id, nodegoat_tos_des.id AS object_sub_description_id
 					FROM ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DESCRIPTIONS')." nodegoat_tos_des
 					JOIN ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DETAILS')." nodegoat_tos_det ON (nodegoat_tos_det.id = nodegoat_tos_des.object_sub_details_id)
@@ -157,7 +162,7 @@ class TraceTypesNetwork {
 				GROUP BY nodegoat_tos_des.id, nodegoat_tos_det.id
 			");
 			
-			$this->stmt_object_sub_dynamic['out'] = DB::prepare("SELECT
+			$this->stmt_object_sub_dynamic[static::PATH_OUT] = DB::prepare("SELECT
 				nodegoat_t.id AS ref_type_id, nodegoat_tos_det.id AS object_sub_details_id, nodegoat_tos_des.id AS object_sub_description_id
 					FROM ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DESCRIPTIONS')." nodegoat_tos_des
 					JOIN ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DETAILS')." nodegoat_tos_det ON (nodegoat_tos_det.id = nodegoat_tos_des.object_sub_details_id)
@@ -183,7 +188,7 @@ class TraceTypesNetwork {
 
 		if ($do_object_sub_locations) {
 				
-			$this->stmt_object_sub_location['in'] = DB::prepare("SELECT
+			$this->stmt_object_sub_location[static::PATH_IN] = DB::prepare("SELECT
 				nodegoat_tos_det.type_id, nodegoat_tos_det.id AS object_sub_details_id,
 				CASE
 					WHEN (location_use_object_sub_details_id != 0 OR location_use_object_sub_description_id != 0 OR location_use_object_description_id != 0 OR location_use_object_id = TRUE) THEN 1
@@ -196,7 +201,7 @@ class TraceTypesNetwork {
 				GROUP BY nodegoat_tos_det.id
 			");
 			
-			$this->stmt_object_sub_location['out'] = DB::prepare("SELECT
+			$this->stmt_object_sub_location[static::PATH_OUT] = DB::prepare("SELECT
 				nodegoat_tos_det.location_ref_type_id AS ref_type_id, nodegoat_tos_det.id AS object_sub_details_id,
 				CASE
 					WHEN (location_use_object_sub_details_id != 0 OR location_use_object_sub_description_id != 0 OR location_use_object_description_id != 0 OR location_use_object_id = TRUE) THEN 1
@@ -211,7 +216,7 @@ class TraceTypesNetwork {
 			
 			if ($do_dynamic) {
 				
-				$this->stmt_object_sub_location_dynamic['in'] = DB::prepare("SELECT
+				$this->stmt_object_sub_location_dynamic[static::PATH_IN] = DB::prepare("SELECT
 					nodegoat_tos_det.type_id, nodegoat_tos_det.id AS object_sub_details_id
 						FROM ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DETAILS')." nodegoat_tos_det
 					WHERE nodegoat_tos_det.location_ref_type_id_locked = FALSE
@@ -222,12 +227,12 @@ class TraceTypesNetwork {
 							WHERE nodegoat_tos.object_sub_details_id = nodegoat_tos_det.id AND ".$version_select_tos."
 								AND nodegoat_tos.location_ref_type_id = ".DBStatement::assign('id', 'i')."
 								AND EXISTS (SELECT TRUE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to WHERE nodegoat_to.id = nodegoat_tos.object_id AND ".$version_select_to.")
-								AND EXISTS (SELECT TRUE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to2 WHERE nodegoat_to2.id = nodegoat_tos.location_ref_object_id AND ".$version_select_to2.")
+								AND EXISTS (SELECT TRUE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to2 WHERE nodegoat_to2.id = nodegoat_tos.location_ref_object_id AND nodegoat_to2.type_id = nodegoat_tos.location_ref_type_id AND ".$version_select_to2.")
 						)
 					GROUP BY nodegoat_tos_det.id
 				");
-					
-				$this->stmt_object_sub_location_dynamic['out'] = DB::prepare("SELECT
+				
+				$this->stmt_object_sub_location_dynamic[static::PATH_OUT] = DB::prepare("SELECT
 					nodegoat_t.id AS ref_type_id, nodegoat_tos_det.id AS object_sub_details_id
 						FROM ".DB::getTable('DEF_NODEGOAT_TYPE_OBJECT_SUB_DETAILS')." nodegoat_tos_det
 						JOIN ".DB::getTable('DEF_NODEGOAT_TYPES')." nodegoat_t ON (
@@ -238,7 +243,7 @@ class TraceTypesNetwork {
 								WHERE nodegoat_tos.object_sub_details_id = nodegoat_tos_det.id AND ".$version_select_tos."
 									AND nodegoat_tos.location_ref_type_id = nodegoat_t.id
 									AND EXISTS (SELECT TRUE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to WHERE nodegoat_to.id = nodegoat_tos.object_id AND ".$version_select_to.")
-									AND EXISTS (SELECT TRUE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to2 WHERE nodegoat_to2.id = nodegoat_tos.location_ref_object_id AND ".$version_select_to2.")
+									AND EXISTS (SELECT TRUE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to2 WHERE nodegoat_to2.id = nodegoat_tos.location_ref_object_id AND nodegoat_to2.type_id = nodegoat_tos.location_ref_type_id AND ".$version_select_to2.")
 							)
 						)
 					WHERE nodegoat_tos_det.location_ref_type_id_locked = FALSE
@@ -247,7 +252,7 @@ class TraceTypesNetwork {
 				");
 			}
 		}
-    }
+	}
 	
 	public function run($type_id, $to_type_id, $num_steps, $mode_run = self::RUN_MODE_BOTH) {
 		
@@ -417,32 +422,32 @@ class TraceTypesNetwork {
 		
 		if ($type_id_in) {
 			
-			$this->stmt_object['in']->bindParameters(['id' => $type_id_in]);
+			$this->stmt_object[static::PATH_IN]->bindParameters(['id' => $type_id_in]);
 					
-			$res = $this->stmt_object['in']->execute();
+			$res = $this->stmt_object[static::PATH_IN]->execute();
 
 			while ($arr_row = $res->fetchRow()) {
 				
 				$use_type_id = (int)$arr_row[0];
 				$num_id = ($arr_row[2] ?? $arr_row[1]);
 				
-				$arr[$use_type_id][] = ['type_id' => $use_type_id, 'object_description_id' => (int)$num_id, 'ref_type_id' => $type_id_in, 'in_out' => 'in', 'multi' => DBFunctions::unescapeAs($arr_row[3], DBFunctions::TYPE_BOOLEAN), 'mutable' => (bool)$arr_row[2],
+				$arr[$use_type_id][] = ['type_id' => $use_type_id, 'object_description_id' => (int)$num_id, 'ref_type_id' => $type_id_in, 'in_out' => static::PATH_IN, 'multi' => DBFunctions::unescapeAs($arr_row[3], DBFunctions::TYPE_BOOLEAN), 'mutable' => (bool)$arr_row[2],
 					'identifier' => $arr_row[0].'_'.$num_id.'_'.$type_id_in.'_in'
 				];
 			}
 		}
 		if ($type_id_out) {
 			
-			$this->stmt_object['out']->bindParameters(['id' => $type_id_out]);
+			$this->stmt_object[static::PATH_OUT]->bindParameters(['id' => $type_id_out]);
 					
-			$res = $this->stmt_object['out']->execute();
+			$res = $this->stmt_object[static::PATH_OUT]->execute();
 	
 			while ($arr_row = $res->fetchRow()) {
 				
 				$use_type_id = (int)$arr_row[0];
 				$num_id = ($arr_row[2] ?? $arr_row[1]);
 				
-				$arr[$use_type_id][] = ['type_id' => $type_id_out, 'object_description_id' => (int)$num_id, 'ref_type_id' => $use_type_id, 'in_out' => 'out', 'multi' => DBFunctions::unescapeAs($arr_row[3], DBFunctions::TYPE_BOOLEAN), 'mutable' => (bool)$arr_row[2],
+				$arr[$use_type_id][] = ['type_id' => $type_id_out, 'object_description_id' => (int)$num_id, 'ref_type_id' => $use_type_id, 'in_out' => static::PATH_OUT, 'multi' => DBFunctions::unescapeAs($arr_row[3], DBFunctions::TYPE_BOOLEAN), 'mutable' => (bool)$arr_row[2],
 					'identifier' => $type_id_out.'_'.$num_id.'_'.$arr_row[0].'_out'
 				];
 			}
@@ -450,32 +455,32 @@ class TraceTypesNetwork {
 		
 		if ($type_id_in) {
 			
-			$this->stmt_object_sub['in']->bindParameters(['id' => $type_id_in]);
+			$this->stmt_object_sub[static::PATH_IN]->bindParameters(['id' => $type_id_in]);
 					
-			$res = $this->stmt_object_sub['in']->execute();
+			$res = $this->stmt_object_sub[static::PATH_IN]->execute();
 
 			while ($arr_row = $res->fetchRow()) {
 				
 				$use_type_id = (int)$arr_row[0];
 				$num_id = ($arr_row[3] ?? $arr_row[2]);
 				
-				$arr[$use_type_id][] = ['type_id' => $use_type_id, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_description_id' => (int)$num_id, 'use_object_description_id' => (int)$arr_row[4], 'ref_type_id' => $type_id_in, 'in_out' => 'in', 'mutable' => (bool)$arr_row[3],
+				$arr[$use_type_id][] = ['type_id' => $use_type_id, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_description_id' => (int)$num_id, 'use_object_description_id' => (int)$arr_row[4], 'ref_type_id' => $type_id_in, 'in_out' => static::PATH_IN, 'mutable' => (bool)$arr_row[3],
 					'identifier' => $arr_row[0].'_'.$arr_row[1].'_'.$num_id.'_'.$arr_row[4].'_'.$type_id_in.'_in'
 				];
 			}
 		}
 		if ($type_id_out) {
 			
-			$this->stmt_object_sub['out']->bindParameters(['id' => $type_id_out]);
+			$this->stmt_object_sub[static::PATH_OUT]->bindParameters(['id' => $type_id_out]);
 					
-			$res = $this->stmt_object_sub['out']->execute();
+			$res = $this->stmt_object_sub[static::PATH_OUT]->execute();
 
 			while ($arr_row = $res->fetchRow()) {
 				
 				$use_type_id = (int)$arr_row[0];
 				$num_id = ($arr_row[3] ?? $arr_row[2]);
 				
-				$arr[$use_type_id][] = ['type_id' => $type_id_out, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_description_id' => (int)$num_id, 'use_object_description_id' => (int)$arr_row[4], 'ref_type_id' => $use_type_id, 'in_out' => 'out', 'mutable' => (bool)$arr_row[3],
+				$arr[$use_type_id][] = ['type_id' => $type_id_out, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_description_id' => (int)$num_id, 'use_object_description_id' => (int)$arr_row[4], 'ref_type_id' => $use_type_id, 'in_out' => static::PATH_OUT, 'mutable' => (bool)$arr_row[3],
 					'identifier' => $type_id_out.'_'.$arr_row[1].'_'.$num_id.'_'.$arr_row[4].'_'.$arr_row[0].'_out'
 				];
 			}
@@ -485,30 +490,30 @@ class TraceTypesNetwork {
 			
 			if ($type_id_in) {	
 						
-				$this->stmt_object_dynamic['in']->bindParameters(['id' => $type_id_in]);
+				$this->stmt_object_dynamic[static::PATH_IN]->bindParameters(['id' => $type_id_in]);
 					
-				$res = $this->stmt_object_dynamic['in']->execute();
+				$res = $this->stmt_object_dynamic[static::PATH_IN]->execute();
 
 				while ($arr_row = $res->fetchRow()) {
 					
 					$use_type_id = (int)$arr_row[0];
 					
-					$arr[$use_type_id][] = ['type_id' => $use_type_id, 'object_description_id' => (int)$arr_row[1], 'ref_type_id' => $type_id_in, 'in_out' => 'in', 'multi' => DBFunctions::unescapeAs($arr_row[2], DBFunctions::TYPE_BOOLEAN), 'mutable' => true, 'dynamic' => true,
+					$arr[$use_type_id][] = ['type_id' => $use_type_id, 'object_description_id' => (int)$arr_row[1], 'ref_type_id' => $type_id_in, 'in_out' => static::PATH_IN, 'multi' => DBFunctions::unescapeAs($arr_row[2], DBFunctions::TYPE_BOOLEAN), 'mutable' => true, 'dynamic' => true,
 						'identifier' => $arr_row[0].'_'.$arr_row[1].'_'.$type_id_in.'_in_dynamic'
 					];
 				}
 			}
 			if ($type_id_out) {	
 						
-				$this->stmt_object_dynamic['out']->bindParameters(['id' => $type_id_out]);
+				$this->stmt_object_dynamic[static::PATH_OUT]->bindParameters(['id' => $type_id_out]);
 					
-				$res = $this->stmt_object_dynamic['out']->execute();
+				$res = $this->stmt_object_dynamic[static::PATH_OUT]->execute();
 
 				while ($arr_row = $res->fetchRow()) {
 					
 					$use_type_id = (int)$arr_row[0];
 					
-					$arr[$use_type_id][] = ['type_id' => $type_id_out, 'object_description_id' => (int)$arr_row[1], 'ref_type_id' => $use_type_id, 'in_out' => 'out', 'multi' => DBFunctions::unescapeAs($arr_row[2], DBFunctions::TYPE_BOOLEAN), 'mutable' => true, 'dynamic' => true,
+					$arr[$use_type_id][] = ['type_id' => $type_id_out, 'object_description_id' => (int)$arr_row[1], 'ref_type_id' => $use_type_id, 'in_out' => static::PATH_OUT, 'multi' => DBFunctions::unescapeAs($arr_row[2], DBFunctions::TYPE_BOOLEAN), 'mutable' => true, 'dynamic' => true,
 						'identifier' => $type_id_out.'_'.$arr_row[1].'_'.$arr_row[0].'_out_dynamic'
 					];
 				}
@@ -516,30 +521,30 @@ class TraceTypesNetwork {
 			
 			if ($type_id_in) {	
 						
-				$this->stmt_object_sub_dynamic['in']->bindParameters(['id' => $type_id_in]);
+				$this->stmt_object_sub_dynamic[static::PATH_IN]->bindParameters(['id' => $type_id_in]);
 					
-				$res = $this->stmt_object_sub_dynamic['in']->execute();
+				$res = $this->stmt_object_sub_dynamic[static::PATH_IN]->execute();
 
 				while ($arr_row = $res->fetchRow()) {
 					
 					$use_type_id = (int)$arr_row[0];
 					
-					$arr[$use_type_id][] = ['type_id' => $use_type_id, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_description_id' => (int)$arr_row[2], 'ref_type_id' => $type_id_in, 'in_out' => 'in', 'mutable' => true, 'dynamic' => true,
+					$arr[$use_type_id][] = ['type_id' => $use_type_id, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_description_id' => (int)$arr_row[2], 'ref_type_id' => $type_id_in, 'in_out' => static::PATH_IN, 'mutable' => true, 'dynamic' => true,
 						'identifier' => $arr_row[0].'_'.$arr_row[1].'_'.$arr_row[2].'_'.$type_id_in.'_in_dynamic'
 					];
 				}
 			}
 			if ($type_id_out) {	
 						
-				$this->stmt_object_sub_dynamic['out']->bindParameters(['id' => $type_id_out]);
+				$this->stmt_object_sub_dynamic[static::PATH_OUT]->bindParameters(['id' => $type_id_out]);
 					
-				$res = $this->stmt_object_sub_dynamic['out']->execute();
+				$res = $this->stmt_object_sub_dynamic[static::PATH_OUT]->execute();
 
 				while ($arr_row = $res->fetchRow()) {
 					
 					$use_type_id = (int)$arr_row[0];
 					
-					$arr[$use_type_id][] = ['type_id' => $type_id_out, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_description_id' => (int)$arr_row[2], 'ref_type_id' => $use_type_id, 'in_out' => 'out', 'mutable' => true, 'dynamic' => true,
+					$arr[$use_type_id][] = ['type_id' => $type_id_out, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_description_id' => (int)$arr_row[2], 'ref_type_id' => $use_type_id, 'in_out' => static::PATH_OUT, 'mutable' => true, 'dynamic' => true,
 						'identifier' => $type_id_out.'_'.$arr_row[1].'_'.$arr_row[2].'_'.$arr_row[0].'_out_dynamic'
 					];
 				}
@@ -550,30 +555,30 @@ class TraceTypesNetwork {
 			
 			if ($type_id_in) {
 						
-				$this->stmt_object_sub_location['in']->bindParameters(['id' => $type_id_in]);
+				$this->stmt_object_sub_location[static::PATH_IN]->bindParameters(['id' => $type_id_in]);
 					
-				$res = $this->stmt_object_sub_location['in']->execute();
+				$res = $this->stmt_object_sub_location[static::PATH_IN]->execute();
 
 				while ($arr_row = $res->fetchRow()) {
 					
 					$use_type_id = (int)$arr_row[0];
 					
-					$arr[$use_type_id][] = ['type_id' => $use_type_id, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_location' => true, 'ref_type_id' => $type_id_in, 'in_out' => 'in',
+					$arr[$use_type_id][] = ['type_id' => $use_type_id, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_location' => true, 'ref_type_id' => $type_id_in, 'in_out' => static::PATH_IN,
 						'identifier' => $arr_row[0].'_'.$arr_row[1].'_osl_'.$type_id_in.'_in'
 					];
 				}
 			}
 			if ($type_id_out) {	
 						
-				$this->stmt_object_sub_location['out']->bindParameters(['id' => $type_id_out]);
+				$this->stmt_object_sub_location[static::PATH_OUT]->bindParameters(['id' => $type_id_out]);
 					
-				$res = $this->stmt_object_sub_location['out']->execute();
+				$res = $this->stmt_object_sub_location[static::PATH_OUT]->execute();
 
 				while ($arr_row = $res->fetchRow()) {
 					
 					$use_type_id = (int)$arr_row[0];
 					
-					$arr[$use_type_id][] = ['type_id' => $type_id_out, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_location' => true, 'ref_type_id' => $use_type_id, 'in_out' => 'out',
+					$arr[$use_type_id][] = ['type_id' => $type_id_out, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_location' => true, 'ref_type_id' => $use_type_id, 'in_out' => static::PATH_OUT,
 						'identifier' => $type_id_out.'_'.$arr_row[1].'_osl_'.$arr_row[0].'_out'
 					];
 				}
@@ -584,30 +589,30 @@ class TraceTypesNetwork {
 			
 			if ($type_id_in) {	
 
-				$this->stmt_object_sub_location_dynamic['in']->bindParameters(['id' => $type_id_in]);
+				$this->stmt_object_sub_location_dynamic[static::PATH_IN]->bindParameters(['id' => $type_id_in]);
 					
-				$res = $this->stmt_object_sub_location_dynamic['in']->execute();
+				$res = $this->stmt_object_sub_location_dynamic[static::PATH_IN]->execute();
 
 				while ($arr_row = $res->fetchRow()) {
 					
 					$use_type_id = (int)$arr_row[0];
 					
-					$arr[$use_type_id][] = ['type_id' => $use_type_id, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_location' => true, 'ref_type_id' => $type_id_in, 'in_out' => 'in', 'mutable' => true, 'dynamic' => true,
+					$arr[$use_type_id][] = ['type_id' => $use_type_id, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_location' => true, 'ref_type_id' => $type_id_in, 'in_out' => static::PATH_IN, 'mutable' => true, 'dynamic' => true,
 						'identifier' => $arr_row[0].'_'.$arr_row[1].'_osl_'.$type_id_in.'_in_dynamic'
 					];
 				}
 			}
 			if ($type_id_out) {
 						
-				$this->stmt_object_sub_location_dynamic['out']->bindParameters(['id' => $type_id_out]);
+				$this->stmt_object_sub_location_dynamic[static::PATH_OUT]->bindParameters(['id' => $type_id_out]);
 					
-				$res = $this->stmt_object_sub_location_dynamic['out']->execute();
+				$res = $this->stmt_object_sub_location_dynamic[static::PATH_OUT]->execute();
 
 				while ($arr_row = $res->fetchRow()) {
 					
 					$use_type_id = (int)$arr_row[0];
 					
-					$arr[$use_type_id][] = ['type_id' => $type_id_out, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_location' => true, 'ref_type_id' => $use_type_id, 'in_out' => 'out', 'mutable' => true, 'dynamic' => true,
+					$arr[$use_type_id][] = ['type_id' => $type_id_out, 'object_sub_details_id' => (int)$arr_row[1], 'object_sub_location' => true, 'ref_type_id' => $use_type_id, 'in_out' => static::PATH_OUT, 'mutable' => true, 'dynamic' => true,
 						'identifier' => $type_id_out.'_'.$arr_row[1].'_osl_'.$arr_row[0].'_out_dynamic'
 					];
 				}
@@ -644,15 +649,15 @@ class TraceTypesNetwork {
 						$path = implode('-', $value['path']);
 						
 						if ($value['object_description_id']) {
-							if (!$arr_object_connections[$path]['object_descriptions'][$value['object_description_id']][$value['in_out']] || ($value['mutable'] && !$arr_object_connections[$path]['object_descriptions'][$value['object_description_id']][$value['in_out']][($value['in_out'] == 'out' ? $value['ref_type_id'] : $value['type_id'])])) {
+							if (!$arr_object_connections[$path]['object_descriptions'][$value['object_description_id']][$value['in_out']] || ($value['mutable'] && !$arr_object_connections[$path]['object_descriptions'][$value['object_description_id']][$value['in_out']][($value['in_out'] == static::PATH_OUT ? $value['ref_type_id'] : $value['type_id'])])) {
 								continue;
 							}
 						} else if ($value['object_sub_description_id']) {
-							if (!$arr_object_connections[$path]['object_sub_descriptions'][$value['object_sub_description_id']][$value['in_out']] || ($value['mutable'] && !$arr_object_connections[$path]['object_sub_descriptions'][$value['object_sub_description_id']][$value['in_out']][($value['in_out'] == 'out' ? $value['ref_type_id'] : $value['type_id'])])) {
+							if (!$arr_object_connections[$path]['object_sub_descriptions'][$value['object_sub_description_id']][$value['in_out']] || ($value['mutable'] && !$arr_object_connections[$path]['object_sub_descriptions'][$value['object_sub_description_id']][$value['in_out']][($value['in_out'] == static::PATH_OUT ? $value['ref_type_id'] : $value['type_id'])])) {
 								continue;
 							}
 						} else if ($value['object_sub_location']) {
-							if (!$arr_object_connections[$path]['object_sub_locations'][$value['object_sub_details_id']][$value['in_out']] || ($value['mutable'] && !$arr_object_connections[$path]['object_sub_locations'][$value['object_sub_details_id']][$value['in_out']][($value['in_out'] == 'out' ? $value['ref_type_id'] : $value['type_id'])])) {
+							if (!$arr_object_connections[$path]['object_sub_locations'][$value['object_sub_details_id']][$value['in_out']] || ($value['mutable'] && !$arr_object_connections[$path]['object_sub_locations'][$value['object_sub_details_id']][$value['in_out']][($value['in_out'] == static::PATH_OUT ? $value['ref_type_id'] : $value['type_id'])])) {
 								continue;
 							}
 						}
@@ -685,7 +690,7 @@ class TraceTypesNetwork {
 		foreach ($this->arr_types_match as &$arr_network_list) {
 			foreach ($arr_network_list as &$arr_network_list_step) {
 				foreach ($arr_network_list_step as &$value) {
-					$value['in_out'] = ($value['in_out'] == 'out' ? 'in' : 'out');
+					$value['in_out'] = ($value['in_out'] == static::PATH_OUT ? static::PATH_IN : static::PATH_OUT);
 				}
 				$arr_network_list_step = array_reverse($arr_network_list_step);
 			}
@@ -705,14 +710,14 @@ class TraceTypesNetwork {
 			
 			foreach ($arr_network_list as $step => $arr_network_list_step) {
 				
-				$cur_entry = &$cur_entry['connections'];
+				$cur_entry = &$cur_entry[static::PATH_CONNECTIONS];
 				$source_type_id = false; // Does not change in this loop, it's the same in/out source
 				
 				foreach ($arr_network_list_step as $value) {
 					
 					$target_type_id = 0;
 					
-					if ($value['in_out'] == 'out') { // Switch type origin (in or out) and type reference (in or out) accordingly
+					if ($value['in_out'] == static::PATH_OUT) { // Switch type origin (in or out) and type reference (in or out) accordingly
 						$source_type_id = $value['type_id'];
 						$target_type_id = $value['ref_type_id'];
 					} else {
@@ -770,7 +775,7 @@ class TraceTypesNetwork {
 		}
 		
 		if ($self) {
-			$this->arr_type_network_paths += ['start' => [$this->type_id => ['path' => [0]]]];
+			$this->arr_type_network_paths += [static::PATH_START => [$this->type_id => ['path' => [0]]]];
 		}
 		
 		return $this->arr_type_network_paths;
@@ -797,7 +802,7 @@ class TraceTypesNetwork {
 					if (
 						strStartsWith($arr_date_statement['id'], 'object_sub_details_'.$arr_path['object_sub_details_id'])
 							&&
-						(($arr_path['in_out'] == 'out' && $arr_date_statement['source_target'] == 'source') || ($arr_path['in_out'] == 'in' && $arr_date_statement['source_target'] == 'target'))
+						(($arr_path['in_out'] == static::PATH_OUT && $arr_date_statement['source_target'] == 'source') || ($arr_path['in_out'] == static::PATH_IN && $arr_date_statement['source_target'] == 'target'))
 					) {
 					
 						$arr_date_statement['filter_object_sub'] = true; // Indicate if the connection is sourcing its own sub-object date
@@ -817,7 +822,7 @@ class TraceTypesNetwork {
 
 				foreach ($arr_network_list_step as $value) {
 					
-					if ($value['in_out'] == 'out') { // Switch type origin (in or out) and type reference (in or out) accordingly
+					if ($value['in_out'] == static::PATH_OUT) { // Switch type origin (in or out) and type reference (in or out) accordingly
 						$source_type_id = $value['type_id'];
 						$target_type_id = $value['ref_type_id'];
 					} else {
@@ -877,15 +882,15 @@ class TraceTypesNetwork {
 
 		foreach ($arr_type_connections as $in_out => $arr_in_out) {
 			
-			if ($in_out == 'connections') {
+			if ($in_out == static::PATH_CONNECTIONS) {
 				continue;
 			}
 			
 			foreach ($arr_in_out as $target_type_id => $arr_type_object_connections) {
 				
-				if ($arr_type_connections['connections'][$target_type_id]) {
+				if ($arr_type_connections[static::PATH_CONNECTIONS][$target_type_id]) {
 					
-					$func_collect($arr_type_connections['connections'][$target_type_id]);
+					$func_collect($arr_type_connections[static::PATH_CONNECTIONS][$target_type_id]);
 				} else { // End-point
 					
 					$arr_type_end[$target_type_id] = $target_type_id;
@@ -894,6 +899,6 @@ class TraceTypesNetwork {
 		}
 	};
 	
-	$func_collect($arr_type_network_paths['connections'][$type_id]);
+	$func_collect($arr_type_network_paths[static::PATH_CONNECTIONS][$type_id]);
 	*/
 }

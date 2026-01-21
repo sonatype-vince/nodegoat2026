@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -20,15 +20,15 @@ class IngestTypeObjects {
 	protected $arr_owner = false;
 	
 	protected $arr_template_pointers = [];
-	protected $num_row_pointers = false;
+	protected $num_row_pointers = null;
 	protected $arr_limit = [];
 	
 	protected $file_source = false;
 	protected $stream_source = false;
-	protected $count_stream = false;
+	protected $num_count_stream = false;
 	
-	protected $count_row_pointer = false;
-	protected $str_row_pointer = false;
+	protected $num_pointer_row = false;
+	protected $str_pointer_row = false;
 	
 	protected $arr_objects = [];
 	protected $arr_filter_objects = [];
@@ -55,7 +55,7 @@ class IngestTypeObjects {
 	
 	const TIMEOUT_STATUS = 5; // Seconds
 			
-    public function __construct($type_id, $arr_owner = false) {
+	public function __construct($type_id, $arr_owner = false) {
 
 		$this->type_id = (int)$type_id;
 		
@@ -92,7 +92,7 @@ class IngestTypeObjects {
 		$this->arr_filter_objects = $arr_filter_objects;
 	}
 		
-	public function setSource($file_source) {
+	public function setSource($file_source) { // Call unsetSource() when done and used in a loop
 		
 		if (!is_resource($file_source)) {
 			$this->file_source = fopen($file_source, 'r');
@@ -101,23 +101,29 @@ class IngestTypeObjects {
 		}
 
 		$this->stream_source = new StreamJSONInput($this->file_source);
+		$this->stream_source->setCapturePositions(true);
 		
-		$this->count_stream = 0;
-		$this->count_row_pointer = 0;
+		$this->num_count_stream = 0;
+		$this->num_pointer_row = 0;
 		
 		$this->stream_source->init('[', function($str) {
 			
-			$this->str_row_pointer = $str;
+			$this->str_pointer_row = $str;
 
-			if ($this->count_stream >= $this->count_row_pointer) {
+			if ($this->num_count_stream >= $this->num_pointer_row) {
 				$this->stream_source->stop();
 			}
 			
-			$this->count_stream++;
+			$this->num_count_stream++;
 		});
-    }
-    
-    public function useLogIdentifier($template_id = false) {
+	}
+
+	public function unsetSource() { 
+		
+		$this->stream_source = null; // Unlock callback from init
+	}
+
+	public function useLogIdentifier($template_id = false) {
 		
 		$this->use_log = (bool)$template_id;
 		$this->template_id = (int)$template_id;	
@@ -127,23 +133,25 @@ class IngestTypeObjects {
 		
 	public function getRowPointerCount() {
 		
-		if ($this->num_row_pointers !== false) {
-		
+		if ($this->num_row_pointers !== null) {
 			return $this->num_row_pointers;
 		}
 		
 		$this->num_row_pointers = 0;
 		
-		$pos = ftell($this->file_source); // Store current file position to be able to restore it
+		$num_position = ftell($this->file_source); // Store current file position to be able to restore it
 		
 		$stream = new StreamJSONInput($this->file_source);
+		$stream->setCapturePositions(true);
 		
 		$stream->init('[', function() {
 			
 			$this->num_row_pointers++;
 		});
 		
-		fseek($this->file_source, $pos);
+		fseek($this->file_source, $num_position);
+		
+		$this->stream_source->setCapturePositions($stream->getCapturePositions());
 				
 		return $this->num_row_pointers;
 	}
@@ -172,7 +180,7 @@ class IngestTypeObjects {
 
 		return [$num_start, $num_offset, $num_end];
 	}
-    
+
 	public function store() {
 
 		$arr_return = ['locked' => null, 'count' => null, 'error' => null, 'mode' => $this->mode];
@@ -185,19 +193,19 @@ class IngestTypeObjects {
 		
 		$arr_object_ids = [];
 		$arr_objects_buffers = [];
-		$count = 0;
-		$count_buffer = 0;
+		$num_count = 0;
+		$num_count_buffer = 0;
 		$str_error = false;
 	
 		foreach ($this->arr_objects as $object_id => $arr_object) {
 			
-			$arr_objects_buffers[$count_buffer][] = $object_id;
-			$count++;
+			$arr_objects_buffers[$num_count_buffer][] = $object_id;
+			$num_count++;
 			
-			if ($count == static::$num_store_objects_buffer) {
+			if ($num_count == static::$num_store_objects_buffer) {
 				
-				$count_buffer++;
-				$count = 0;
+				$num_count_buffer++;
+				$num_count = 0;
 			}
 		}
 		
@@ -251,12 +259,15 @@ class IngestTypeObjects {
 			$storage->setAppend($this->arr_append);
 			
 			$num_row = 0;
-			
-			DB::startTransaction('ingest_store');
+			$in_object = false;
 			
 			try {
 
 				foreach ($arr_objects_buffers as $arr_buffer) {
+					
+					DB::startTransaction('ingest_store');
+					
+					$in_object = true;
 
 					foreach ($arr_buffer as $object_id) {
 							
@@ -270,45 +281,59 @@ class IngestTypeObjects {
 						$arr_object_ids[] = $object_id;
 					}
 					
-					$storage->save();
+					$in_object = false;
 					
+					$storage->save();
 					$storage->commit(true);
 					
-					status(count($arr_object_ids).' objects have been updated.', 'IMPORT', false, ['persist' => false]);
+					DB::commitTransaction('ingest_store');
+					
+					Labels::setVariable('count', count($arr_object_ids));
+					status(getLabel('msg_object_updated'), 'IMPORT', false, ['persist' => false]);
 				}
 			} catch (Exception $e) {
 
 				DB::rollbackTransaction('ingest_store');
-
-				$num_row_error = $num_row + 1;
-				Labels::setVariable('row_number', $num_row_error);
-				msg(getLabel('msg_ingest_error_at_row_number'), false, LOG_CLIENT);
-
-				if ($e instanceof RealTroubleDB) {
-					
-					$e_previous = $e->getPrevious(); // Get DBTrouble
-					$str_error = DB::getErrorMessage($e_previous->getCode());
-					
-					if ($str_error === false) {
-						
-						error('IngestTypeObjects ERROR: '.$e->getMessage(), TROUBLE_NOTICE, LOG_SYSTEM, false, $e);
-						$str_error = getLabel('msg_error_database_undisclosed');
-					}
-				} else {
 				
-					error('IngestTypeObjects ERROR: '.$e->getMessage(), TROUBLE_NOTICE, LOG_SYSTEM, false, $e);
-					$str_error = getLabel('msg_error_undisclosed');
+				$arr_messages = Log::getMessages($e); // Retrieve previous error-related messages from stack
+				Log::removeMessages($e); // Clear previous messages from stack
+								
+				$num_row_start = ($num_row - static::$num_store_objects_buffer);
+				$num_row_start = ($num_row_start < 0 ? 0 : $num_row_start);
+				
+				Labels::setVariable('row', ($num_row + 1));
+				if ($in_object) {
+					$str_message = getLabel('msg_ingest_error_at_row_number');
+				} else {
+					Labels::setVariable('row_start', ($num_row_start + 1));
+					$str_message = getLabel('msg_ingest_error_store_row_numbers');
 				}
 				
-				$arr_return['error'] = $num_row;
+				msg($str_message, null, LOG_CLIENT, null, null, null, $e);
+				
+				$str_error = $e->getTroubleMessage();
+				
+				if ($e->getTroubleSuppress() == LOG_SYSTEM) { // Capture a system error
+					
+					error('IngestTypeObjects ERROR: '.$str_error, TROUBLE_NOTICE, LOG_SYSTEM, null, $e);
+					$str_error = ($e->getTroubleCode() == TROUBLE_DATABASE ? getLabel('msg_error_database_undisclosed') : getLabel('msg_error_undisclosed'));
+				}
+
+				foreach ($arr_messages as $arr_message) { // Capture a possible client-related error
+					
+					if ($arr_message[Log::MESSAGE_SUPPRESS] != LOG_CLIENT) {
+						continue;
+					}
+					
+					$str_error = $arr_message[Log::MESSAGE_DESCRIPTION];
+				}
+				
+				msg($str_error, Trouble::label(TROUBLE_ERROR), LOG_CLIENT, null, null, null, $e);
+				
+				$arr_return['error'] = ['message' => $str_message, 'row' => $num_row, 'row_start' => ($in_object ? null : $num_row_start)];
 			}
 
-			if ($str_error === false) {
-				
-				$storage->touch(); // Make sure the objects get a status update as late as possible
-				
-				DB::commitTransaction('ingest_store');
-			}
+			$storage->touch(); // Make sure the objects get a status update as late as possible
 			
 			$storage_lock->removeLockObject();
 		} else {
@@ -318,15 +343,17 @@ class IngestTypeObjects {
 			$storage->setMode(null, false);
 			
 			$num_row = 0;
+			$in_object = false;
 			
-			DB::startTransaction('ingest_store');
-
 			try {
 				
 				$object_id_processing = 0;
 				
 				foreach ($arr_objects_buffers as $arr_buffer) {
-
+					
+					DB::startTransaction('ingest_store');
+					
+					$in_object = true;
 					$arr_buffer_stored_objects = [];
 					
 					foreach ($arr_buffer as $key) {
@@ -343,53 +370,66 @@ class IngestTypeObjects {
 						$num_row++;
 					}
 					
-					$storage->save();
+					$in_object = false;
 					
+					$storage->save();
 					$storage->commit(true);
 					
 					if ($this->use_log) {
 						
 						foreach ($arr_buffer_stored_objects as $num_row_stored => $object_id_new) {
-							
 							$this->addSourcePointerLog($num_row_stored, $object_id_new);
 						}
 					}
-
-					status(count($arr_object_ids).' objects have been saved.', 'IMPORT', false, ['persist' => false]);
+					
+					DB::commitTransaction('ingest_store');
+					
+					Labels::setVariable('count', count($arr_object_ids));
+					status(getLabel('msg_object_added'), 'IMPORT', false, ['persist' => false]);
 				}
 			} catch (Exception $e) {
 
 				DB::rollbackTransaction('ingest_store');
 				
-				$num_row_error = $num_row + 1;
-				Labels::setVariable('row_number', $num_row_error);
-				msg(getLabel('msg_ingest_error_at_row_number'), false, LOG_CLIENT);
+				$arr_messages = Log::getMessages($e); // Retrieve previous error-related messages from stack
+				Log::removeMessages($e); // Clear previous messages from stack
 				
-				if ($e instanceof RealTroubleDB) {
-					
-					$e_previous = $e->getPrevious(); // Get DBTrouble
-					$str_error = DB::getErrorMessage($e_previous->getCode());
-					
-					if ($str_error === false) {
-						
-						error('IngestTypeObjects ERROR: '.$e->getMessage(), TROUBLE_NOTICE, LOG_SYSTEM, false, $e);
-						$str_error = getLabel('msg_error_database_undisclosed');
-					}
+				$num_row_start = ($num_row - static::$num_store_objects_buffer);
+				$num_row_start = ($num_row_start < 0 ? 0 : $num_row_start);
+				
+				Labels::setVariable('row', ($num_row + 1));
+				if ($in_object) {
+					$str_message = getLabel('msg_ingest_error_at_row_number');
 				} else {
-					
-					error('IngestTypeObjects ERROR: '.$e->getMessage(), TROUBLE_NOTICE, LOG_SYSTEM, false, $e);
-					$str_error = getLabel('msg_error_undisclosed');
+					Labels::setVariable('row_start', ($num_row_start + 1));
+					$str_message = getLabel('msg_ingest_error_store_row_numbers');
 				}
 				
-				$arr_return['error'] = $num_row;
+				msg($str_message, null, LOG_CLIENT, null, null, null, $e);
+				
+				$str_error = $e->getTroubleMessage();
+				
+				if ($e->getTroubleSuppress() == LOG_SYSTEM) { // Capture a system error
+					
+					error('IngestTypeObjects ERROR: '.$str_error, TROUBLE_NOTICE, LOG_SYSTEM, null, $e);
+					$str_error = ($e->getTroubleCode() == TROUBLE_DATABASE ? getLabel('msg_error_database_undisclosed') : getLabel('msg_error_undisclosed'));
+				}
+
+				foreach ($arr_messages as $arr_message) { // Capture a possible client-related error
+					
+					if ($arr_message[Log::MESSAGE_SUPPRESS] != LOG_CLIENT) {
+						continue;
+					}
+					
+					$str_error = $arr_message[Log::MESSAGE_DESCRIPTION];
+				}
+				
+				msg($str_error, Trouble::label(TROUBLE_ERROR), LOG_CLIENT, null, null, null, $e);
+				
+				$arr_return['error'] = ['message' => $str_message, 'row' => $num_row, 'row_start' => ($in_object ? null : $num_row_start)];
 			}
 
-			if ($str_error === false) {
-				
-				$storage->touch(); // Make sure the objects get a status update as late as possible
-				
-				DB::commitTransaction('ingest_store');	
-			}		
+			$storage->touch(); // Make sure the objects get a status update as late as possible
 		}
 		
 		if ($str_error !== false && $this->use_log) {
@@ -401,7 +441,7 @@ class IngestTypeObjects {
 		return $arr_return;
 	}
 	
-    public function resolveFilters($is_ignorable = false) {
+	public function resolveFilters($is_ignorable = false) {
 		
 		$this->is_ignorable_pairs = $is_ignorable;
 		
@@ -445,7 +485,7 @@ class IngestTypeObjects {
 		return false;
 	}
 	
-    protected function resolveObjectFilters() {
+	protected function resolveObjectFilters() {
 		
 		$arr = [];
 		$arr_type_filters = [];
@@ -478,18 +518,17 @@ class IngestTypeObjects {
 	
 		if ($arr_type_filters[$this->type_id]) {
 			
-			$count_filters = count($arr_type_filters[$this->type_id]);
-			Labels::setVariable('count', $count_filters);
-			
+			$num_filters = count($arr_type_filters[$this->type_id]);
+			Labels::setVariable('count', $num_filters);
 			status(getLabel('msg_ingest_filters_found'), 'IMPORT', false, ['persist' => false]);
 			
-			$arr = $this->checkPatternsTypesObjects($arr_type_filters, $this->is_ignorable_pairs);
+			$arr = $this->checkPatternsTypesObjects($arr_type_filters, $this->is_ignorable_pairs, true);
 		}
 		
 		return $arr;
 	}
-    
-    protected function resolveElementFilters() {
+
+	protected function resolveElementFilters() {
 		
 		$arr = [];
 		$arr_type_filters = [];
@@ -580,7 +619,7 @@ class IngestTypeObjects {
 		return $arr;
 	}
 	
-	protected function checkPatternsTypesObjects($arr_type_filters, $is_ignorable = false) {
+	protected function checkPatternsTypesObjects($arr_type_filters, $is_ignorable = false, $is_main_object = false) {
 	
 		$arr = [];
 		$arr_types = StoreType::getTypes();
@@ -596,14 +635,12 @@ class IngestTypeObjects {
 			}
 
 			$time_process = microtime(true);
-			$count_status = 0;
-			$count_matched = 0;
+			$num_count_status = 0;
+			$num_count_matched = 0;
 			
 			$num_new = count($arr_pair_identifiers['new']);
-			
 			Labels::setVariable('type', $arr_types[$type_id]['name']);
 			Labels::setVariable('count', $num_new);
-			
 			status(getLabel('msg_ingest_strings_found'), 'IMPORT', false, ['persist' => false]);
 						
 			foreach ($arr_pair_identifiers['new'] as $str_identifier) {
@@ -620,10 +657,8 @@ class IngestTypeObjects {
 				$arr_filter_error = [];
 
 				try {
-					
 					$arr_objects = $filter->init();
 				} catch (Exception $e) {
-
 					$arr_filter_error[] = $e;
 				}
 				
@@ -631,22 +666,25 @@ class IngestTypeObjects {
 					
 					foreach ($arr_filter_error as &$e) {
 						
-						$arr_code = Trouble::parseCode($e);
+						$arr_messages = Log::getMessages($e); // Retrieve previous error-related messages from stack
+						Log::removeMessages($e); // Clear previous messages from stack
 						
-						if ($arr_code['code'] == TROUBLE_DATABASE) {
-							
-							$e_previous = $e->getPrevious(); // Get DBTrouble
-							$e = DB::getErrorMessage($e_previous->getCode());
-						} else if ($arr_code['suppress'] == LOG_BOTH || $arr_code['suppress'] == LOG_CLIENT) {
-							
-							$e = Trouble::strMsg($e); // Convert to message only
-						} else {
-							$e = false;
+						$str_error = $e->getTroubleMessage();
+						
+						if ($e->getTroubleSuppress() == LOG_SYSTEM) { // Capture a system error
+							$str_error = ($e->getTroubleCode() == TROUBLE_DATABASE ? getLabel('msg_error_database_undisclosed') : getLabel('msg_error_undisclosed'));
 						}
 						
-						if (!$e) {
-							$e = 'Error not visible in log.';
+						foreach ($arr_messages as $arr_message) { // Capture a possible client-related error
+							
+							if ($arr_message[Log::MESSAGE_SUPPRESS] != LOG_CLIENT) {
+								continue;
+							}
+							
+							$str_error = $arr_message[Log::MESSAGE_DESCRIPTION];
 						}
+						
+						$e = $str_error;
 					}
 					
 					return ['error' => ['message' => $arr_filter_error, 'values' => $arr_pattern_value]];
@@ -670,11 +708,11 @@ class IngestTypeObjects {
 					
 					$this->store_pair->storeTypeObjectPair($type_id, $str_identifier, $object_id, $arr_pattern_value);
 					
-					$count_matched++;				
-				} else {
+					$num_count_matched++;				
+				} else { // Collect and return the possible multi or no matches
 					
-					if (!$num_count_objects && $this->mode == self::MODE_OVERWRITE_IF_NOT_EXISTS) {
-						// Is new
+					if ($this->mode == self::MODE_OVERWRITE_IF_NOT_EXISTS && $is_main_object && !$num_count_objects) {
+						// Special case for if not exists when checking matches for the importing Object iself: no matches means handle it as being a new Object.
 					} else {
 						$arr[$type_id][] = ['identifier' => $str_identifier, 'pattern_value' => $arr_pattern_value, 'object_ids' => ($num_count_objects ? array_slice(array_keys($arr_objects), 0, 25) : []), 'is_ignored' => isset($arr_pair_identifiers['ignorable'][$str_identifier])];
 					}
@@ -682,29 +720,27 @@ class IngestTypeObjects {
 				
 				if (microtime(true) - $time_process > static::TIMEOUT_STATUS) {
 					
-					$count_new = count((array)$arr[$type_id]);
-					$count_status = ($count_matched + $count_new);
-					Labels::setVariable('count_status', $count_status);
-					Labels::setVariable('count_matched', $count_matched);
-					Labels::setVariable('count_new', $count_new);
-					
+					$num_count_new = count((array)$arr[$type_id]);
+					$num_count_status = ($num_count_matched + $num_count_new);
+					Labels::setVariable('count_status', $num_count_status);
+					Labels::setVariable('count_matched', $num_count_matched);
+					Labels::setVariable('count_new', $num_count_new);
 					status(getLabel('msg_ingest_strings_processed'), 'IMPORT', false, ['persist' => false]);
 					
 					$time_process = microtime(true);
 				}
 			}
 			
-			$count_new = count((array)$arr[$type_id]);
-			$count_status_final = ($count_matched + $count_new);
+			$num_count_new = count((array)$arr[$type_id]);
+			$num_count_status_final = ($num_count_matched + $num_count_new);
 			
 			$this->store_pair->commitPairs(); // Commit newly added pairs
 
-			if ($count_status_final > $count_status) {
+			if ($num_count_status_final > $num_count_status) {
 				
-				Labels::setVariable('count_status', $count_status_final);
-				Labels::setVariable('count_matched', $count_matched);
-				Labels::setVariable('count_new', $count_new);
-				
+				Labels::setVariable('count_status', $num_count_status_final);
+				Labels::setVariable('count_matched', $num_count_matched);
+				Labels::setVariable('count_new', $num_count_new);
 				status(getLabel('msg_ingest_strings_processed'), 'IMPORT', false, ['persist' => false]);
 			}
 		}
@@ -836,8 +872,10 @@ class IngestTypeObjects {
 		}
 		
 		$this->arr_objects = [];
-		$time_process = microtime(true);
+		$num_time_process = microtime(true);
 		$do_check_identical = false;
+		
+		DB::startTransaction('ingest_process');
 		
 		list($num_start, $num_offset, $num_end) = $this->getLimit();
 		
@@ -922,7 +960,6 @@ class IngestTypeObjects {
 							}
 
 							foreach ($arr_values as $key => $str_value) {
-						
 								$arr_object = $this->formatElementIdentifierValue($this->type_id, $element_id, $str_value, $key, $ref_type_id, $ref_type_object_sub_id, $ref_type_element_id, $arr_object, $arr_options);
 							}	
 						}
@@ -937,7 +974,6 @@ class IngestTypeObjects {
 					$arr_filter = [];
 					
 					foreach ($arr_collected_filter as $arr_collected_filter_part) {
-						
 						$arr_filter = $this->parseElementIDFilter($this->type_id, $arr_collected_filter_part['element_id'], $arr_collected_filter_part['value'], $arr_filter);
 					}
 					
@@ -1085,34 +1121,48 @@ class IngestTypeObjects {
 				
 				$this->addSourcePointerLog($i, $object_id, $str_data, $str_filter, $str_results);
 			}
-			
-			if (microtime(true) - $time_process > static::TIMEOUT_STATUS) {
-			
-				status($i.' of '.$this->num_row_pointers.' results have been processed.', 'IMPORT', false, ['persist' => false]);
-				$time_process = microtime(true);
+						
+			if ((microtime(true) - $num_time_process) > static::TIMEOUT_STATUS) {
+				
+				Labels::setVariable('count_status', $i);
+				Labels::setVariable('count_total', $this->num_row_pointers);
+				status(getLabel('msg_ingest_results_processed'), 'IMPORT', false, ['persist' => false]);
+				
+				$num_time_process = microtime(true);
 			}
 		}
-				
+		
+		DB::commitTransaction('ingest_process');
+		
 		return true;
 	}
 	
-	public function getPointerData($pointer_row, $pointer_heading = false) {
+	public function getPointerData($num_pointer_row, $pointer_heading = false) {
 	
-		if ($pointer_row == $this->count_row_pointer) {
+		if ($num_pointer_row == $this->num_pointer_row) {
 			// Already pointing
 		} else {
 			
-			if ($pointer_row < $this->count_row_pointer) {
+			$str_capture = $this->stream_source->getCapture($num_pointer_row);
 			
-				$this->stream_source->reset();
-				$this->count_stream = 0;
+			if ($str_capture !== null) {
+				
+				$this->str_pointer_row = $str_capture;
+				$this->num_pointer_row = $num_pointer_row;
+			} else {
+				
+				if ($num_pointer_row < $this->num_pointer_row) {
+				
+					$this->stream_source->reset();
+					$this->num_count_stream = 0;
+				}
+				
+				$this->num_pointer_row = $num_pointer_row;
+				$this->stream_source->resume();
 			}
-			
-			$this->count_row_pointer = $pointer_row;
-			$this->stream_source->resume();
 		}
 	
-		$arr_row = json_decode($this->str_row_pointer, true);
+		$arr_row = json_decode($this->str_pointer_row, true);
 		$arr_row = $arr_row[0];
 		
 		if ($pointer_heading === false) {
@@ -1121,7 +1171,7 @@ class IngestTypeObjects {
 			return $arr_row[$pointer_heading];
 		}
 	}
-    	
+
 	protected function parseElementIDFilter($type_id, $element_id, $value, $arr_filter = []) {
 		
 		if (!$this->arr_type_sets[$type_id]) {
@@ -1140,8 +1190,8 @@ class IngestTypeObjects {
 			if ($arr_element[1] == 'id') {
 				
 				$arr_filter['objects'] = [GenerateTypeObjects::parseTypeObjectID($value)];
-			} else if ($arr_element[1] == 'name') {
-								
+			} else if ($arr_element[1] == 'name_plain') {
+				
 				$arr_filter['object_name'][] = ['equality' => '=', 'value' => $value]; // Processed loose '=' to get relevant matches, but also handled strict in checkPatternsTypesObjects to get possible exact match
 			}
 		} else if ($arr_element[0] == 'object_description') {
@@ -1235,7 +1285,7 @@ class IngestTypeObjects {
 
 		if ($arr_element[0] == 'object') {
 			
-			if ($arr_element[1] == 'name') {
+			if ($arr_element[1] == 'name_plain') {
 				
 				$this->arr_options[$type_id]['name'] = $arr_options;
 				
@@ -1673,7 +1723,7 @@ class IngestTypeObjects {
 		}
 	}
 	
-	public function addSourcePointerLogError($num_pointer, $msg) {
+	public function addSourcePointerLogError($num_pointer, $str_msg) {
 		
 		$arr_log = [];
 
@@ -1683,7 +1733,7 @@ class IngestTypeObjects {
 			$arr_log = json_decode($arr_cur['row_results'], true);
 		}
 		
-		$arr_log['error'] = $msg;
+		$arr_log['error'] = $str_msg;
 		$str_log = value2JSON($arr_log);
 		
 		$this->stmt_log_error->bindParameters(['num' => (int)$num_pointer, 'results' => $str_log]);

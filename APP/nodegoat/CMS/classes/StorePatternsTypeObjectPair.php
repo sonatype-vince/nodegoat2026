@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -19,7 +19,7 @@ class StorePatternsTypeObjectPair extends PatternEntity {
 	
 			
 	protected $arr_pairs = [];
-	protected $stmt_select_pattern_type_object = false;
+	protected $stmt_select_pattern_type_object = null;
 	
 	protected $arr_sql_pairs = [];
 	
@@ -34,7 +34,7 @@ class StorePatternsTypeObjectPair extends PatternEntity {
 			return $this->arr_pairs[$type_id][$str_identifier];
 		}
 		
-		if ($this->stmt_select_pattern_type_object === false) {
+		if ($this->stmt_select_pattern_type_object === null) {
 			
 			$this->stmt_select_pattern_type_object = DB::prepare("SELECT
 				nodegoat_ptop.object_id
@@ -64,34 +64,63 @@ class StorePatternsTypeObjectPair extends PatternEntity {
 			
 		$this->cleanupTypeObjectPairs($type_id);
 		
+		$arr_identifiers_new = [];
 		$arr_identifiers_stored = [];
 		$arr_identifiers_ignorable = [];
+		
+		DB::startTransaction('check_patterns');
+		
+		$str_sql_table_name = DB::getTableTemporary(DATABASE_NODEGOAT_TEMP.'.nodegoat_identifiers');
+		
+		DB::queryMulti("
+			DROP ".(DB::ENGINE_IS_MYSQL ? 'TEMPORARY' : '')." TABLE IF EXISTS ".$str_sql_table_name.";
+			
+			CREATE TEMPORARY TABLE ".$str_sql_table_name." (
+				".DBFunctions::castColumnAs('identifier', DBFunctions::CAST_TYPE_BINARY)." NOT NULL,
+				PRIMARY KEY (identifier)
+			) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
+		");
+		
+		$stmt_insert = DB::prepare("INSERT INTO ".$str_sql_table_name." (identifier) VALUES (".DBFunctions::convertTo(DBStatement::assign('identifier', 's'), DBFunctions::TYPE_BINARY, DBFunctions::TYPE_STRING, DBFunctions::FORMAT_STRING_HEX).")");
+
+		foreach ($arr_identifiers as $str_identifier) {
+			
+			$stmt_insert->bindParameters(['identifier' => $str_identifier]);
+			$stmt_insert->execute();
+			
+			$arr_identifiers_new[$str_identifier] = $str_identifier; // To be checked
+		}
+		unset($arr_identifiers);
+		
+		DB::commitTransaction('check_patterns');
 
 		$res = DB::query("SELECT
-				LOWER(".DBFunctions::convertTo('nodegoat_ptop.identifier', DBFunctions::TYPE_STRING, DBFunctions::TYPE_BINARY, DBFunctions::FORMAT_STRING_HEX)."),
-				nodegoat_ptop.object_id
-			FROM ".DB::getTable('DEF_NODEGOAT_PATTERN_TYPE_OBJECT_PAIRS')." nodegoat_ptop
+			LOWER(".DBFunctions::convertTo('nodegoat_ptop.identifier', DBFunctions::TYPE_STRING, DBFunctions::TYPE_BINARY, DBFunctions::FORMAT_STRING_HEX)."),
+			nodegoat_ptop.object_id
+				FROM ".DB::getTable('DEF_NODEGOAT_PATTERN_TYPE_OBJECT_PAIRS')." nodegoat_ptop
+				JOIN ".$str_sql_table_name." nodegoat_identifiers ON (nodegoat_identifiers.identifier = nodegoat_ptop.identifier)
 			WHERE nodegoat_ptop.type_id = ".(int)$type_id."
 				".($num_composition !== null ? "AND nodegoat_ptop.composition = ".(int)$num_composition : "")."
 				"."
 		");
-				 
+		
 		while ($arr_row = $res->fetchRow()) {
+			
+			$str_identifier = $arr_row[0];
 			
 			if ($arr_row[1] === static::PATTERN_IGNORE) {
 				
-				$arr_identifiers_ignorable[$arr_row[0]] = true;
+				$arr_identifiers_ignorable[$str_identifier] = true;
 				
 				if (!$is_ignorable) { // Not ignorable, so do not mark this ignored hash as stored/found
 					continue;
 				}
 			}
 			
-			$arr_identifiers_stored[] = $arr_row[0];
+			unset($arr_identifiers_new[$str_identifier]);
+			$arr_identifiers_stored[$str_identifier] = $str_identifier;
 		}
 
-		$arr_identifiers_new = array_values(array_diff($arr_identifiers, $arr_identifiers_stored));
-		
 		return [
 			'stored' => $arr_identifiers_stored,
 			'new' => $arr_identifiers_new,

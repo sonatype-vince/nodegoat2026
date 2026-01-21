@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -45,6 +45,8 @@ class data_ingest extends ingest_source {
 	protected static $num_pointer_filter_limit = 500;
 	protected static $num_pointer_filter_resolve_limit = 50;
 	
+	protected $num_query_iterate = 0;
+	
 	protected function createTemplateSettingsExtra($arr_import_template) {
 		
 		return '';
@@ -67,7 +69,7 @@ class data_ingest extends ingest_source {
 		
 		if ($arr_template['is_mode_query']) { // Query mode
 
-			$html_state = '<li>
+			$str_html_state = '<li>
 				<label>'.getLabel('lbl_type_module_objects_processed').'</label>
 				<div>'.FilterTypeObjects::getModuleObjectTypeCount($system_object_description_id, $system_object_id, $system_type_id).'</div>
 			</li>';
@@ -106,7 +108,7 @@ class data_ingest extends ingest_source {
 				$str_processed = getLabel('lbl_none');
 			}
 					
-			$html_state = '<li>
+			$str_html_state = '<li>
 				<label>'.getLabel('lbl_data_ingest_cache').'</label>
 				<div>'.$str_cache .'</div>
 			</li>
@@ -132,7 +134,7 @@ class data_ingest extends ingest_source {
 			<fieldset>
 				<legend>'.getLabel('lbl_status').' <input type="button" id="y:data_ingest:reset_process-'.$arr_template['identifier'].'_'.$source_id.'" class="data del quick" value="reset" /></legend>
 				<ul>
-					'.$html_state.'
+					'.$str_html_state.'
 				</ul>
 			</fieldset>
 			
@@ -164,9 +166,9 @@ class data_ingest extends ingest_source {
 		while (true) {
 			
 			if ($arr_template['is_mode_query']) {
-				$html = $this->doProcessTemplateQuery($arr_template, $source_id);
+				$str_html = $this->doProcessTemplateQuery($arr_template, $source_id);
 			} else {
-				$html = $this->doProcessTemplateFilter($arr_template, $source_id);
+				$str_html = $this->doProcessTemplateFilter($arr_template, $source_id);
 			}
 			
 			if ($this->is_done_template_process || $this->has_feedback_template_process) {
@@ -178,15 +180,15 @@ class data_ingest extends ingest_source {
 			$this->is_new_template_process = true;
 		}
 		
-		$html = '<div class="ingest-source template-process">
-			'.$html.'
+		$str_html = '<div class="ingest-source template-process">
+			'.$str_html.'
 		</div>'
 		.'<input name="ingest[in_process]" type="hidden" value="1" />';
 		
 		return [
 			'is_done' => $this->is_done_template_process,
 			'has_feedback' => $this->has_feedback_template_process,
-			'html' => $html
+			'html' => $str_html
 		];
 	}
 	
@@ -231,9 +233,9 @@ class data_ingest extends ingest_source {
 		$get_new = true;
 		
 		if (isPath($arr_state['source'])) { // Still has file, check to continue
-						
+			
 			$file_source = $arr_state['source'];
-			$pointer_state = $arr_state['pointer_state'];
+			$num_pointer_state = $arr_state['pointer_state'];
 			
 			$arr_object_ids = static::getModuleObjectTypeObjects($system_object_id, $use_type_id, $arr_filter_objects, 1, false);
 			$arr_object_ids = array_keys($arr_object_ids);
@@ -257,7 +259,7 @@ class data_ingest extends ingest_source {
 				$count = (int)FilterTypeObjects::getModuleObjectTypeCount($system_object_description_id, $system_object_id, $system_type_id);
 				$arr_result = ['count' => $count, 'mode' => IngestTypeObjects::MODE_UPDATE];
 				
-				return $this->createProcessTemplateStoreCheck($arr_result);
+				return $this->createProcessTemplateStoreCheck($arr_template, $arr_result);
 			}
 			
 			Mediator::checkState();
@@ -320,6 +322,8 @@ class data_ingest extends ingest_source {
 				}
 
 				$external = new ResourceExternal($arr_resource);
+				$external->debug(Settings::get('debug', 'nodegoat_ingest_request'));
+				$external->setTimeout(null, null, null, true);
 				$external->setFilter($arr_filter, true);
 				$external->setResultConversionSocket($socket);
 				$external->request();
@@ -351,7 +355,7 @@ class data_ingest extends ingest_source {
 			
 			static::updateTemplateState($system_object_id, ['object_ids' => $arr_object_ids, 'status' => 'pending']);
 
-			$pointer_state = 0;
+			$num_pointer_state = 0;
 		}
 		
 		$ingest->setSource($file_source);
@@ -359,9 +363,11 @@ class data_ingest extends ingest_source {
 		$is_ignorable = (!$this->is_new_template_process);
 		$arr_unresolved_filters = $ingest->resolveFilters($is_ignorable);
 		
+		$str_html = null;
+		
 		if ($arr_unresolved_filters) {
 			
-			$html = $this->createProcessTemplateResultCheck($arr_unresolved_filters);
+			$str_html = $this->createProcessTemplateResultCheck($arr_unresolved_filters);
 
 			$this->has_feedback_template_process = true;
 		} else {
@@ -371,24 +377,37 @@ class data_ingest extends ingest_source {
 			$ingest->process();
 			
 			$arr_result = $ingest->store();
-			
+
 			if ($arr_result['locked'] !== null || $arr_result['error'] !== null) {
-				
 				$this->has_feedback_template_process = true;
 			} else {
-				
 				static::updateTemplateState($system_object_id, ['source' => $arr_state['source'], 'object_ids' => $arr_object_ids, 'status' => 'done']);
 			}
+			
+			$ingest->unsetSource();
 			
 			SiteStartEnvironment::startSession();
 			
 			if ($this->has_feedback_template_process) {
 				
-				$html = $this->createProcessTemplateStoreCheck($arr_result);
+				$str_html = $this->createProcessTemplateStoreCheck($arr_template, $arr_result);
+			} else {
+				
+				if ($this->num_query_iterate % 100 == 0) { // Do cleanup and checks
+					
+					Mediator::runListeners('cleanup.program');
+					
+					$arr_nodegoat_details = cms_nodegoat_details::getDetails();
+					if ($arr_nodegoat_details['processing_time']) {
+						timeLimit($arr_nodegoat_details['processing_time']);
+					}
+				}
+				
+				$this->num_query_iterate++;
 			}
 		}
 		
-		return $html;
+		return $str_html;
 	}
 	
 	protected function doProcessTemplateFilter($arr_template, $source_id) {
@@ -413,11 +432,11 @@ class data_ingest extends ingest_source {
 		if (isPath($arr_state['source']) && $arr_state['pointer_state'] >= 0) { // Still has complete file, continue
 			
 			$file_source = $arr_state['source'];
-			$pointer_state = $arr_state['pointer_state'];
+			$num_pointer_state = $arr_state['pointer_state'];
 		} else {
 			
-			$pointer_state = -1; // Creating cache
-			static::updateTemplateState($system_object_id, ['pointer_state' => $pointer_state]);
+			$num_pointer_state = -1; // Creating cache
+			static::updateTemplateState($system_object_id, ['pointer_state' => $num_pointer_state]);
 
 			$arr_filter = [];
 
@@ -431,27 +450,30 @@ class data_ingest extends ingest_source {
 				$arr_filter_value[$arr_pointer['pointer_heading']][] = $arr_pointer['value'];
 			}
 			
-			$num_offset = false;
-			$num_limit = false;
+			$num_offset = null;
+			$num_limit = null;
+			$has_iteration = false;
 			
 			$external = new ResourceExternal($arr_resource);
 			$arr_request_variables = $external->getRequestVariables();
 			$arr_response_values = $external->getResponseValues(true);
 			
-			if ($arr_request_variables['offset'] && $arr_request_variables['limit']) {
+			if ($arr_request_variables['offset'] !== false && $arr_request_variables['limit'] !== false) {
 				
 				$num_offset = 0;
-
-				if (is_numeric($arr_request_variables['limit'])) {
+				if (is_integer($arr_request_variables['offset'])) {
+					$num_offset = $arr_request_variables['offset'];		
+				}
+				
+				$num_limit = 1000;
+				if (is_integer($arr_request_variables['limit'])) {
 					$num_limit = $arr_request_variables['limit'];		
-				} else {
-					$num_limit = 1000;
 				}
 			}
 			
-			$file_source = false;
-			$stream = false;
-			$socket = false;
+			$file_source = null;
+			$stream = null;
+			$socket = null;
 			
 			if (arrHasKeysRecursive('conversion_id', $arr_response_values, true)) {
 				$socket = $this->getConversionSocket();
@@ -471,19 +493,20 @@ class data_ingest extends ingest_source {
 				
 				if (!$num_limit) {
 					
-					if (!$num_offset) {
+					if (!$has_iteration) {
 					
 						$this->is_done_template_process = true;
 					
 						$arr_result = ['count' => 0, 'mode' => $ingest->getMode()];
 					
-						return $this->createProcessTemplateStoreCheck($arr_result);
+						return $this->createProcessTemplateStoreCheck($arr_template, $arr_result);
 					} else {
+						
 						break;
 					}
 				} else {
 					
-					if (!$num_offset) {
+					if (!$has_iteration) {
 						
 						FileStore::storeFile($arr_state['source']);
 						$file_source = fopen($arr_state['source'], 'w+');
@@ -494,36 +517,41 @@ class data_ingest extends ingest_source {
 
 				IngestTypeObjectsResourceExternal::streamSource($stream, $external, $arr_filter_value);
 				
-				if ($num_offset === false) {
+				if ($num_offset === null) { // Iteration not supported
 					break;
 				}
 				
 				$num_offset += $num_limit;
+				$has_iteration = true;
 			}
 			
 			if ($file_source) {
+				
 				$stream->close();
 				rewind($file_source);
 			}
+			
 			if ($socket) {
 				$socket->close();
 			}
 			
-			$pointer_state = 0; // Has cache
-			static::updateTemplateState($system_object_id, ['pointer_state' => $pointer_state]);
+			$num_pointer_state = 0; // Has cache
+			static::updateTemplateState($system_object_id, ['pointer_state' => $num_pointer_state]);
 		}
 		
 		$num_limit = ($ingest->hasResolveFilters() ? static::$num_pointer_filter_resolve_limit : static::$num_pointer_filter_limit);
 
 		$ingest->setSource($file_source);
-		$ingest->setLimit([$pointer_state, $num_limit]);
+		$ingest->setLimit([$num_pointer_state, $num_limit]);
 		
 		$is_ignorable = (!$this->is_new_template_process);
 		$arr_unresolved_filters = $ingest->resolveFilters($is_ignorable);
 		
+		$str_html = null;
+		
 		if ($arr_unresolved_filters) {
 			
-			$html = $this->createProcessTemplateResultCheck($arr_unresolved_filters);
+			$str_html = $this->createProcessTemplateResultCheck($arr_unresolved_filters);
 			
 			$this->has_feedback_template_process = true;
 		} else {
@@ -539,29 +567,30 @@ class data_ingest extends ingest_source {
 				$this->has_feedback_template_process = true;
 			} else {
 
-				$count_max = $ingest->getRowPointerCount();
-				$count_total = ($pointer_state + $num_limit);
-				$count_total = ($count_total > $count_max ? $count_max : $count_total);
+				$num_max = $ingest->getRowPointerCount();
+				$num_total = ($num_pointer_state + $num_limit);
+				$num_total = ($num_total > $num_max ? $num_max : $num_total);
 				
-				static::updateTemplateState($system_object_id, ['pointer_state' => $count_total]);
+				static::updateTemplateState($system_object_id, ['pointer_state' => $num_total]);
 				
-				if ($count_total == $count_max) {
+				if ($num_total == $num_max) {
 					
 					$this->is_done_template_process = true;
 					
-					$arr_result['count'] = $count_max;
+					$arr_result['count'] = $num_max;
 				}
 			}
+			
+			$ingest->unsetSource();
 			
 			SiteStartEnvironment::startSession();
 			
 			if ($this->has_feedback_template_process || $this->is_done_template_process) {
-				
-				$html = $this->createProcessTemplateStoreCheck($arr_result);
+				$str_html = $this->createProcessTemplateStoreCheck($arr_template, $arr_result);
 			}
 		}
 		
-		return $html;
+		return $str_html;
 	}
 	
 	protected function getConversionSocket() {
@@ -680,7 +709,7 @@ class data_ingest extends ingest_source {
 			$arr_template = static::getTemplate($object_id);
 			
 			$this->html = $this->createCheckTemplate($arr_template, $source_id);
-			$this->msg = true;
+			$this->message = true;
 		}
 	}
 	

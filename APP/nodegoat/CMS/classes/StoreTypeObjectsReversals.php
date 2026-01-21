@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -265,11 +265,15 @@ class StoreTypeObjectsReversals extends StoreTypeObjects {
 				
 				DB::rollbackTransaction(false);
 				
-				$store_state->updateModuleState(StoreTypeObjects::MODULE_STATE_DISABLED, BIT_MODE_ADD);
-				
+				if ($e->getTroubleCode() == TROUBLE_DATABASE && $e->getPrevious()->getClientMessage() == getLabel('msg_error_database_deadlock')) {
+					// Ignore error for now, retry later
+				} else {
+					$store_state->updateModuleState(StoreTypeObjects::MODULE_STATE_DISABLED, BIT_MODE_ADD);
+				}
+
 				error(__METHOD__.' ERROR:'.EOL_1100CC
 					.'	Type = '.$reversal_id.' Category = '.$category_id.' Referenced Type = '.$referenced_type_id,
-				TROUBLE_NOTICE, LOG_BOTH, false, $e); // Make notice
+				TROUBLE_NOTICE, LOG_BOTH, null, $e); // Make notice
 				
 				// Cleanup
 				GenerateTypeObjects::cleanResults();
@@ -593,9 +597,9 @@ class StoreTypeObjectsReversals extends StoreTypeObjects {
 			
 			foreach ($this->arr_updated_ids['object_description_texts']['descriptions'] as $object_description_id) {
 				
-				$this->stmt_update_object_definitions_texts_old->bindParameters(['category_id' => $category_id, 'object_description_id' => $object_description_id, 'category_id_alt' => $category_id, 'object_description_id_alt' => $object_description_id]);
+				$this->stmt_update_object_definitions_texts_old->bindParameters(['category_id' => $category_id, 'object_description_id' => $object_description_id]);
 				$this->stmt_update_object_definitions_texts_old->execute();
-				$this->stmt_update_object_definitions_texts_new->bindParameters(['category_id' => $category_id, 'object_description_id' => $object_description_id, 'category_id_alt' => $category_id, 'object_description_id_alt' => $object_description_id]);
+				$this->stmt_update_object_definitions_texts_new->bindParameters(['category_id' => $category_id, 'object_description_id' => $object_description_id]);
 				$this->stmt_update_object_definitions_texts_new->execute();
 			}
 			
@@ -756,35 +760,31 @@ class StoreTypeObjectsReversals extends StoreTypeObjects {
 		");*/
 		$this->stmt_update_object_definitions_texts_old = DB::prepare("UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$sql_table_name_text." SET
 				".$sql_value_text." = NULL
-			WHERE (
-					object_description_id = ".DBStatement::assign('object_description_id', 'i')."
-					AND identifier = ".DBStatement::assign('category_id', 'i')."
-					AND active = TRUE
+			WHERE object_description_id = ".DBStatement::assign('object_description_id', 'i')."
+				AND identifier = ".DBStatement::assign('category_id', 'i')."
+				AND ((
+					active = TRUE
 					AND status = 0
 					AND version = 1
 				) OR (
-					object_description_id = ".DBStatement::assign('object_description_id_alt', 'i')."
-					AND identifier = ".DBStatement::assign('category_id_alt', 'i')."
-					AND active = FALSE
+					active = FALSE
 					AND status = 0
 					AND version = ".static::VERSION_OFFSET_ALTERNATE_ACTIVE."
-				)
+				))
 		");
 		$this->stmt_update_object_definitions_texts_new = DB::prepare("UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$sql_table_name_text." SET
 				status = 0
-			WHERE (
-					object_description_id = ".DBStatement::assign('object_description_id', 'i')."
-					AND identifier = ".DBStatement::assign('category_id', 'i')."
-					AND active = TRUE
+			WHERE object_description_id = ".DBStatement::assign('object_description_id', 'i')."
+				AND identifier = ".DBStatement::assign('category_id', 'i')."
+				AND ((
+					active = TRUE
 					AND status >= 10
 					AND version = 1
 				) OR (
-					object_description_id = ".DBStatement::assign('object_description_id_alt', 'i')."
-					AND identifier = ".DBStatement::assign('category_id_alt', 'i')."
-					AND active = FALSE
+					active = FALSE
 					AND status >= 10
 					AND version = ".static::VERSION_OFFSET_ALTERNATE_ACTIVE."
-				)
+				))
 		");
 		
 		// Statements used to update whole Reversals

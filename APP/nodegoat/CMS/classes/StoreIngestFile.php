@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -136,8 +136,9 @@ class StoreIngestFile {
 						ignore_when = ".(int)$arr_pointer['ignore_when'].",
 						sort = ".$sort." 
 					WHERE id = ".(int)$arr_pointer['id']."
+						AND template_id = ".(int)$template_id."
 				");
-								
+				
 				$arr_ids[] = (int)$arr_pointer['id'];
 			} else {
 				
@@ -182,40 +183,42 @@ class StoreIngestFile {
 
 	public static function handleSource($source_id, $type, $arr_details, $arr_files) {
 		
-		$filename = false;
+		$str_filename = null;
 		
 		if ($arr_files) {
 			
-			$arr_file = false;
-			$extension = FileStore::getExtension($arr_files['file']['name']);
+			$arr_file = null;
+			$str_extension = FileStore::getExtension($arr_files['file']['name']);
 			
-			if ($extension == 'csv' || $extension == 'tsv' || $extension == FileStore::EXTENSION_UNKNOWN) {
+			if ($str_extension == 'csv' || $str_extension == 'tsv' || $str_extension == FileStore::EXTENSION_UNKNOWN) {
 				
 				$arr_nodegoat_details = cms_nodegoat_details::getDetails();
 				if ($arr_nodegoat_details['processing_time']) {
 					timeLimit($arr_nodegoat_details['processing_time']);
 				}
+				memoryBoost(100, true); // Add a bit of memory overhead for the stream
 				$num_limit = $arr_nodegoat_details['limit_import'];
 
 				$arr_source = IngestTypeObjectsFile::convertSource($arr_files['file'], false, $num_limit);
 				
 				if ($arr_source) {
+					
 					$arr_file = $arr_source['file'];
 					$num_objects = $arr_source['num_objects'];
 				}
 			}
 			
 			if (!$arr_file) {
-				error(getLabel('msg_invalid_file_type'));
+				error(getLabel('msg_invalid_file_type'), TROUBLE_ERROR, LOG_BOTH, $arr_files['file']['name']);
 			}
 
-			$filename = hash_file('md5', $arr_file['tmp_name']);
-			$filename = $filename.'.json';
+			$str_filename = hash_file('md5', $arr_file['tmp_name']);
+			$str_filename = $str_filename.'.json';
 			
-			$arr_file['name'] = $filename;
+			$arr_file['name'] = $str_filename;
 			
-			if (!isPath(DIR_HOME_TYPE_IMPORT.$filename)) {
-				$store_file = new FileStore($arr_file, ['directory' => DIR_HOME_TYPE_IMPORT, 'filename' => $filename]);
+			if (!isPath(DIR_HOME_TYPE_IMPORT.$str_filename)) {
+				$store_file = new FileStore($arr_file, ['directory' => DIR_HOME_TYPE_IMPORT, 'filename' => $str_filename]);
 			}
 		}
 			
@@ -223,12 +226,12 @@ class StoreIngestFile {
 			
 			$arr_source_file = static::getSources($source_id);
 			
-			if (!$filename) {
+			if (!$str_filename) {
 				
-				$filename = $arr_source_file['filename'];
+				$str_filename = $arr_source_file['filename'];
 				$num_objects = $arr_source_file['total_objects'];
 				
-			} else if ($arr_source_file['filename'] && $arr_source_file['filename'] != $filename) {
+			} else if ($arr_source_file['filename'] && $arr_source_file['filename'] != $str_filename) {
 				
 				$res = DB::query("SELECT *
 						FROM ".DB::getTable('DEF_NODEGOAT_IMPORT_FILES')."
@@ -243,7 +246,7 @@ class StoreIngestFile {
 			$res = DB::query("UPDATE ".DB::getTable('DEF_NODEGOAT_IMPORT_FILES')." SET
 					name = '".DBFunctions::strEscape($arr_details['name'])."',
 					description = '".DBFunctions::strEscape($arr_details['description'])."',
-					filename = '".DBFunctions::strEscape($filename)."',
+					filename = '".DBFunctions::strEscape($str_filename)."',
 					total_objects = ".(int)$num_objects."
 				WHERE id = ".(int)$source_id."
 			");
@@ -256,7 +259,7 @@ class StoreIngestFile {
 					"."
 					'".DBFunctions::strEscape($arr_details['name'])."',
 					'".DBFunctions::strEscape($arr_details['description'])."',
-					'".DBFunctions::strEscape($filename)."',
+					'".DBFunctions::strEscape($str_filename)."',
 					".(int)$num_objects."
 				)
 			");
@@ -396,7 +399,7 @@ class StoreIngestFile {
 	
 	public static function setTemplateLastRun($template_id, $num_time = false) {
 		
-		$sql_time = DBFunctions::str2Date($num_time ?: time());
+		$sql_time = DBFunctions::str2DateTime($num_time ?: DBFunctions::numTimeNow(), '=');
 		
 		$res = DB::query("UPDATE ".DB::getTable('DEF_NODEGOAT_IMPORT_TEMPLATES')." SET
 				last_run = '".$sql_time."'
@@ -414,7 +417,7 @@ class StoreIngestFile {
 			".DBFunctions::deleteWith(
 				DB::getTable('DATA_NODEGOAT_IMPORT_TEMPLATE_LOG'), 'nodegoat_itl', 'template_id',
 				"JOIN ".DB::getTable('DEF_NODEGOAT_IMPORT_TEMPLATES')." nodegoat_it ON (nodegoat_it.id = nodegoat_itl.template_id
-					AND nodegoat_it.last_run < (NOW() - ".DBFunctions::interval($num_minutes, 'MINUTE').")
+					AND nodegoat_it.last_run < (".DBFunctions::dateTimeNow()." - ".DBFunctions::interval($num_minutes, 'MINUTE').")
 				)"
 			).";
 			

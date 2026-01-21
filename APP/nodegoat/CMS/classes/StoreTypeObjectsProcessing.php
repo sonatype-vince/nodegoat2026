@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -38,7 +38,7 @@ class StoreTypeObjectsProcessing extends StoreTypeObjects {
 			SELECT DISTINCT
 				nodegoat_tos.id AS object_sub_id
 					FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to
-					".($date_after ? "JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')." nodegoat_to_status ON (nodegoat_to_status.object_id = nodegoat_to.id AND nodegoat_to_status.date > '".DBFunctions::str2Date($date_after)."' AND nodegoat_to_status.date <= '".DBFunctions::str2Date($date_to)."')" : "")."
+					".($date_after ? "JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')." nodegoat_to_status ON (nodegoat_to_status.object_id = nodegoat_to.id AND nodegoat_to_status.date > '".DBFunctions::str2DateTime($date_after)."' AND nodegoat_to_status.date <= '".DBFunctions::str2DateTime($date_to)."')" : "")."
 					JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.object_id = nodegoat_to.id AND ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ANY, 'object_sub', 'nodegoat_tos').")
 				WHERE ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ANY, 'object', 'nodegoat_to')."
 		";
@@ -49,7 +49,7 @@ class StoreTypeObjectsProcessing extends StoreTypeObjects {
 			CREATE TEMPORARY TABLE ".$table_name_tos_changed." (
 				object_sub_id INT,
 					PRIMARY KEY (object_sub_id)
-			) ".DBFunctions::sqlTableOptions(($date_after ? DBFunctions::TABLE_OPTION_MEMORY : false))."
+			) ".DBFunctions::tableOptions(($date_after ? DBFunctions::TABLE_OPTION_MEMORY : false))."
 				".(DB::ENGINE_IS_MYSQL ? "AS (".$sql_query.")"
 				:
 				"; INSERT INTO ".$table_name_tos_changed."
@@ -140,7 +140,7 @@ class StoreTypeObjectsProcessing extends StoreTypeObjects {
 					(SELECT DISTINCT
 						nodegoat_tos.id AS object_sub_id
 							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to
-							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')." nodegoat_to_status ON (nodegoat_to_status.object_id = nodegoat_to.id AND nodegoat_to_status.date > '".DBFunctions::str2Date($date_after)."' AND nodegoat_to_status.date <= '".DBFunctions::str2Date($date_to)."')
+							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')." nodegoat_to_status ON (nodegoat_to_status.object_id = nodegoat_to.id AND nodegoat_to_status.date > '".DBFunctions::str2DateTime($date_after)."' AND nodegoat_to_status.date <= '".DBFunctions::str2DateTime($date_to)."')
 							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DATE_CHRONOLOGY')." nodegoat_tos_date_chrono ON (nodegoat_tos_date_chrono.cycle_object_id = nodegoat_to.id AND nodegoat_tos_date_chrono.active = TRUE)
 							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_date_chrono.object_sub_id AND nodegoat_tos.date_version = nodegoat_tos_date_chrono.version AND ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ANY, 'object_sub', 'nodegoat_tos').")
 							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to2 ON (nodegoat_to2.id = nodegoat_tos.object_id AND ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ANY, 'object', 'nodegoat_to2').")
@@ -169,7 +169,7 @@ class StoreTypeObjectsProcessing extends StoreTypeObjects {
 					active BOOLEAN,
 					status SMALLINT,
 						PRIMARY KEY (object_sub_id, active, status)
-				) ".DBFunctions::sqlTableOptions(($date_after ? DBFunctions::TABLE_OPTION_MEMORY : false)).";
+				) ".DBFunctions::tableOptions(($date_after ? DBFunctions::TABLE_OPTION_MEMORY : false)).";
 				
 				-- Select and store all new ".$sql_field_target." values.
 				
@@ -262,7 +262,7 @@ class StoreTypeObjectsProcessing extends StoreTypeObjects {
 								)
 							)
 							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to ON (nodegoat_to.id = nodegoat_tos.object_id AND ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ANY, 'object', 'nodegoat_to').")
-						WHERE nodegoat_to_status.date > '".DBFunctions::str2Date($date_after)."' AND nodegoat_to_status.date <= '".DBFunctions::str2Date($date_to)."'
+						WHERE nodegoat_to_status.date > '".DBFunctions::str2DateTime($date_after)."' AND nodegoat_to_status.date <= '".DBFunctions::str2DateTime($date_to)."'
 					)
 					".DBFunctions::onConflict('object_sub_id', false)."
 				;
@@ -305,7 +305,7 @@ class StoreTypeObjectsProcessing extends StoreTypeObjects {
 				active BOOLEAN,
 				status SMALLINT,
 					PRIMARY KEY (object_sub_id, geometry_object_sub_id, active, status)
-			) ".DBFunctions::sqlTableOptions(($date_after ? DBFunctions::TABLE_OPTION_MEMORY : false)).";
+			) ".DBFunctions::tableOptions(($date_after ? DBFunctions::TABLE_OPTION_MEMORY : false)).";
 			
 			-- Select and store all new location values, use conflict clause in case of duplicate end/geometry sub-objects.
 			
@@ -394,7 +394,7 @@ class StoreTypeObjectsProcessing extends StoreTypeObjects {
 	public static function revertTypeObjectsVersion($type_id, $date, $do_deleted_only = false, $str_sql_table_name = false) { // In development. TODO: also check/use status, check/use user ID.
 		
 		$str_sql = '';
-		$str_sql_date = DBFunctions::str2Date($date);
+		$str_sql_date = DBFunctions::str2DateTime($date);
 		
 		if (!$str_sql_table_name) {
 			
@@ -405,7 +405,7 @@ class StoreTypeObjectsProcessing extends StoreTypeObjects {
 				
 				CREATE TEMPORARY TABLE ".$str_sql_table_name." (
 					PRIMARY KEY (id)
-				) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY)." AS (
+				) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY)." AS (
 					SELECT id
 							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to
 						WHERE nodegoat_to.type_id = ".(int)$type_id."
@@ -462,7 +462,7 @@ class StoreTypeObjectsProcessing extends StoreTypeObjects {
 	public static function revertTypeObjectsDescriptionVersion($type_id, $object_description_id, $date, $do_deleted_only = false, $str_sql_table_name = false) { // In development. TODO: also check/use status, check/use user ID.
 				
 		$str_sql = '';
-		$str_sql_date = DBFunctions::str2Date($date);
+		$str_sql_date = DBFunctions::str2DateTime($date);
 		
 		if (!$str_sql_table_name) {
 			
@@ -473,7 +473,7 @@ class StoreTypeObjectsProcessing extends StoreTypeObjects {
 				
 				CREATE TEMPORARY TABLE ".$str_sql_table_name." (
 					PRIMARY KEY (id)
-				) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY)." AS (
+				) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY)." AS (
 					SELECT id
 							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to
 						WHERE nodegoat_to.type_id = ".(int)$type_id."
@@ -547,7 +547,7 @@ class StoreTypeObjectsProcessing extends StoreTypeObjects {
 				
 				CREATE TEMPORARY TABLE ".$str_sql_table_name." (
 					PRIMARY KEY (id)
-				) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY)." AS (
+				) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY)." AS (
 					SELECT id
 							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to
 						WHERE NOT EXISTS (

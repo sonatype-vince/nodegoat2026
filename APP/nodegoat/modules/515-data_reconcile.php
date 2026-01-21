@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -366,7 +366,7 @@ class data_reconcile extends base_module {
 			$count = (int)FilterTypeObjects::getModuleObjectTypeCount($system_object_description_id, $system_object_id, $system_type_id);
 			$arr_result = ['count' => $count];
 			
-			return $this->createProcessTemplateStoreCheck($arr_result);
+			return $this->createProcessTemplateStoreCheck($arr_template, $arr_result);
 		}
 		
 		$arr_test_filter = false;
@@ -399,7 +399,7 @@ class data_reconcile extends base_module {
 			
 			$this->has_feedback_template_process = true;
 			
-			$html = $this->createProcessTemplateStoreCheck($arr_result);
+			$html = $this->createProcessTemplateStoreCheck($arr_template, $arr_result);
 		} else {
 			
 			$html = $this->createProcessTemplateResultCheck($arr_template, $arr_reconcile, $arr_result);
@@ -463,7 +463,7 @@ class data_reconcile extends base_module {
 
 			$this->has_feedback_template_process = true;
 			
-			return $this->createProcessTemplateStoreCheck(['locked' => $arr_locked]);
+			return $this->createProcessTemplateStoreCheck($arr_template, ['locked' => $arr_locked]);
 		}
 		
 		if ($has_updates) {
@@ -671,7 +671,7 @@ class data_reconcile extends base_module {
 			} catch (Exception $e) {
 				
 				Labels::setVariable('object', $object_id_processing);
-				msg(getLabel('msg_object_error'), false, LOG_CLIENT);
+				msg(getLabel('msg_object_error'), false, LOG_CLIENT, false, false, null, $e);
 
 				DB::rollbackTransaction('data_reconcile_store');
 				throw($e);
@@ -685,7 +685,7 @@ class data_reconcile extends base_module {
 		static::updateTemplateState($system_object_id, ['object_ids' => array_keys($arr_objects), 'status' => 'done']);
 		
 		Labels::setVariable('count', count($arr_objects));
-		status(getLabel('msg_object_updated'), false, LOG_CLIENT);
+		status(getLabel('msg_object_updated'));
 		
 		return;
 	}
@@ -715,7 +715,7 @@ class data_reconcile extends base_module {
 		$store_pair->commitPairs();
 	}
 	
-	protected function createProcessTemplateStoreCheck($arr_result) {
+	protected function createProcessTemplateStoreCheck($arr_template, $arr_result) {
 		
 		if ($arr_result['locked'] !== null) {
 
@@ -1307,7 +1307,7 @@ class data_reconcile extends base_module {
 			$arr_template = static::getTemplate($object_id);
 			
 			$this->html = $this->createRunTemplate($arr_template);
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == "edit") {
@@ -1342,99 +1342,12 @@ class data_reconcile extends base_module {
 	
 	public static function getTypeObjectDescriptionsText($type_id) {
 		
-		$arr_type_set = StoreType::getTypeSet($type_id);
-		$arr_type_set_flat = StoreType::getTypeSetFlatMap($type_id, ['object' => true, 'references' => false]);
-		
-		$arr_type_set_filtered = [];
-		
-		if ($arr_type_set_flat['object-name']) {
-			$arr_type_set_filtered['object-name'] = $arr_type_set_flat['object-name'];
-		}
-	
-		foreach ($arr_type_set['object_descriptions'] as $object_description_id => $arr_object_description) {
-			
-			$value_type = $arr_object_description['object_description_value_type'];
-			
-			if (!($value_type == '' || $value_type == 'text' || $value_type == 'text_layout' || $value_type == 'text_tags')) {
-				continue;
-			}
-			
-			$str_id = 'object_description-'.$object_description_id;
-			
-			$arr_type_set_filtered[$str_id] = $arr_type_set_flat[$str_id];
-		}
-		
-		foreach ($arr_type_set['object_sub_details'] as $object_sub_details_id => $arr_object_sub_details) {
-			foreach ($arr_object_sub_details['object_sub_descriptions'] as $object_sub_description_id => $arr_object_sub_description) {
-				
-				$value_type = $arr_object_sub_description['object_sub_description_value_type'];
-			
-				if (!($value_type == '' || $value_type == 'text' || $value_type == 'text_layout' || $value_type == 'text_tags')) {
-					continue;
-				}
-				
-				$str_id = 'object_sub_details-'.$object_sub_details_id.'-object_sub_description-'.$object_sub_description_id;
-
-				$arr_type_set_filtered[$str_id] = $arr_type_set_flat[$str_id];
-			}
-		}
-		
-		return $arr_type_set_filtered;
+		return data_model::getTypeObjectDescriptionsByValueType($type_id, ['' => true, 'text' => true, 'text_layout' => true, 'text_tags' => true], ['name_plain' => true]);
 	}
 	
 	public static function getTypeObjectDescriptionsReference($type_id, $test_type_id) {
 		
-		$arr_type_set = StoreType::getTypeSet($type_id);
-		$arr_type_set_flat = StoreType::getTypeSetFlatMap($type_id, ['object' => false, 'references' => true]);
-		
-		$arr_type_set_filtered = [];
-	
-		foreach ($arr_type_set['object_descriptions'] as $object_description_id => $arr_object_description) {
-			
-			if (!StoreType::hasReferenceTypeID($arr_object_description['object_description_ref_type_id'], $test_type_id)) {
-				continue;
-			}
-			
-			$str_id = 'object_description-'.$object_description_id;
-			
-			$arr_type_set_filtered[$str_id] = $arr_type_set_flat[$str_id];
-		}
-		
-		foreach ($arr_type_set['object_sub_details'] as $object_sub_details_id => $arr_object_sub_details) {
-			
-			$str_identifier = 'object_sub_details-'.$object_sub_details_id;
-			
-			$str_id = false;
-			
-			if (!$arr_object_sub_details['object_sub_details']['object_sub_details_location_ref_type_id_locked']) {
-				
-				$str_id = $str_identifier.'-location_ref_type_id';
-			} else if ($arr_object_sub_details['object_sub_details']['object_sub_details_location_ref_type_id_locked'] && $arr_object_sub_details['object_sub_details']['object_sub_details_location_ref_type_id'] == $test_type_id) {
-				
-				if ($arr_object_sub_details['object_sub_details']['object_sub_details_location_ref_object_sub_details_id_locked']) {
-					$str_id = $str_identifier.'-location_ref_type_id-object_sub_details_lock';
-				} else if ($arr_object_sub_details['object_sub_details']['object_sub_details_location_ref_type_id_locked']) {
-					$str_id = $str_identifier.'-location_ref_type_id-type_lock-'.$test_type_id;
-				}
-			}
-			
-			if ($arr_type_set_flat[$str_id]) {
-				$arr_type_set_filtered[$str_id] = $arr_type_set_flat[$str_id];
-			}
-			
-			foreach ($arr_object_sub_details['object_sub_descriptions'] as $object_sub_description_id => $arr_object_sub_description) {
-				
-				if (!StoreType::hasReferenceTypeID($arr_object_sub_description['object_sub_description_ref_type_id'], $test_type_id)) {
-					continue;
-				}
-				
-				$str_id = $str_identifier.'-object_sub_description-'.$object_sub_description_id;
-
-				$arr_type_set_filtered[$str_id] = $arr_type_set_flat[$str_id];
-			}
-		}
-		
-		return $arr_type_set_filtered;
+		return data_model::getTypeObjectDescriptionsByTypeReference($type_id, $test_type_id);
 	}
 	
 	public static function getTemplate($object_id) {
@@ -1536,6 +1449,16 @@ class data_reconcile extends base_module {
 					unset($arr_template['values'][$key]);
 				}
 			}
+		}
+		
+		if (!$arr_template['values']) {
+			error(getLabel('msg_missing_information'), TROUBLE_ERROR, LOG_CLIENT);
+		}
+		if (!$arr_template['test_values'] && !$arr_template['test_pattern_pairs']) {
+			error(getLabel('msg_missing_information'), TROUBLE_ERROR, LOG_CLIENT);
+		}
+		if (!$arr_template['target_self'] && !$arr_template['target_id']) {
+			error(getLabel('msg_missing_information'), TROUBLE_ERROR, LOG_CLIENT);
 		}
 		
 		return $arr_template;

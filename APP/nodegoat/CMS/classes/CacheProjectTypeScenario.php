@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -98,24 +98,23 @@ class CacheProjectTypeScenario {
 		}
 		
 		if (!$store_scenario && $is_path) {
-
 			return true; // Has cache
 		}
 		
 		return false; // Update cache
 	}
 	
-	public function updateCache($arr_data) {
+	public function updateCache($str_cache) {
 		
-		if (is_array($arr_data)) {
-			$str = value2JSON($arr_data);
+		if (is_array($str_cache)) {
+			$str_cache = value2JSON($str_cache);
 		} else {
-			$str = $arr_data;
+			$str_cache = $str_cache;
 		}
 		
 		$str_hash = $this->str_hash_filter.static::HASH_SEPERATOR.$this->str_hash_visualise;
 		
-		FileStore::storeFile($this->path_scenario.'_temp', $str, $this->path_scenario);
+		FileStore::storeFile($this->path_scenario.'_temp', $str_cache, $this->path_scenario);
 		
 		StoreCustomProject::updateTypeScenarioHash($this->arr_scenario['project_id'], $this->arr_scenario['id'], $str_hash, $this->arr_scenario_cache['hash_date'], $this->project_id);
 		

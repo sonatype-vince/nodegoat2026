@@ -1,7 +1,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -76,9 +76,9 @@ function MapTimeline(element, PARENT, options) {
 	this.init = function() {
 		
 		var parseBool = function(value, loose) {
-			if (value == 'true') {
+			if (value === true || value === 'true') {
 				return true;
-			} else if (value == 'false') {
+			} else if (value === false || value === 'false') {
 				return false;
 			} else if (loose) {
 				return value;
@@ -644,17 +644,14 @@ function MapTimeline(element, PARENT, options) {
 								info_box = true;
 								
 								if (arr_info_boxes[i].object_id) {
-									
 									object_id = arr_info_boxes[i].object_id;
 								}
 								
 								if (arr_info_boxes[i].condition_identifier) {
-									
 									condition_identifier = arr_info_boxes[i].condition_identifier;
 								}	
 								
 								if (arr_info_boxes[i].date_string) {
-									
 									date_string = arr_info_boxes[i].date_string;
 								}	
 																					
@@ -669,15 +666,16 @@ function MapTimeline(element, PARENT, options) {
 
 							do_redraw = true;
 							hover_id = object_id;
-							var arr_object_sub_ids = [];
-							var name = arr_data.objects[hover_id].name;
+							let arr_object_sub_ids = [];
+							const str_name = arr_data.objects[hover_id].name;
+							let str_title = '';
 							
 							if (info_box) {
 
 								str_title = '<ul>\
 									<li>\
 										<label>'+arr_labels.lbl_object+'</label>\
-										<span>'+name+'</span>\
+										<span>'+str_name+'</span>\
 									</li>\
 									<hr />\
 									<li>\
@@ -685,44 +683,43 @@ function MapTimeline(element, PARENT, options) {
 										<span>'+arr_labels.lbl_amount+'</span>\
 									</li>';
 									
-								var total_amount = 0;
+								let num_total_amount = 0;
 
-								for (var key in arr_date_intervals) {
+								for (const key in arr_date_intervals) {
 									
-									var obj_date = arr_date_intervals[key];
-									var date_label = getDateLabel(obj_date);
+									const obj_date = arr_date_intervals[key];
+									const date_label = getDateLabel(obj_date);
 									
-									var amount = 0;
-									
-					
+									let num_amount = 0;
+
 									if (obj_date.objects[object_id]) {
 										
-										amount = obj_date.objects[object_id].amount;
-										total_amount = total_amount + amount;
+										num_amount = obj_date.objects[object_id].amount;
+										num_total_amount = num_total_amount + num_amount;
 										arr_object_sub_ids = arr_object_sub_ids.concat(obj_date.objects[object_id].ids);
 									}
 									
-									str_title = str_title+'<li>\
+									str_title += '<li>\
 											<label>'+date_label+'</label>\
-											<span>'+amount+'</span>\
+											<span>'+num_amount+'</span>\
 										</li>';
 								}
 								
-								str_title = str_title+'<hr />\
+								str_title += '<hr />\
 									<li>\
 										<label>'+arr_labels.lbl_total+'</label>\
-										<span>'+total_amount+'</span>\
+										<span>'+num_total_amount+'</span>\
 									</li>';
 								
-								str_title = str_title+'</ul>';
+								str_title += '</ul>';
 								
 							} else {
 								
 								if (date_string && arr_date_intervals[date_string].objects[hover_id]) {
 
-									var obj_date = arr_date_intervals[date_string];
-									var date_label = getDateLabel(obj_date);
-									var amount = arr_date_intervals[date_string].objects[hover_id].amount;
+									const obj_date = arr_date_intervals[date_string];
+									const date_label = getDateLabel(obj_date);
+									const num_amount = arr_date_intervals[date_string].objects[hover_id].amount;
 									
 									str_title = '<ul>\
 										<li>\
@@ -731,38 +728,36 @@ function MapTimeline(element, PARENT, options) {
 										</li>\
 										<li>\
 											<label>'+arr_labels.lbl_object+'</label>\
-											<span>'+name+'</span>\
+											<span>'+str_name+'</span>\
 										</li>\
 										<li>\
 											<label>'+arr_labels.lbl_amount+'</label>\
-											<span>'+amount+'</span>\
+											<span>'+num_amount+'</span>\
 										</li>';
 									
 									if (graph_relative) {
 										
-										var relative_amount = (Math.round(arr_date_intervals[date_string].objects[hover_id].relative_amount * 100) / 100);
+										const num_relative_amount = (Math.round(arr_date_intervals[date_string].objects[hover_id].relative_amount * 100) / 100);
 										
-										str_title = str_title+'<li>\
-												<label>'+arr_labels.lbl_relative+' '+arr_labels.lbl_amountt+'</label>\
-												<span>'+relative_amount+'</span>\
+										str_title += '<li>\
+												<label>'+arr_labels.lbl_relative+' '+arr_labels.lbl_amount+'</label>\
+												<span>'+num_relative_amount+'</span>\
 											</li>x_point';
 									}
 									
-									str_title = str_title+'</ul>';
+									str_title += '</ul>';
 									
 									arr_object_sub_ids = arr_date_intervals[date_string].objects[hover_id].ids;
-									
 								} else {
 									
 									// Hover over line can only show name
 									
-									var str_title = '<ul>\
+									str_title = '<ul>\
 										<li>\
 											<label>'+arr_labels.lbl_object+'</label>\
-											<span>'+name+'</span>\
+											<span>'+str_name+'</span>\
 										</li>\
 									</ul>';
-								
 								}
 							}
 							
@@ -770,14 +765,14 @@ function MapTimeline(element, PARENT, options) {
 							elm_host.setAttribute('title', str_title);
 							TOOLTIP.update();
 						}
-						
 					} else if (condition_identifier) { // show condition
 						
 						if (condition_identifier !== hover_id) {
 
 							do_redraw = true;
 							hover_id = condition_identifier;
-							var arr_object_sub_ids = [];
+							let arr_object_sub_ids = [];
+							let str_title = '';
 							
 							if (info_box) {
 
@@ -792,44 +787,43 @@ function MapTimeline(element, PARENT, options) {
 										<span>'+arr_labels.lbl_amount+'</span>\
 									</li>';
 									
-								var total_amount = 0;
+								let num_total_amount = 0;
 
-								for (var key in arr_date_intervals) {
+								for (const key in arr_date_intervals) {
 									
-									var obj_date = arr_date_intervals[key];
-									var date_label = getDateLabel(obj_date);
+									const obj_date = arr_date_intervals[key];
+									const date_label = getDateLabel(obj_date);
 									
-									var amount = 0;
+									let num_amount = 0;
 					
 									if (obj_date.conditions[condition_identifier]) {
 										
-										amount = obj_date.conditions[condition_identifier].amount;
-										total_amount = total_amount + amount;
+										num_amount = obj_date.conditions[condition_identifier].amount;
+										num_total_amount = num_total_amount + num_amount;
 										
 										arr_object_sub_ids = arr_object_sub_ids.concat(obj_date.conditions[condition_identifier].ids);
 									}
 									
-									str_title = str_title+'<li>\
+									str_title += '<li>\
 											<label>'+date_label+'</label>\
-											<span>'+amount+'</span>\
+											<span>'+num_amount+'</span>\
 										</li>';
 								}
 								
-								str_title = str_title+'<hr />\
+								str_title += '<hr />\
 									<li>\
 										<label>'+arr_labels.lbl_total+'</label>\
-										<span>'+total_amount+'</span>\
+										<span>'+num_total_amount+'</span>\
 									</li>';
 								
-								str_title = str_title+'</ul>';
-								
+								str_title += '</ul>';
 							} else {
 						
 								if (date_string && arr_date_intervals[date_string].conditions[condition_identifier]) {
 
-									var obj_date = arr_date_intervals[date_string];
-									var date_label = getDateLabel(obj_date);
-									var amount = arr_date_intervals[date_string].conditions[condition_identifier].amount;
+									const obj_date = arr_date_intervals[date_string];
+									const date_label = getDateLabel(obj_date);
+									const num_amount = arr_date_intervals[date_string].conditions[condition_identifier].amount;
 																	
 									str_title = '<ul>\
 										<li>\
@@ -842,20 +836,19 @@ function MapTimeline(element, PARENT, options) {
 										</li>\
 										<li>\
 											<label>'+arr_labels.lbl_amount+'</label>\
-											<span>'+amount+'</span>\
+											<span>'+num_amount+'</span>\
 										</li>';
-									
 									if (graph_relative) {
 										
-										var relative_amount = (Math.round(arr_date_intervals[date_string].conditions[condition_identifier].relative_amount * 100) / 100);
+										const num_relative_amount = (Math.round(arr_date_intervals[date_string].conditions[condition_identifier].relative_amount * 100) / 100);
 										
-										str_title = str_title+'<li>\
+										str_title += '<li>\
 												<label>'+arr_labels.lbl_relative+' '+arr_labels.lbl_amount+'</label>\
-												<span>'+relative_amount+'</span>\
+												<span>'+num_relative_amount+'</span>\
 											</li>';
 									}
 									
-									str_title = str_title+'</ul>';
+									str_title += '</ul>';
 
 									arr_object_sub_ids = arr_date_intervals[date_string].conditions[condition_identifier].ids;
 																	
@@ -863,7 +856,7 @@ function MapTimeline(element, PARENT, options) {
 
 									// Hover over line can only show name
 									
-									var str_title = '<ul>\
+									str_title = '<ul>\
 										<li>\
 											<label>'+arr_labels.lbl_condition+'</label>\
 											<span>'+obj_conditions[condition_identifier].label+'</span>\
@@ -876,7 +869,6 @@ function MapTimeline(element, PARENT, options) {
 							elm_host.setAttribute('title', str_title);
 							TOOLTIP.update();
 						}
-						
 					} else if (type_id && object_sub_details_id) { // show data of a sub-object in a date interval
 						
 						if (bar_id !== hover_id) {
@@ -890,12 +882,11 @@ function MapTimeline(element, PARENT, options) {
 							TOOLTIP.update();
 
 						}
-						
 					} else if (info_box && date_string) { // show all data for a single date interval
 						
-						var obj_date = arr_date_intervals[date_string];
+						const obj_date = arr_date_intervals[date_string];
 						
-						var str_title = '<ul>\
+						let str_title = '<ul>\
 							<li>\
 								<label>'+arr_labels.lbl_total+'</label>\
 								<span>'+obj_date.unsorted_weighted_object_sub_ids_amount+'</span>\
@@ -903,7 +894,7 @@ function MapTimeline(element, PARENT, options) {
 						
 						if (graph_relative) {
 
-							str_title = str_title+'<li>\
+							str_title += '<li>\
 									<label>Mean</label>\
 									<span>'+(Math.round(mean * 100) / 100)+'</span>\
 								</li>\
@@ -914,35 +905,36 @@ function MapTimeline(element, PARENT, options) {
 											
 						}
 						
-						for (var type_id in obj_date.sorted_object_sub_ids) {
+						for (const type_id in obj_date.sorted_object_sub_ids) {
 							
-							var str_title_type = false;
+							let str_title_type = '';
 							
-							for (var object_sub_details_id in obj_date.sorted_object_sub_ids[type_id]) {
+							for (const object_sub_details_id in obj_date.sorted_object_sub_ids[type_id]) {
 								
-								var object_sub_details = obj_date.sorted_object_sub_ids[type_id][object_sub_details_id];
+								const object_sub_details = obj_date.sorted_object_sub_ids[type_id][object_sub_details_id];
 								
 								if (object_sub_details.amount) {
 															
 									str_title_type = (str_title_type ? str_title_type : '')+'<li>\
 										<label class="sub-name">'+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+'</label>\
-										<span>'+object_sub_details.amount+'x</span>\
+										<span>'+object_sub_details.amount+'</span>\
 									</li>';
 								}
 							}
 							
 							if (str_title_type) {
-								str_title = str_title+'<li>\
+								
+								str_title += '<li>\
 									<label>'+arr_data.info.types[type_id].name+'</label>\
 									<ul>'+str_title_type+'</ul>';
 							}
 						}
 						
-						str_title = str_title+'</li><hr />';
+						str_title += '</li><hr />';
 
 						if (graph_conditions && obj_conditions) { 
 								
-							let arr_ordered_conditions = [];
+							const arr_ordered_conditions = [];
 							
 							for (const condition_identifier in obj_conditions) {
 								
@@ -950,14 +942,15 @@ function MapTimeline(element, PARENT, options) {
 								
 								if (arr_date_condition && arr_date_condition.amount) {
 									
-									let amount = arr_date_condition.amount;
-									let relative_amount = arr_date_condition.relative_amount;
-									let str_condition = '<li>\
+									const num_amount = arr_date_condition.amount;
+									const num_relative_amount = arr_date_condition.relative_amount;
+									
+									const str_condition = '<li>\
 												<label>'+obj_conditions[condition_identifier].label+'</label>\
-												<span>'+amount+'x'+(graph_relative ? ' (relative: '+(Math.round(relative_amount * 100) / 100)+')' : '')+'</span>\
+												<span>'+num_amount+(graph_relative ? ' (relative: '+(Math.round(num_relative_amount * 100) / 100)+')' : '')+'</span>\
 											</li>';
 											
-									arr_ordered_conditions.push({'str_condition': str_condition, 'amount': (graph_relative ? relative_amount : amount)});
+									arr_ordered_conditions.push({'str_condition': str_condition, 'amount': (graph_relative ? num_relative_amount : num_amount)});
 								}
 							}
 							
@@ -967,35 +960,36 @@ function MapTimeline(element, PARENT, options) {
 									return b.amount - a.amount;
 								});
 
-								str_title = str_title+'<li>\
+								str_title += '<li>\
 										<label>'+arr_labels.lbl_conditions+'</label>\
 										<ul>';
 								
 								for (let i = 0; i < arr_ordered_conditions.length; i++) {
 									
-									str_title = str_title+arr_ordered_conditions[i].str_condition;	
+									str_title += arr_ordered_conditions[i].str_condition;	
 								}		
 												
-								str_title = str_title+'</ul>\
+								str_title += '</ul>\
 									</li>';
 							}
 						}
 						
 						if (graph_objects_type_id) {
 	
-							let arr_ordered_objects = [];
+							const arr_ordered_objects = [];
 							
-							for (let object_id in obj_date.objects) {
+							for (const object_id in obj_date.objects) {
 								
-								let name = arr_data.objects[object_id].name;
-								let amount = obj_date.objects[object_id].amount;
-								let relative_amount = obj_date.objects[object_id].relative_amount;
-								let str_object = '<li>\
-											<label>'+name+'</label>\
-											<span>'+amount+'x'+(graph_relative ? ' (relative: '+(Math.round(relative_amount * 100) / 100)+')' : '')+'</span>\
+								const str_name = arr_data.objects[object_id].name;
+								const num_amount = obj_date.objects[object_id].amount;
+								const num_relative_amount = obj_date.objects[object_id].relative_amount;
+								
+								const str_object = '<li>\
+											<label>'+str_name+'</label>\
+											<span>'+num_amount+(graph_relative ? ' (relative: '+(Math.round(num_relative_amount * 100) / 100)+')' : '')+'</span>\
 										</li>';
 										
-								arr_ordered_objects.push({'str_object': str_object, 'amount': (graph_relative ? relative_amount : amount)});
+								arr_ordered_objects.push({'str_object': str_object, 'amount': (graph_relative ? num_relative_amount : num_amount)});
 							}
 							
 							if (arr_ordered_objects.length) {
@@ -1004,21 +998,21 @@ function MapTimeline(element, PARENT, options) {
 									return b.amount - a.amount;
 								});
 
-								str_title = str_title+'<li>\
+								str_title += '<li>\
 										<label>'+arr_labels.lbl_objects+'</label>\
 										<ul>';
 								
 								for (let i = 0; i < arr_ordered_objects.length; i++) {
 									
-									str_title = str_title+arr_ordered_objects[i].str_object;	
+									str_title += arr_ordered_objects[i].str_object;	
 								}		
 												
-								str_title = str_title+'</ul>\
+								str_title += '</ul>\
 									</li>';
 							}
 						}
 						
-						str_title = str_title+'</ul>';
+						str_title += '</ul>';
 						
 						elm_host.setAttribute('title', str_title);						
 						TOOLTIP.update();

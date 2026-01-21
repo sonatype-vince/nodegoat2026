@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -30,12 +30,10 @@
 	];
 	
 	$arr_core['js'] = [
-		DIR_CMS.DIR_JS.'support/jquery.minicolors.js',
 		DIR_CMS.DIR_JS.'support/DeepMerge.js',
 		DIR_JS.'MapScroller.js'
 	];
 	
 	$arr_core['css'] = [
-		DIR_CMS.DIR_CSS.'support/jquery.minicolors.css',
 		DIR_CSS.'MapScroller.css'
 	];

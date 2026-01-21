@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -17,9 +17,12 @@ class CreateTypesObjectsPackage {
 	protected $arr_type_sets = [];
 	protected $mode = self::MODE_DEFAULT;
 	
-	public function __construct($arr_type_sets) {
+	protected $arr_type_schemas = [];
+	
+	public function __construct($arr_type_sets, $arr_type_schemas = []) {
 		
 		$this->arr_type_sets = $arr_type_sets;
+		$this->arr_type_schemas = $arr_type_schemas;
 	}
 	
 	public function setMode($mode = self::MODE_DEFAULT) {
@@ -97,51 +100,75 @@ class CreateTypesObjectsPackage {
 		$arr_objects_ld = [];
 		
 		$arr_type_set = $this->arr_type_sets[$type_id];
-		$arr_types_schema = (Settings::get('nodegoat_api', 'schema') ?: []);
 		
-		$arr_type_schema = $arr_types_schema[$type_id];
+		$arr_type_schema = ($this->arr_type_schemas[$type_id] ?? []);
 		
 		$str_base_path = SiteStartEnvironment::getBasePath(0, false);
 		$str_context = 'nodegoat:';
 
-		$type_name_ld = ($arr_type_schema['type']['name'] ?: $str_context.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_type_set['type']['name'])));
+		$type_name_ld = ($arr_type_schema['type']['name'] ?? $str_context.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_type_set['type']['name'])));
 		
-		$func_add_description_reference = function(&$arr_object_ld, $str_object_description_name_ld, $ref_object_id, $ref_type_id, $arr_schema_data_type) use ($str_base_path, $str_context, $arr_types_schema) {
+		$func_add_description_reference = function(&$arr_object_ld, $str_object_description_name_ld, $ref_object_id, $ref_type_id, $arr_schema_data_type) use ($str_base_path, $str_context) {
 			
 			if (!isset($this->arr_type_sets[$ref_type_id])) {
 				$this->arr_type_sets[$ref_type_id] = StoreType::getTypeSet($ref_type_id);
 			}
 			
 			$arr_ref_type_set = $this->arr_type_sets[$ref_type_id];
+			$str_ref_name_ld = ($this->arr_type_schemas[$ref_type_id]['type']['name'] ?? $str_context.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_ref_type_set['type']['name'])));
 			
-			$str_ref_name_ld = ($arr_types_schema[$ref_type_id]['type']['name'] ?: $str_context.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_ref_type_set['type']['name'])));
+			$s_arr =& $arr_object_ld[$str_object_description_name_ld];
+			
+			if (isset($s_arr)) {
 				
-			$arr_object_ld[$str_object_description_name_ld][] = [
+				if (!isset($s_arr[0])) {
+					$s_arr = [$s_arr];
+				}
+				$s_arr =& $s_arr[];
+			} else if ($arr_object_description['object_description_has_multi']) {
+				
+				$s_arr =& $s_arr[];
+			}
+				
+			$s_arr = [
 				'@type' => $str_ref_name_ld,
 				'@id' => $str_base_path.GenerateTypeObjects::encodeTypeObjectID($ref_type_id, $ref_object_id)
 			];
 		};
 		$func_add_description_value = function(&$arr_object_ld, $str_object_description_name_ld, $str_value, $arr_object_description, $arr_schema_data_type) {
 			
+			$s_arr =& $arr_object_ld[$str_object_description_name_ld];
+			
+			if (isset($s_arr)) {
+				
+				if (!isset($s_arr[0])) {
+					$s_arr = [$s_arr];
+				}
+				$s_arr =& $s_arr[];
+			} else if ($arr_object_description['object_description_has_multi']) {
+				
+				$s_arr =& $s_arr[];
+			}
+			
 			if ($arr_schema_data_type['type']) {
-				$arr_object_ld[$str_object_description_name_ld][] = $this->applySchemaDataType($arr_schema_data_type, $str_value, $arr_object_description['object_description_value_type_settings']);
+				$s_arr = $this->applySchemaDataType($arr_schema_data_type, $str_value, $arr_object_description['object_description_value_type_settings']);
 			} else {
-				$arr_object_ld[$str_object_description_name_ld][] = $this->formatToSchemaDataType($arr_object_description['object_description_value_type'], $str_value, $arr_object_description['object_description_value_type_settings']);
+				$s_arr = $this->formatToSchemaDataType($arr_object_description['object_description_value_type'], $str_value, $arr_object_description['object_description_value_type_settings']);
 			}
 		};
-		$func_add_description_sub_reference = function(&$arr_object_sub_ld, $str_object_sub_description_name_ld, $ref_object_id, $ref_type_id, $arr_schema_data_type) use ($str_base_path, $str_context, $arr_types_schema) {
+		$func_add_description_sub_reference = function(&$arr_object_sub_ld, $str_object_sub_description_name_ld, $ref_object_id, $ref_type_id, $arr_schema_data_type) use ($str_base_path, $str_context) {
 			
 			if (!isset($this->arr_type_sets[$ref_type_id])) {
 				$this->arr_type_sets[$ref_type_id] = StoreType::getTypeSet($ref_type_id);
 			}
 			
 			$arr_ref_type_set = $this->arr_type_sets[$ref_type_id];
-			
-			$str_ref_name_ld = ($arr_types_schema[$ref_type_id]['type']['name'] ?: $str_context.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_ref_type_set['type']['name'])));
+			$str_ref_name_ld = ($this->arr_type_schemas[$ref_type_id]['type']['name'] ?? $str_context.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_ref_type_set['type']['name'])));
 			
 			$s_arr =& $arr_object_sub_ld[$str_object_sub_description_name_ld];
 			
 			if (isset($s_arr)) {
+				
 				if (!isset($s_arr[0])) {
 					$s_arr = [$s_arr];
 				}
@@ -158,6 +185,7 @@ class CreateTypesObjectsPackage {
 			$s_arr =& $arr_object_sub_ld[$str_object_sub_description_name_ld];
 			
 			if (isset($s_arr)) {
+				
 				if (!isset($s_arr[0])) {
 					$s_arr = [$s_arr];
 				}
@@ -175,7 +203,7 @@ class CreateTypesObjectsPackage {
 			
 			$arr_object_ld = [
 				'@id' => $str_base_path.GenerateTypeObjects::encodeTypeObjectID($type_id, $object_id), 
-				'@type' => ($arr_type_schema['type']['name'] ?: $type_name_ld), 
+				'@type' => $type_name_ld, 
 				'modified' => $arr_object['object']['object_dating'],
 				'schema:name' => $arr_object['object']['object_name']
 			];
@@ -187,14 +215,13 @@ class CreateTypesObjectsPackage {
 				}
 					
 				$arr_object_description = $arr_type_set['object_descriptions'][$object_description_id];
-				$arr_schema_data_type = $arr_type_schema['object_descriptions'][$object_description_id];
-				
-				$object_description_name_ld = ($arr_schema_data_type['object_description_name'] ?: $type_name_ld.'/'.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_object_description['object_description_name'])));
-				
-				if (!isset($arr_object_ld[$object_description_name_ld])) {
-					$arr_object_ld[$object_description_name_ld] = [];
-				}
+				$arr_schema_data_type = (array)($arr_type_schema['object_descriptions'][$object_description_id]['object_description_name'] ?? null);
 
+				$object_description_name_ld = ($arr_schema_data_type['property'] ?? ($arr_schema_data_type[0] ?? null));
+				if ($object_description_name_ld === null) {
+					$object_description_name_ld = $type_name_ld.'/'.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_object_description['object_description_name']));
+				}
+				
 				if ($arr_object_description['object_description_is_dynamic']) {
 					
 					if ($arr_object_definition['object_definition_ref_object_id']) {
@@ -253,35 +280,40 @@ class CreateTypesObjectsPackage {
 				$arr_object_sub_self = $arr_object_sub['object_sub'];
 				
 				$arr_object_sub_details = $arr_type_set['object_sub_details'][$arr_object_sub_self['object_sub_details_id']];
-				$arr_object_sub_details_schema_data_type = $arr_type_schema['object_sub_details'][$arr_object_sub_self['object_sub_details_id']];
+				$arr_object_sub_details_schema_data_type = ($arr_type_schema['object_sub_details'][$arr_object_sub_self['object_sub_details_id']] ?? []);
 				
-				$object_sub_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_name'] ?: $type_name_ld.'/'.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_object_sub_details['object_sub_details']['object_sub_details_name'])));
+				$arr_schema_data_type = (array)($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_name'] ?? null);
+				
+				$object_sub_name_ld = ($arr_schema_data_type['property'] ?? ($arr_schema_data_type[0] ?? null));
+				if ($object_sub_name_ld === null) {
+					$object_sub_name_ld = $type_name_ld.'/'.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_object_sub_details['object_sub_details']['object_sub_details_name']));
+				}
 				
 				$arr_object_sub_ld = [];
 					
-				$arr_object_sub_ld['@type'] = $object_sub_name_ld;
+				$arr_object_sub_ld['@type'] = ($arr_schema_data_type['type'] ?? $object_sub_name_ld);
 									
 				if ($arr_object_sub_self['object_sub_date_start']) {
 					
-					$str_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_date_start'] ?: $object_sub_name_ld.'/date_start');
+					$str_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_date_start'] ?? $object_sub_name_ld.'/date_start');
 					$arr_object_sub_ld[$str_name_ld] = $this->formatToSchemaDataType('date', $arr_object_sub_self['object_sub_date_start']);
 				}
 				
 				if ($arr_object_sub_self['object_sub_date_end']) {
 					
-					$str_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_date_end'] ?: $object_sub_name_ld.'/date_end');
+					$str_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_date_end'] ?? $object_sub_name_ld.'/date_end');
 					$arr_object_sub_ld[$str_name_ld] = $this->formatToSchemaDataType('date', $arr_object_sub_self['object_sub_date_end']);
 				}
 				
 				if ($arr_object_sub_self['object_sub_date_chronology']) {
 					
-					$str_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_date_chronology'] ?: $object_sub_name_ld.'/chronology');
+					$str_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_date_chronology'] ?? $object_sub_name_ld.'/chronology');
 					$arr_object_sub_ld[$str_name_ld] = $this->formatToSchemaDataType('chronology', $arr_object_sub_self['object_sub_date_chronology']);
 				}
 				
 				if ($arr_object_sub_self['object_sub_location_geometry']) {
 					
-					$str_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_location_geometry'] ?: $object_sub_name_ld.'/geometry');
+					$str_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_location_geometry'] ?? $object_sub_name_ld.'/geometry');
 					$arr_object_sub_ld[$str_name_ld] = $this->formatToSchemaDataType('geometry', $arr_object_sub_self['object_sub_location_geometry']);
 				}
 
@@ -295,15 +327,15 @@ class CreateTypesObjectsPackage {
 					
 					$arr_location_ref_type_set = $this->arr_type_sets[$ref_type_id];
 					
-					$str_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_location_reference'] ?: $object_sub_name_ld.'/location_reference');
-					$str_ref_name_ld = ($arr_types_schema[$ref_type_id]['type']['name'] ?: $str_context.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_location_ref_type_set['type']['name'])));
+					$str_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_location_reference'] ?? $object_sub_name_ld.'/location_reference');
+					$str_ref_name_ld = ($this->arr_type_schemas[$ref_type_id]['type']['name'] ?? $str_context.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_location_ref_type_set['type']['name'])));
 					
 					$arr_object_sub_ld[$str_name_ld] = [
 						'@type' => $str_ref_name_ld, 
 						'@id' => $str_base_path.GenerateTypeObjects::encodeTypeObjectID($ref_type_id, $arr_object_sub_self['object_sub_location_ref_object_id'])
 					];
 					
-					$str_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_location_reference_name'] ?: $object_sub_name_ld.'/location_reference_name');
+					$str_name_ld = ($arr_object_sub_details_schema_data_type['object_sub_details']['object_sub_details_location_reference_name'] ?? $object_sub_name_ld.'/location_reference_name');
 					$arr_object_sub_ld[$str_name_ld] = $this->formatToSchemaDataType('', $arr_object_sub_self['object_sub_location_ref_object_name']);
 				}
 				
@@ -314,10 +346,13 @@ class CreateTypesObjectsPackage {
 					}
 					
 					$arr_object_sub_description = $arr_object_sub_details['object_sub_descriptions'][$object_sub_description_id];
-					$arr_schema_data_type = $arr_object_sub_details_schema_data_type['object_sub_descriptions'][$object_sub_description_id];
+					$arr_schema_data_type = (array)($arr_object_sub_details_schema_data_type['object_sub_descriptions'][$object_sub_description_id]['object_sub_description_name'] ?? null);
 					
-					$object_sub_description_name_ld = ($arr_schema_data_type['object_sub_description_name'] ?: $object_sub_name_ld.'/'.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_object_sub_description['object_sub_description_name'])));
-					
+					$object_sub_description_name_ld = ($arr_schema_data_type['property'] ?? ($arr_schema_data_type[0] ?? null));
+					if ($object_sub_description_name_ld === null) {
+						$object_sub_description_name_ld = $object_sub_name_ld.'/'.preg_replace('/[^\p{L}\p{N}]+/', '_', strtolower($arr_object_sub_description['object_sub_description_name']));
+					}
+
 					if ($arr_object_sub_description['object_sub_description_is_dynamic']) {
 						
 						if ($arr_object_sub_definition['object_sub_definition_ref_object_id']) {
@@ -349,7 +384,21 @@ class CreateTypesObjectsPackage {
 					}
 				}
 				
-				$arr_object_ld[$object_sub_name_ld][] = $arr_object_sub_ld;
+				$s_arr =& $arr_object_ld[$object_sub_name_ld];
+
+				if (isset($s_arr)) {
+					
+					if (!isset($s_arr[0])) {
+						$s_arr = [$s_arr];
+					}
+					$s_arr =& $s_arr[];
+				} else if (!$arr_object_sub_self['object_sub_details_is_single']) {
+					
+					$s_arr =& $s_arr[];
+				}
+				
+				$s_arr = $arr_object_sub_ld;
+				unset($s_arr);
 			}
 			
 			$arr_objects_ld[] = $arr_object_ld;
@@ -363,7 +412,7 @@ class CreateTypesObjectsPackage {
 		$arr_objects_walked = [];
 		
 		foreach ($arr_objects as $object_id => $arr_object) {
-							
+			
 			$arr_objects_walked[$object_id] = $collect->getWalkedObject($object_id, [], function &($cur_target_object_id, &$cur_arr, $source_path, $cur_path, $cur_target_type_id, $arr_info, $collect) {
 				
 				$arr_object_descriptions = $this->arr_type_sets[$cur_target_type_id]['object_descriptions'];
@@ -420,9 +469,9 @@ class CreateTypesObjectsPackage {
 				}
 				unset($s_arr_object_sub_self);
 			
-				if ($arr_info['in_out'] == 'in' || $arr_info['in_out'] == 'out') {
+				if ($arr_info['in_out'] == TraceTypesNetwork::PATH_IN || $arr_info['in_out'] == TraceTypesNetwork::PATH_OUT) {
 					
-					if ($arr_info['in_out'] == 'in') {
+					if ($arr_info['in_out'] == TraceTypesNetwork::PATH_IN) {
 						$cur_arr['cross_referenced'][$cur_target_object_id] =& $arr_object;
 					} else {
 						$cur_arr['cross_referencing'][$cur_target_object_id] =& $arr_object;
@@ -472,6 +521,7 @@ class CreateTypesObjectsPackage {
 	
 	protected function formatToSchemaDataType($value_type, $value, $arr_type_settings = []) {
 		
+		$str_cast_type = '';
 		$str_schema = 'schema';
 		$cast_value = null;
 		
@@ -498,7 +548,7 @@ class CreateTypesObjectsPackage {
 			case 'media_external':
 				$str_cast_type = 'URL';
 				break;
-			case 'int':
+			case 'integer':
 				$str_cast_type = 'Integer';
 				break;
 			case 'text':

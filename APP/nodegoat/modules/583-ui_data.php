@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -424,7 +424,7 @@ class ui_data extends base_module {
 
 			$collect = new CollectTypesObjects($arr_type_network_paths, GenerateTypeObjects::VIEW_VISUALISE);
 			$collect->setScope(['types' => $arr_ref_type_ids, 'project_id' => $public_user_interface_active_custom_project_id]);
-			$collect->init([], false);
+			$collect->init(false);
 				
 			$arr_collect_info = $collect->getResultInfo();
 			
@@ -560,7 +560,15 @@ class ui_data extends base_module {
 			$arr_collect_info['settings'] = $collect->getPathOptions();
 			
 			$active_scenario_id = toolbar::checkActiveScenario();
-			$active_scenario_hash = ($active_scenario_id ? CacheProjectTypeScenario::generateHashVisualise($_SESSION['custom_projects']['project_id'], $active_scenario_id, $arr_collect_info) : false);
+			$active_scenario_hash = false;
+			
+			if ($active_scenario_id) {
+				
+				$arr_model_condition_ids = toolbar::getTypeModelConditionIDs($type_id);
+				$arr_collect_info['model_conditions'] = $arr_model_condition_ids;
+
+				$active_scenario_hash = CacheProjectTypeScenario::generateHashVisualise($_SESSION['custom_projects']['project_id'], $active_scenario_id, $arr_collect_info);
+			}
 
 			$identifier_data = $type_id.'_'.value2Hash(serialize($arr_collect_info).'_'.serialize($arr_context));
 			$identifier_date = time();
@@ -633,6 +641,9 @@ class ui_data extends base_module {
 						$collect = data_visualise::getVisualisationCollector($context_type_id, $arr_filters, $arr_scope, $arr_conditions);
 						$arr_collect_info = $collect->getResultInfo();
 						$arr_collect_info['settings'] = $collect->getPathOptions();
+						
+						$arr_model_condition_ids = toolbar::getTypeModelConditionIDs($context_type_id);
+						$arr_collect_info['model_conditions'] = $arr_model_condition_ids;
 						
 						$context_scenario_hash = CacheProjectTypeScenario::generateHashVisualise($_SESSION['custom_projects']['project_id'], $context_scenario_id, $arr_collect_info);
 						
@@ -2082,8 +2093,8 @@ class ui_data extends base_module {
 		$arr_project = StoreCustomProject::getProjects($public_user_interface_active_custom_project_id);
 		$arr_type_set = StoreType::getTypeSet($type_id);
 		
-		$filter_reset = new FilterTypeObjects($type_id);
-		$filter_reset->clearResultInfo();
+		//$filter_reset = new FilterTypeObjects($type_id);
+		//$filter_reset->clearResultInfo();
 		
 		$return = cms_general::createDataTableHeading('d:ui_data:data-'.$type_id.($key_filter !== false ? '_'.($key_filter + 1) : ''), ['filter' => false, 'pause' => ($pause ? true : false), 'search' => true, 'order' => true]).
 			'<thead><tr>';
@@ -2498,7 +2509,7 @@ class ui_data extends base_module {
 					
 						var func_handle_click = function() {
 						
-							elm_map.on('click.review', '[id=y\\\:data_visualise\\\:review_data-date]', function() {
+							elm_map.on('click', '[id=y\\\:data_visualise\\\:review_data-date]', function() {
 
 								var cur_elm = $(this);
 								var obj_labmap = cur_elm.closest('.labmap')[0].labmap;
@@ -2593,7 +2604,7 @@ class ui_data extends base_module {
 								COMMANDS.setData(elm_object[0], {arr_type_object_ids: arr_type_object_ids}, true);
 								elm_object.quickCommand(elm_object, {'html': 'append'});
 
-							}).on('touch click', '.paint', function(e) {
+							}).on('click touch review', '.paint', function(e) {
 							
 								var cur_elm = $(this);
 								var arr_link = cur_elm[0].arr_link;
@@ -2732,7 +2743,7 @@ class ui_data extends base_module {
 									elm_object.quickCommand(elm_object, {'html': 'append'});
 								}
 
-							}).on('click.review', 'figure.types dl > div, figure.object-sub-details dl > div, figure.conditions dl > div', function() {
+							}).on('click', 'figure.types dl > div, figure.object-sub-details dl > div, figure.conditions dl > div', function() {
 					
 								var cur = $(this);
 								var elm_source = cur.closest('figure');
@@ -2787,7 +2798,7 @@ class ui_data extends base_module {
 									var obj_options = {
 										call_class_paint: MapGeo,
 										arr_class_paint_settings: {arr_visual: obj_data.visual},
-										arr_class_data_settings: obj_data.data.options,
+										arr_class_data_settings: obj_data.data.settings,
 										arr_levels: arr_levels,
 										arr_layers: (arr_layers.length ? arr_layers : false),
 										attribution: obj_data.data.attribution,
@@ -2833,7 +2844,7 @@ class ui_data extends base_module {
 									var obj_options = {
 										call_class_paint: MapSocial,
 										arr_class_paint_settings: {arr_visual: obj_data.visual},
-										arr_class_data_settings: obj_data.data.options,
+										arr_class_data_settings: obj_data.data.settings,
 										arr_levels: arr_levels,
 										arr_layers: false,
 										attribution: obj_data.data.attribution,
@@ -2860,7 +2871,7 @@ class ui_data extends base_module {
 									var obj_options = {
 										call_class_paint: MapTimeline,
 										arr_class_paint_settings: {arr_visual: obj_data.visual},
-										arr_class_data_settings: obj_data.data.options,
+										arr_class_data_settings: obj_data.data.settings,
 										arr_levels: arr_levels,
 										arr_layers: false,
 										attribution: obj_data.data.attribution,
@@ -3534,7 +3545,7 @@ class ui_data extends base_module {
 					memoryBoost($arr_nodegoat_details['processing_memory']);
 				}
 			
-				$export->init($collect, $arr_filters);
+				$export->init($collect);
 				
 				$response_format = Response::getFormat(); // Response could have changed in the following steps; store it
 				
@@ -3552,7 +3563,7 @@ class ui_data extends base_module {
 					
 					Response::setFormat($response_format);
 					
-					$this->msg = getLabel('msg_export_not_available');
+					$this->message = getLabel('msg_export_not_available');
 					return;
 				}
 
@@ -3701,7 +3712,7 @@ class ui_data extends base_module {
 						$arr_set_cache['result'] = $cache_scenario->getCache();
 					} else {
 						
-						status(getLabel('msg_building_cache_scenario_filter'), false, getLabel('msg_wait'), ['identifier' => SiteStartEnvironment::getSessionId(true).'cache_scenario_filter', 'duration' => 1000, 'persist' => true]);
+						status(getLabel('msg_building_cache_scenario_filter'), false, getLabel('msg_wait'), ['identifier' => SiteStartEnvironment::getSessionID(true).'cache_scenario_filter', 'duration' => 1000, 'persist' => true]);
 					}
 				}
 			}
@@ -3729,7 +3740,7 @@ class ui_data extends base_module {
 					
 					$filter = $filter_set;
 
-					$filter->setDifferentiationIdentifier(SiteStartEnvironment::getSessionId()); // Keep temporary table name the same (when applicable) over multiple requests
+					$filter->setDifferentiationIdentifier(SiteStartEnvironment::getSessionID()); // Keep temporary table name the same (when applicable) over multiple requests
 					$table_name = $filter->storeIDsTemporarily($arr_filter_set['objects'], true);
 					
 					if (!$has_order) { // Set order to temporary table and internally to none when scenario is opened
@@ -3772,7 +3783,7 @@ class ui_data extends base_module {
 					
 					$cache_scenario->updateCache($arr_set_result);
 					
-					clearStatus(SiteStartEnvironment::getSessionId(true).'cache_scenario_filter');
+					clearStatus(SiteStartEnvironment::getSessionID(true).'cache_scenario_filter');
 				}
 			}
 			

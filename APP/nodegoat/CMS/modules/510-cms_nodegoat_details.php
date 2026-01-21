@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -88,6 +88,10 @@ class cms_nodegoat_details extends base_module {
 								<label>'.getLabel('lbl_model').' ('.getLabel('lbl_quick_search').'/'.getLabel('lbl_name').')</label>
 								<div><input type="button" id="y:cms_nodegoat_details:reset_data_model_paths-0" class="data neutral quick" value="'.getLabel('lbl_reset').'" /></div>
 							</li>
+							<li>
+								<label>'.getLabel('lbl_scenarios').'</label>
+								<div><input type="button" id="y:cms_nodegoat_details:clear_scenarios-0" class="data neutral quick" value="'.getLabel('lbl_clear').'" /></div>
+							</li>
 						</ul></fieldset>
 					</div>
 
@@ -133,7 +137,7 @@ class cms_nodegoat_details extends base_module {
 				".DBFunctions::onConflict('unique_row', $arr_sql_fields)."
 			");
 	
-			$this->msg = true;
+			$this->message = true;
 		}
 		
 		if ($method == 'reset_data_model_paths') {
@@ -149,7 +153,14 @@ class cms_nodegoat_details extends base_module {
 			StoreType::setTypesObjectPath($arr_type_ids, 'name');
 			StoreType::setTypesObjectPath($arr_type_ids, 'search');
 			
-			$this->msg = true;
+			$this->message = true;
+		}
+		
+		if ($method == 'clear_scenarios') {
+			
+			FileStore::deleteDirectoryTree(DIR_CACHE_SCENARIOS);
+			
+			$this->message = true;
 		}
 	}
 	

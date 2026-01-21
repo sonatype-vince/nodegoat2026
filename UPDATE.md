@@ -742,3 +742,82 @@ ALTER TABLE `def_type_object_sub_descriptions` DROP INDEX `use_object_descriptio
 ALTER TABLE `def_type_object_sub_descriptions` DROP INDEX `object_sub_details_id`, ADD INDEX `object_sub_details_id` (`object_sub_details_id`, `use_object_description_id`) USING BTREE;
 ALTER TABLE `def_type_object_sub_descriptions` DROP INDEX `value_type`, ADD INDEX `value_type` (`value_type_base`, `id`) USING BTREE;
 ```
+
+## VERSION 8.5
+
+Update 1100CC to 10.9 ([1100CC UPDATE](https://github.com/LAB1100/1100CC/blob/master/UPDATE.md)).
+
+Update nodegoat [nodegoat_cms.cms_labels.sql](/setup/nodegoat_cms.cms_labels.sql).
+
+---
+
+Run SQL queries in database nodegoat_cms:
+
+```sql
+INSERT INTO `site_pages` (`id`, `name`, `title`, `directory_id`, `template_id`, `master_id`, `url`, `html`, `script`, `publish`, `clearance`, `sort`) VALUES (50, 'retrieval', 'Retrieval-Augmented Generation', 5, 0, 11, '', '', '', 0, 0, 7);
+INSERT INTO `site_page_modules` (`id`, `page_id`, `x`, `y`, `module`, `var`, `shortcut`, `shortcut_root`) VALUES (122, 50, 0, 1, 'retrieval', '', '', 0);
+```
+
+---
+
+Run SQL queries in database nodegoat_home:
+
+```sql
+ALTER TABLE `def_nodegoat_import_template_columns` CHANGE `ignore_when` `ignore_when` TINYINT NOT NULL;
+
+ALTER TABLE `def_nodegoat_custom_project_visual_settings` ADD `social_dot_opacity` FLOAT NULL DEFAULT NULL AFTER `social_dot_color`, ADD `social_dot_stroke_opacity` FLOAT NOT NULL AFTER `social_dot_stroke_color`;
+ALTER TABLE `def_nodegoat_custom_project_visual_settings` ADD `social_label_color` VARCHAR(10) NOT NULL AFTER `social_label_condition`, ADD `social_label_opacity` FLOAT NOT NULL AFTER `social_label_color`, ADD `social_label_size` FLOAT NOT NULL AFTER `social_label_opacity`;
+
+ALTER TABLE `def_nodegoat_linked_data_resources` ADD `protocol_method` SMALLINT NOT NULL AFTER `protocol`;
+
+UPDATE def_nodegoat_import_template_columns SET element_id = 'object-name_plain' WHERE element_id = 'object-name';
+UPDATE def_nodegoat_import_template_columns SET element_type_element_id = 'object-name_plain' WHERE element_type_element_id = 'object-name';
+```
+
+---
+
+Run SQL queries in database nodegoat_content:
+
+```sql
+UPDATE def_type_object_descriptions SET value_type_base = 'integer' WHERE value_type_base = 'int';
+UPDATE def_type_object_sub_descriptions SET value_type_base = 'integer' WHERE value_type_base = 'int';
+UPDATE def_type_object_descriptions SET value_type_base = 'serial_string' WHERE value_type_base = 'serial_varchar';
+UPDATE def_type_object_sub_descriptions SET value_type_base = 'serial_string' WHERE value_type_base = 'serial_varchar';
+
+CREATE TABLE `data_type_object_definitions_vectors` (
+  `object_id` int NOT NULL,
+  `object_description_id` int NOT NULL,
+  `embed` blob NOT NULL,
+  `embed_normalise` varchar(50000) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'Converts to VECTOR on database support: CMS -> Admin -> Setup.',
+  `identifier` smallint NOT NULL DEFAULT '0',
+  `state` smallint NOT NULL DEFAULT '0',
+  `version` smallint NOT NULL DEFAULT '1',
+  `active` tinyint(1) NOT NULL DEFAULT '0',
+  `status` tinyint NOT NULL DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `data_type_object_definitions_vectors`
+  ADD PRIMARY KEY (`object_id`,`object_description_id`,`identifier`,`version`) USING BTREE,
+  ADD KEY `object_description_id` (`object_description_id`),
+  ADD KEY `active` (`active`,`status`);
+
+CREATE TABLE `data_type_object_sub_definitions_vectors` (
+  `object_sub_id` int NOT NULL,
+  `object_sub_description_id` int NOT NULL,
+  `embed` blob NOT NULL,
+  `embed_normalise` varchar(50000) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'Converts to VECTOR on database support: CMS -> Admin -> Setup.',
+  `state` smallint NOT NULL DEFAULT '0',
+  `version` smallint NOT NULL DEFAULT '1',
+  `active` tinyint(1) NOT NULL DEFAULT '0',
+  `status` tinyint NOT NULL DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `data_type_object_sub_definitions_vectors`
+  ADD PRIMARY KEY (`object_sub_id`,`object_sub_description_id`,`version`),
+  ADD KEY `object_sub_description_id` (`object_sub_description_id`),
+  ADD KEY `active` (`active`,`status`);
+
+UPDATE data_type_object_definitions_modules SET object = REPLACE(object, '"object-name"', '"object-name_plain"') WHERE object LIKE '%"object-name"%';
+
+GRANT SELECT, INSERT, UPDATE, DELETE, DROP, INDEX, ALTER ON nodegoat_content.* TO 1100CC_cms@localhost;
+```

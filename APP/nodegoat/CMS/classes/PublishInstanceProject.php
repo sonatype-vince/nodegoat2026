@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -143,7 +143,7 @@ class PublishInstanceProject {
 		$this->str_title = Labels::parseTextVariables($this->arr_project['project']['name']);
 		
 		Labels::setVariable('project', $this->arr_project['project']['name']);
-		status(getLabel('msg_publish_instance_generating'), false, getLabel('msg_wait'), ['identifier' => SiteStartEnvironment::getSessionId(true).'publish_instance', 'duration' => 1000, 'persist' => true]);
+		status(getLabel('msg_publish_instance_generating'), false, getLabel('msg_wait'), ['identifier' => SiteStartEnvironment::getSessionID(true).'publish_instance', 'duration' => 1000, 'persist' => true]);
 		
 		$graph = new CreateProjectOverviewGraph(false, $this->project_id);
 		$svg = $graph->generate(['header' => false, 'footer' => false]);
@@ -283,7 +283,7 @@ class PublishInstanceProject {
 			.'</section>';
 		}
 		
-		clearStatus(SiteStartEnvironment::getSessionId(true).'publish_instance');
+		clearStatus(SiteStartEnvironment::getSessionID(true).'publish_instance');
 	}
 		
 	protected function generateTypeData($type_id) {
@@ -728,7 +728,7 @@ class PublishInstanceProject {
 		
 		$arr_settings = ExportTypesObjectsNetworkCSV::getCollectorSettings();
 		
-		$func_get_collector = function($arr_selection) use ($type_id, $arr_project_type, $arr_project_filters, $arr_conditions, $arr_settings) {
+		$func_get_collector = function($arr_selection, $arr_filter) use ($type_id, $arr_project_type, $arr_project_filters, $arr_conditions, $arr_settings) {
 						
 			$arr_type_network_paths = ['start' => [$type_id => ['path' => [0]]]];
 
@@ -746,6 +746,8 @@ class PublishInstanceProject {
 				$collect->addLimitTypeFilters($type_id, $arr_project_filters, $arr_project_type['type_filter_object_subs']);
 			}
 			
+			$collect->setFilter($arr_filter);
+			
 			return $collect;
 		};
 
@@ -757,11 +759,11 @@ class PublishInstanceProject {
 			Labels::setVariable('file_type', 'CSV');
 			status(getLabel('msg_publish_instance_generating_file'));
 						
-			$collect = $func_get_collector($arr_selection['model']);
+			$collect = $func_get_collector($arr_selection['model'], $arr_selection['filter']);
 			
 			$export = new ExportTypesObjectsNetworkCSV($type_id, $arr_selection['scope'], ['include_description_name' => true]);
 			
-			$export->init($collect, $arr_selection['filter']);
+			$export->init($collect);
 							
 			$has_package = $export->createPackage(['separator' => ',', 'enclose' => '"']);
 				

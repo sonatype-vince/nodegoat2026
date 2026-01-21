@@ -2,7 +2,7 @@
 
 /**
  * nodegoat - web-based data management, network analysis & visualisation environment.
- * Copyright (C) 2025 LAB1100.
+ * Copyright (C) 2026 LAB1100.
  * 
  * nodegoat runs on 1100CC (http://lab1100.com/1100cc).
  * 
@@ -21,7 +21,11 @@ class StoreTypeObjects {
 	
 	const MODE_UPDATE = 1;
 	const MODE_OVERWRITE = 2;
-	
+
+	const OBJECT_STATE_ADDED = 'added';
+	const OBJECT_STATE_CHANGED = 'changed';
+	const OBJECT_STATE_DELETED = 'deleted';
+	const OBJECT_STATE_ATTENTION = 'attention';
 	const MODULE_STATE_NONE = 0;
 	const MODULE_STATE_DISABLED = 1;
 	/*const MODULE_MODE_X = 2;
@@ -37,14 +41,15 @@ class StoreTypeObjects {
 	
 	protected $object_id = false;
 	
-	protected $insert = true;
-	protected $insert_sub = true;
+	protected $is_insert = true;
+	protected $is_insert_sub = true;
 	
 	protected $arr_append = [];
-	protected $versioning = true;
+	protected $do_versioning = true;
 	
 	protected $arr_type_set = [];
 	protected $arr_types = [];
+	protected $arr_type_versionable = null;
 	protected $arr_object_set = [];
 	
 	protected $arr_sql_insert = [];
@@ -62,9 +67,11 @@ class StoreTypeObjects {
 	protected $stmt_object_sub_description_versions = [];
 	protected $stmt_object_sub_details_id = false;
 	protected $stmt_object_sub_ids = false;
-			
+	
 	protected $arr_append_object_sub_details_ids = [];
 	protected $arr_append_object_sub_ids = [];
+	
+	protected $arr_secondary_values = [];
 	
 	protected $mode = self::MODE_UPDATE;
 	protected $do_check = true;
@@ -77,6 +84,10 @@ class StoreTypeObjects {
 
 	public static $timeout_lock = 30; // Lock object, in seconds
 	public static $last_object_id = 0;
+	
+	const RECORD_ACTION_INSERT = 1;
+	const RECORD_ACTION_VERSION = 2;
+	const RECORD_ACTION_DELETE = 3;
 		
     public function __construct($type_id, $object_id, $arr_owner, $identifier = false, $arr_type_set = false) {
 	
@@ -152,7 +163,7 @@ class StoreTypeObjects {
 		Store:
 		Objects are stored and updated according to the values served at their corresponding positions in the object array (same goes for filtering):
 		- Want to insert/update something => present a new definition, sub-object, or source type
-		- Want to delete something => present an empty definition, sub-object (object_sub_version = 'deleted'), or source type
+		- Want to delete something => present an empty definition, sub-object (object_sub_state = OBJECT_STATE_DELETED), or source type
 		
 		Versioning - version:
 		-20+: Relates to alternate records of record versions (VERSION_OFFSET_ALTERNATE - version)
@@ -190,7 +201,7 @@ class StoreTypeObjects {
 		$arr_object_definitions = arrParseRecursive($arr_object_definitions, $func_parse);
 		$arr_object_subs = arrParseRecursive($arr_object_subs, $func_parse);
 		
-		if ($this->object_id && $this->versioning) {
+		if ($this->object_id && $this->do_versioning) {
 			
 			// Relate changes to the latest version
 			$filter = new FilterTypeObjects($this->type_id, GenerateTypeObjects::VIEW_STORAGE);
@@ -203,20 +214,39 @@ class StoreTypeObjects {
 					
 					$arr_selection['object_descriptions'][$arr_object_definition['object_description_id']] = $arr_object_definition['object_description_id'];
 				}
-				foreach ($arr_object_subs as $arr_object_sub) {
+				foreach ($arr_object_subs as $key => &$arr_object_sub) {
 					
-					$object_sub_details_id = $arr_object_sub['object_sub']['object_sub_details_id'];
+					if (isset($arr_object_sub['object_sub'])) {
+						
+						$object_sub_id = (int)$arr_object_sub['object_sub']['object_sub_id'];
+						$object_sub_details_id = (int)$arr_object_sub['object_sub']['object_sub_details_id'];
+					} else {
+						
+						$object_sub_id = (int)$key;
+						$object_sub_details_id = null;
+					}
 					
-					if (!$object_sub_details_id && $arr_object_sub['object_sub']['object_sub_id']) {
-						$object_sub_details_id = $this->getTypeObjectSubObjectSubDetailsID($arr_object_sub['object_sub']['object_sub_id']);
+					if (!$object_sub_details_id && $object_sub_id) {
+						$object_sub_details_id = $this->getTypeObjectSubObjectSubDetailsID($object_sub_id);
 					}
 					
 					if (!$object_sub_details_id) {
+						
+						unset($arr_object_subs[$key]);
 						continue;
+					}
+					
+					if (!isset($arr_object_sub['object_sub'])) {
+						
+						$arr_object_sub['object_sub'] = [
+							'object_sub_id' => $object_sub_id,
+							'object_sub_details_id' => $object_sub_details_id
+						];
 					}
 					
 					$arr_selection['object_sub_details'][$object_sub_details_id] = true;
 				}
+				unset($arr_object_sub);
 				
 				$filter->setSelection($arr_selection);
 			}
@@ -247,8 +277,8 @@ class StoreTypeObjects {
 		
 		if ($this->do_check) {
 			
-			$version_select = GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ACTIVE, 'record', 'nodegoat_to_def');
-			$version_select_to = GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ACTIVE, 'object', 'nodegoat_to');
+			$str_sql_version_select = GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ACTIVE, 'record', 'nodegoat_to_def');
+			$str_sql_version_select_to = GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_ACTIVE, 'object', 'nodegoat_to');
 
 			foreach ($this->arr_type_set['object_descriptions'] as $object_description_id => $arr_object_description) {
 				
@@ -266,39 +296,39 @@ class StoreTypeObjects {
 						continue;
 					}
 					
-					$value_type = $arr_object_description['object_description_value_type'];
-					$value_find = FormatTypeObjects::formatToSQLValue($value_type, $arr_object_definition['object_definition_value']);
-					$sql_match = false;
+					$str_value_type = $arr_object_description['object_description_value_type'];
+					$arr_value_find = FormatTypeObjects::formatToSQLValue($str_value_type, $arr_object_definition['object_definition_value']);
+					$str_sql_match = false;
 					
 					if ($arr_object_description['object_description_has_multi']) {
 						
 						$arr_str = [];
 						
-						foreach ((array)$value_find as $value) {
-							$arr_str[] = FormatTypeObjects::formatToSQLValueFilter($value_type, ['equality' => '=', 'value' => $value], StoreType::getValueTypeValue($value_type));
+						foreach ((array)$arr_value_find as $value) {
+							$arr_str[] = FormatTypeObjects::formatToSQLValueFilter($str_value_type, ['equality' => '=', 'value' => $value], StoreType::getValueTypeValue($str_value_type));
 						}
 						
 						if ($arr_str) {
-							$sql_match = "(".implode(" OR ", $arr_str).")";
+							$str_sql_match = "(".implode(" OR ", $arr_str).")";
 						}
 					} else {
-						$sql_match = FormatTypeObjects::formatToSQLValueFilter($value_type, ['equality' => '=', 'value' => $value_find], StoreType::getValueTypeValue($value_type));
+						$str_sql_match = FormatTypeObjects::formatToSQLValueFilter($str_value_type, ['equality' => '=', 'value' => $arr_value_find], StoreType::getValueTypeValue($str_value_type));
 					}
 					
-					if ($sql_match) {
+					if ($str_sql_match) {
 							
 						$res = DB::query("SELECT object_description_id, object_id
-								FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').StoreType::getValueTypeTable($value_type)." nodegoat_to_def
-								JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to ON (nodegoat_to.id = nodegoat_to_def.object_id AND ".$version_select_to.")
+								FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').StoreType::getValueTypeTable($str_value_type)." nodegoat_to_def
+								JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECTS')." nodegoat_to ON (nodegoat_to.id = nodegoat_to_def.object_id AND ".$str_sql_version_select_to.")
 							WHERE object_description_id = ".$object_description_id."
-								AND ".$sql_match."
-								AND ".$version_select."
+								AND ".$str_sql_match."
+								AND ".$str_sql_version_select."
 								".($this->object_id ? "AND object_id != ".$this->object_id : "")."
 						");
 						
 						if ($res->getRowCount()) {
 							
-							Labels::setVariable('value', (is_array($value_find) ? implode(' / ', $value_find) : $value_find));
+							Labels::setVariable('value', (is_array($arr_value_find) ? implode(' / ', $arr_value_find) : $arr_value_find));
 							Labels::setVariable('field', Labels::parseTextVariables($arr_object_description['object_description_name']));
 							error(getLabel('msg_object_definition_not_unique'));
 						}
@@ -309,7 +339,7 @@ class StoreTypeObjects {
 					
 					if ($arr_object_definition === null) {
 						
-						if ($this->object_id || (!$this->object_id && ($arr_object_description['object_description_value_type_settings']['default']['value'] ?? null))) {
+						if ($this->object_id || (!$this->object_id && isset($arr_object_description['object_description_value_type_settings']['default']['value']))) {
 							continue;
 						}
 					} else if (($is_ref_type_id && $arr_object_definition['object_definition_ref_object_id']) || (!$is_ref_type_id && isset($arr_object_definition['object_definition_value']) && $arr_object_definition['object_definition_value'] !== false && $arr_object_definition['object_definition_value'] !== '')) {
@@ -323,19 +353,26 @@ class StoreTypeObjects {
 		}
 		
 		$arr_object_subs = ($arr_object_subs ?: []);
+		$arr_track_single = [];
 		
 		foreach ($arr_object_subs as $key => &$arr_object_sub) {
 			
-			$object_sub_id = (int)$arr_object_sub['object_sub']['object_sub_id'];
+			if (isset($arr_object_sub['object_sub'])) {
+				$object_sub_id = (int)$arr_object_sub['object_sub']['object_sub_id'];
+			} else {
+				$object_sub_id = ($this->object_id ? (int)$key : null);
+			}
 			
+			$object_sub_details_id = null;
+						
 			if (!$object_sub_id || $this->is_trusted) { // Trust object_sub_details_id when new sub-object or when doing internal operations (e.g. merging (object set doesn't contain old merging sub-object ids))
 				
-				$object_sub_details_id = (int)$arr_object_sub['object_sub']['object_sub_details_id'];
-				$object_sub_details_id = ($this->arr_type_set['object_sub_details'][$object_sub_details_id] ? $object_sub_details_id : false);
+				$object_sub_details_id = (int)($arr_object_sub['object_sub']['object_sub_details_id'] ?? null);
+				$object_sub_details_id = (isset($this->arr_type_set['object_sub_details'][$object_sub_details_id]) ? $object_sub_details_id : null);
 			} else {
 				
-				if ($this->versioning) {
-					$object_sub_details_id = (int)$this->arr_object_set['object_subs'][$object_sub_id]['object_sub']['object_sub_details_id'];
+				if ($this->do_versioning) {
+					$object_sub_details_id = (int)($this->arr_object_set['object_subs'][$object_sub_id]['object_sub']['object_sub_details_id'] ?? null);
 				} else {
 					$object_sub_details_id = $this->getTypeObjectSubObjectSubDetailsID($object_sub_id);
 				}
@@ -347,15 +384,36 @@ class StoreTypeObjects {
 				continue;
 			}
 			
-			// Subobject
+			if (!isset($arr_object_sub['object_sub'])) {
+				
+				$arr_object_sub['object_sub'] = [
+					'object_sub_id' => $object_sub_id,
+					'object_sub_details_id' => $object_sub_details_id
+				];
+			}
+			
+			// Sub-object
 		
 			$arr_object_sub = $this->parseObjectSub($object_sub_details_id, $arr_object_sub);
 			
 			if (!$arr_object_sub) {
+				
 				unset($arr_object_subs[$key]);
+				continue;
+			}
+			
+			if ($this->arr_type_set['object_sub_details'][$object_sub_details_id]['object_sub_details']['object_sub_details_is_single']) { // Track and remove preceding sub-objects, if found
+				
+				$s_key =& $arr_track_single[$object_sub_details_id];
+				
+				if ($s_key !== null) {
+					unset($arr_object_subs[$s_key]);
+				}
+				
+				$s_key = $key;
 			}
 		}
-		unset($arr_object_sub);
+		unset($arr_object_sub, $s_key);
 		
 		// Start Storage
 			
@@ -363,69 +421,69 @@ class StoreTypeObjects {
 	
 		// Object (name)
 		
-		$action_object = false;
+		$mode_action_object = null;
 		
 		if (!$this->object_id) {
 			
-			$action_object = 'insert';
-			$this->insert = true;
+			$mode_action_object = static::RECORD_ACTION_INSERT;
+			$this->is_insert = true;
 		} else {
 								
 			if ($this->mode == self::MODE_OVERWRITE && $this->arr_type_set['type']['use_object_name'] && !isset($arr_object_self['object_name_plain'])) {
 				$arr_object_self['object_name_plain'] = '';
 			}
 			
-			if ($this->versioning) {
+			if ($this->do_versioning) {
 				
 				if (
 					($this->arr_type_set['type']['use_object_name'] && isset($arr_object_self['object_name_plain']) && $arr_object_self['object_name_plain'] != $this->arr_object_set['object']['object_name_plain'])
 						||
-					$this->arr_object_set['object']['object_version'] == 'deleted'
+					$this->arr_object_set['object']['object_state'] == static::OBJECT_STATE_DELETED
 				) { // Object version changes when object name is altered, or when the current object status was preset to deleted
 					
 					foreach ($this->getTypeObjectVersions() as $arr_version) {
 						
 						if ($arr_version['object_name_plain'] == $arr_object_self['object_name_plain'] && $arr_version['object_version'] > 0) {
 						
-							$version = $arr_version['object_version'];
-							$action_object = 'version';
+							$num_version = $arr_version['object_version'];
+							$mode_action_object = static::RECORD_ACTION_VERSION;
 							
 							break;
 						}
 					}
 					
-					$action_object = ($action_object ?: 'insert');
+					$mode_action_object = ($mode_action_object ?: static::RECORD_ACTION_INSERT);
 				}
 			} else {
 				
 				if ($this->arr_type_set['type']['use_object_name'] && isset($arr_object_self['object_name_plain'])) {
-					$action_object = 'insert';
+					$mode_action_object = static::RECORD_ACTION_INSERT;
 				}
 			}
 
-			$this->insert = false;
+			$this->is_insert = false;
 		}
 		
-		if ($action_object == 'insert') {
+		if ($mode_action_object == static::RECORD_ACTION_INSERT) {
 			
-			if ($this->versioning && !$this->insert) {
+			if ($this->do_versioning && !$this->is_insert) {
 				
 				$arr_version = $this->getTypeObjectVersions();
 				$arr_version = current($arr_version);					
-				$version = ($arr_version && $arr_version['object_version'] > 0 ? $arr_version['object_version'] : 0) + 1;
+				$num_version = ($arr_version && $arr_version['object_version'] > 0 ? $arr_version['object_version'] : 0) + 1;
 			} else {
 				
-				$version = ($this->versioning ? 1 : static::VERSION_NONE);
+				$num_version = ($this->do_versioning ? 1 : static::VERSION_NONE);
 			}
 				
-			$this->addTypeObjectVersion($version, $arr_object_self['object_name_plain']);
+			$this->addTypeObjectVersion($num_version, $arr_object_self['object_name_plain']);
 		}
 		
-		if ($action_object) {
+		if ($mode_action_object) {
 			
-			$version_log = ($this->versioning && $this->insert ? static::VERSION_NEW : $version);
+			$num_version_log = ($this->do_versioning && $this->is_insert ? static::VERSION_NEW : $num_version);
 			
-			$this->addTypeObjectVersionUser($version_log);
+			$this->addTypeObjectVersionUser($num_version_log);
 		}
 					
 		$this->handleSources('object', $arr_object_self['object_sources']);
@@ -447,11 +505,11 @@ class StoreTypeObjects {
 					
 				if (!$arr_object_definition) {
 					
-					if ($this->insert) {
+					if ($this->is_insert) {
 						
 						$value_default = ($arr_object_description['object_description_value_type_settings']['default']['value'] ?? null);
 						
-						if ($value_default && $arr_object_definition === null) {
+						if ($value_default !== null && $arr_object_definition === null) {
 
 							if ($is_ref_type_id) {
 								$arr_object_definition['object_definition_ref_object_id'] = $value_default;
@@ -469,9 +527,12 @@ class StoreTypeObjects {
 					}
 				}
 				
-				$is_defined = (($is_ref_type_id && (isset($arr_object_definition['object_definition_ref_object_id']) || array_key_exists('object_definition_ref_object_id', $arr_object_definition))) || (!$is_ref_type_id && (isset($arr_object_definition['object_definition_value']) || array_key_exists('object_definition_value', $arr_object_definition))));
-
-				$action_object_definition = false;
+				$is_defined = false;
+				if ($is_ref_type_id) {
+					$is_defined = (isset($arr_object_definition['object_definition_ref_object_id']) || array_key_exists('object_definition_ref_object_id', $arr_object_definition));
+				} else {
+					$is_defined = (isset($arr_object_definition['object_definition_value']) || array_key_exists('object_definition_value', $arr_object_definition));
+				}
 
 				if ($is_defined) {
 					
@@ -497,14 +558,18 @@ class StoreTypeObjects {
 						}
 					}
 					
-					if ($this->insert) {
+					$do_versioning_description = ($this->do_versioning && (StoreType::getValueType($arr_object_description['object_description_value_type'], 'do_versioning') ?? true));
+					$mode_action_object_definition = null;
+					$num_version = 0;
+					
+					if ($this->is_insert) {
 						
 						if ($is_ref_type_id) {
 							
 							if ($arr_object_definition['object_definition_ref_object_id']) {
-								$action_object_definition = 'insert';
-							} else if (!$this->insert) {
-								$action_object_definition = 'delete';
+								$mode_action_object_definition = static::RECORD_ACTION_INSERT;
+							} else if (!$this->is_insert) {
+								$mode_action_object_definition = static::RECORD_ACTION_DELETE;
 							}
 						} else {
 							
@@ -513,9 +578,9 @@ class StoreTypeObjects {
 								||
 								($arr_object_description['object_description_has_multi'] && $arr_object_definition['object_definition_value'])
 							) {
-								$action_object_definition = 'insert';
-							} else if (!$this->insert) {
-								$action_object_definition = 'delete';
+								$mode_action_object_definition = static::RECORD_ACTION_INSERT;
+							} else if (!$this->is_insert) {
+								$mode_action_object_definition = static::RECORD_ACTION_DELETE;
 							}
 						}
 					} else {
@@ -524,7 +589,7 @@ class StoreTypeObjects {
 						
 						if ($is_ref_type_id) {
 							
-							if ($this->versioning) {
+							if ($this->do_versioning) {
 								
 								$arr_compare_object_definition = $arr_object_definition['object_definition_ref_object_id'];
 								
@@ -581,36 +646,42 @@ class StoreTypeObjects {
 										if (!$is_appendable) {
 											
 											// Set object definition record deleted flag (version 0)
-											$action_object_definition = 'delete';
+											$mode_action_object_definition = static::RECORD_ACTION_DELETE;
 										}
 									} else {
-																				
-										// Update object definition record, find existing version or insert new version
-										foreach ($this->getTypeObjectDescriptionVersions($object_description_id) as $arr_version) {
-											
-											if (static::compareSQLValue($arr_object_description['object_description_value_type'], $arr_compare_object_definition, $arr_version['object_definition_ref_object_id']) && $arr_version['object_definition_version'] > 0) {
-												
-												$version = $arr_version['object_definition_version'];
-												$action_object_definition = 'version';
-												
-												break;
-											}
-										}
 										
-										$action_object_definition = ($action_object_definition ?: 'insert');
+										if ($do_versioning_description) {
+											
+											// Update object definition record, find existing version or insert new version
+											foreach ($this->getTypeObjectDescriptionVersions($object_description_id) as $arr_version) {
+												
+												if (static::compareSQLValue($arr_object_description['object_description_value_type'], $arr_compare_object_definition, $arr_version['object_definition_ref_object_id']) && $arr_version['object_definition_version'] > 0) {
+													
+													$num_version = $arr_version['object_definition_version'];
+													$mode_action_object_definition = static::RECORD_ACTION_VERSION;
+													
+													break;
+												}
+											}
+											
+											$mode_action_object_definition = ($mode_action_object_definition ?: static::RECORD_ACTION_INSERT);
+										} else {
+											
+											$mode_action_object_definition = static::RECORD_ACTION_INSERT;
+										}
 									}
 								}
 							} else {
 								
 								if (!$arr_object_definition['object_definition_ref_object_id']) {
-									$action_object_definition = 'delete';
+									$mode_action_object_definition = static::RECORD_ACTION_DELETE;
 								} else {
-									$action_object_definition = 'insert';
+									$mode_action_object_definition = static::RECORD_ACTION_INSERT;
 								}
 							}
 						} else {
 							
-							if ($this->versioning) {
+							if ($this->do_versioning) {
 								
 								$arr_compare_object_definition = $arr_object_definition['object_definition_value'];
 								$arr_current_object_definition = $this->arr_object_set['object_definitions'][$object_description_id]['object_definition_value'];
@@ -638,46 +709,52 @@ class StoreTypeObjects {
 										if (!$is_appendable) {
 											
 											// Set object definition record deleted flag (version 0)
-											$action_object_definition = 'delete';
+											$mode_action_object_definition = static::RECORD_ACTION_DELETE;
 										}
 									} else {
+										
+										if ($do_versioning_description) {
 											
-										// Update object definition record, find existing version or insert new version
-										foreach ($this->getTypeObjectDescriptionVersions($object_description_id) as $arr_version) {
+											// Update object definition record, find existing version or insert new version
+											foreach ($this->getTypeObjectDescriptionVersions($object_description_id) as $arr_version) {
 
-											if (static::compareSQLValue($arr_object_description['object_description_value_type'], $arr_compare_object_definition, $arr_version['object_definition_value']) && $arr_version['object_definition_version'] > 0) {
-												
-												$version = $arr_version['object_definition_version'];
-												$action_object_definition = 'version';
-												
-												break;
+												if (static::compareSQLValue($arr_object_description['object_description_value_type'], $arr_compare_object_definition, $arr_version['object_definition_value']) && $arr_version['object_definition_version'] > 0) {
+													
+													$num_version = $arr_version['object_definition_version'];
+													$mode_action_object_definition = static::RECORD_ACTION_VERSION;
+													
+													break;
+												}
 											}
-										}
 
-										$action_object_definition = ($action_object_definition ?: 'insert');
+											$mode_action_object_definition = ($mode_action_object_definition ?: static::RECORD_ACTION_INSERT);
+										} else {
+											
+											$mode_action_object_definition = static::RECORD_ACTION_INSERT;
+										}
 									}
 								}
 							} else {
 								
 								if (!isset($arr_object_definition['object_definition_value']) || $arr_object_definition['object_definition_value'] === '' || ($arr_object_description['object_description_has_multi'] && !$arr_object_definition['object_definition_value'])) {
-									$action_object_definition = 'delete';
+									$mode_action_object_definition = static::RECORD_ACTION_DELETE;
 								} else {
-									$action_object_definition = 'insert';
+									$mode_action_object_definition = static::RECORD_ACTION_INSERT;
 								}
 							}
 						}
 					}
 					
-					if ($action_object_definition == 'insert') {
+					if ($mode_action_object_definition == static::RECORD_ACTION_INSERT) {
 						
-						if ($this->versioning && !$this->insert) {
+						if ($this->do_versioning && $do_versioning_description && !$this->is_insert) {
 							
 							$arr_version = $this->getTypeObjectDescriptionVersions($object_description_id);
 							$arr_version = current($arr_version);
-							$version = ($arr_version && $arr_version['object_definition_version'] > 0 ? $arr_version['object_definition_version'] : 0) + 1;
+							$num_version = ($arr_version && $arr_version['object_definition_version'] > 0 ? $arr_version['object_definition_version'] : 0) + 1;
 						} else {
 							
-							$version = ($this->versioning ? 1 : static::VERSION_NONE);
+							$num_version = ($this->do_versioning && $do_versioning_description ? 1 : static::VERSION_NONE);
 						}
 						
 						if ($is_ref_type_id) {
@@ -686,39 +763,39 @@ class StoreTypeObjects {
 							$value = $arr_object_definition['object_definition_value'];
 						}
 						
-						$this->addTypeObjectDescriptionVersion($object_description_id, $version, $value);
+						$this->addTypeObjectDescriptionVersion($object_description_id, $num_version, $value);
 						
-					} else if ($action_object_definition == 'delete') {
+					} else if ($mode_action_object_definition == static::RECORD_ACTION_DELETE) {
 						
-						if (!$this->versioning) {
+						if (!$this->do_versioning) {
 							
-							$this->arr_sql_delete['object_definition_version'][] = "UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').StoreType::getValueTypeTable($arr_object_description['object_description_value_type'])."
-								SET active = FALSE, status = 0
-								WHERE object_description_id = ".$object_description_id."
-									AND object_id = ".$this->object_id."
-									AND version >= ".static::VERSION_NONE."
-							";
+							$this->arr_sql_delete['object_definition_version'][] = "UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').StoreType::getValueTypeTable($arr_object_description['object_description_value_type'])
+								." SET active = FALSE, status = 0"
+								." WHERE object_description_id = ".$object_description_id
+									." AND object_id = ".$this->object_id
+									." AND version >= ".static::VERSION_NONE
+							;
 						}
 						
 						$arr_object_definition['object_definition_sources'] = []; // Also remove sources
 						
-						$version = 0;
+						$num_version = 0;
 					}
 					
-					if ($action_object_definition) {
+					if ($mode_action_object_definition) {
 						
 						if ($arr_object_description['object_description_value_type'] == 'text' || $arr_object_description['object_description_value_type'] == 'text_layout' || $arr_object_description['object_description_value_type'] == 'text_tags') {
 							
-							if (!$this->insert) {
+							if (!$this->is_insert) {
 
-								$this->arr_sql_delete['object_definition_objects'][] = "UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITION_OBJECTS')."
-									SET state = 0
-									WHERE object_description_id = ".$object_description_id."
-										AND object_id = ".$this->object_id."
-								";
+								$this->arr_sql_delete['object_definition_objects'][] = "UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITION_OBJECTS')
+									." SET state = 0"
+									." WHERE object_description_id = ".$object_description_id
+										." AND object_id = ".$this->object_id
+								;
 							}
 							
-							if ($action_object_definition != 'delete') {
+							if ($mode_action_object_definition != static::RECORD_ACTION_DELETE) {
 							
 								$arr_sql_insert = [];
 								$arr_object_definition_text = self::parseObjectDefinitionText($arr_object_definition['object_definition_value']);
@@ -739,9 +816,9 @@ class StoreTypeObjects {
 							}
 						}
 						
-						$version_log = ($this->versioning && $this->insert ? static::VERSION_NEW : $version);
+						$num_version_log = ($this->do_versioning && $do_versioning_description && $this->is_insert ? static::VERSION_NEW : $num_version);
 						
-						$this->addTypeObjectDescriptionVersionUser($object_description_id, $version_log);
+						$this->addTypeObjectDescriptionVersionUser($object_description_id, $num_version_log);
 					}
 				}
 			}
@@ -749,9 +826,9 @@ class StoreTypeObjects {
 			$this->handleSources('object_definition', $arr_object_definition['object_definition_sources'], ['object_description_id' => $object_description_id]);
 		}
 				
-		// Subobjects (object_sub AND object_sub_definitions)
+		// Sub-objects (object_sub AND object_sub_definitions)
 
-		if (!$this->insert && $this->mode == self::MODE_OVERWRITE) {
+		if (!$this->is_insert && $this->mode == self::MODE_OVERWRITE) {
 			
 			$arr_object_subs_touched = [];
 			
@@ -766,7 +843,7 @@ class StoreTypeObjects {
 				$arr_object_subs_touched[$object_sub_id] = $object_sub_id;
 			}
 			
-			if ($this->versioning) {
+			if ($this->do_versioning) {
 				
 				foreach ($this->arr_object_set['object_subs'] as $object_sub_id => $arr_object_sub) {
 					
@@ -777,7 +854,7 @@ class StoreTypeObjects {
 					$arr_object_subs[] = ['object_sub' => [
 						'object_sub_id' => $object_sub_id,
 						'object_sub_details_id' => $arr_object_sub['object_sub']['object_sub_details_id'],
-						'object_sub_version' => 'deleted'
+						'object_sub_state' => StoreTypeObjects::OBJECT_STATE_DELETED
 					]];
 				}
 			} else {
@@ -807,7 +884,7 @@ class StoreTypeObjects {
 					$arr_object_subs[] = ['object_sub' => [
 						'object_sub_id' => $object_sub_id,
 						'object_sub_details_id' => $object_sub_details_id,
-						'object_sub_version' => 'deleted'
+						'object_sub_state' => StoreTypeObjects::OBJECT_STATE_DELETED
 					]];
 				}
 			}		
@@ -818,36 +895,37 @@ class StoreTypeObjects {
 			$object_sub_details_id = $arr_object_sub['object_sub']['object_sub_details_id'];
 
 			$parse_object_sub = isset($arr_object_sub['object_sub']['object_sub_date_chronology']);
-			$action_object_sub = false;
 			$object_sub_id = false;
 			
 			$arr_current_object_sub = false;
 			
-			$version = 0;
-			$geometry_version = 0;
+			$mode_action_object_sub = null;
+			$num_version = 0;
 			$arr_object_sub_versions = false;
 			
 			if ($arr_object_sub['object_sub']['object_sub_id']) {
 				
 				$object_sub_id = $arr_object_sub['object_sub']['object_sub_id'];
-				if ($this->versioning) {
+				
+				if ($this->do_versioning) {
 					$arr_current_object_sub = $this->arr_object_set['object_subs'][$object_sub_id];
 				}
 				
-				if ($arr_object_sub['object_sub']['object_sub_version'] == 'deleted') {
+				if ($arr_object_sub['object_sub']['object_sub_state'] == StoreTypeObjects::OBJECT_STATE_DELETED) {
 					
-					if ($this->versioning) {
-												
-						if ($arr_current_object_sub['object_sub']['object_sub_version'] != 'deleted') { // Already flagged as deleted
-							$action_object_sub = 'delete'; // Set object sub record deleted flag (version 0)
+					if ($this->do_versioning) {
+						
+						if ($arr_current_object_sub['object_sub']['object_sub_state'] != StoreTypeObjects::OBJECT_STATE_DELETED) { // Already flagged as deleted
+							$mode_action_object_sub = static::RECORD_ACTION_DELETE; // Set object sub record deleted flag (version 0)
 						}
 					} else {
-						$action_object_sub = 'delete';
+						
+						$mode_action_object_sub = static::RECORD_ACTION_DELETE;
 					}
 				} else if ($parse_object_sub) {
 					
-					if ($this->versioning) {
-												
+					if ($this->do_versioning) {
+						
 						$str_compare = $arr_object_sub['object_sub']['object_sub_date_chronology'].'-'.$arr_object_sub['object_sub']['object_sub_location_ref_object_sub_details_id'].'-'.$arr_object_sub['object_sub']['object_sub_location_ref_object_id'].'-'.$arr_object_sub['object_sub']['object_sub_location_geometry'];
 						$str_current = FormatTypeObjects::formatToSQLValue('chronology', $arr_current_object_sub['object_sub']['object_sub_date_chronology']).'-'.(!$arr_current_object_sub['object_sub']['object_sub_location_ref_object_id'] && $arr_current_object_sub['object_sub']['object_sub_location_geometry'] ? 0 : $arr_current_object_sub['object_sub']['object_sub_location_ref_object_sub_details_id']).'-'.$arr_current_object_sub['object_sub']['object_sub_location_ref_object_id'].'-'.(!$arr_current_object_sub['object_sub']['object_sub_location_ref_object_id'] ? $arr_current_object_sub['object_sub']['object_sub_location_geometry'] : '');
 						
@@ -861,8 +939,8 @@ class StoreTypeObjects {
 						
 								if ($str_compare == $str_compare_version && $arr_object_sub_version['object_sub_version'] > 0) {
 									
-									$version = $arr_object_sub_version['object_sub_version'];
-									$action_object_sub = 'version';
+									$num_version = $arr_object_sub_version['object_sub_version'];
+									$mode_action_object_sub = static::RECORD_ACTION_VERSION;
 									
 									$arr_object_sub['object_sub']['object_sub_date_version'] = $arr_object_sub_version['object_sub_date_version'];
 									$arr_object_sub['object_sub']['object_sub_date_chronology'] = false;
@@ -874,24 +952,24 @@ class StoreTypeObjects {
 								}
 							}
 							
-							$action_object_sub = ($action_object_sub ?: 'insert');
+							$mode_action_object_sub = ($mode_action_object_sub ?: static::RECORD_ACTION_INSERT);
 						}
 					} else {
 						
-						$action_object_sub = 'insert';
+						$mode_action_object_sub = static::RECORD_ACTION_INSERT;
 					}
 				}
 				
-				$this->insert_sub = false;
+				$this->is_insert_sub = false;
 			} else if ($parse_object_sub || $arr_object_sub['object_sub_definitions']) {
 				
-				$action_object_sub = 'insert';
-				$this->insert_sub = true;
+				$mode_action_object_sub = static::RECORD_ACTION_INSERT;
+				$this->is_insert_sub = true;
 			}
 			
-			if ($action_object_sub == 'insert') {
+			if ($mode_action_object_sub == static::RECORD_ACTION_INSERT) {
 				
-				if ($this->versioning && !$this->insert_sub) {
+				if ($this->do_versioning && !$this->is_insert_sub) {
 					
 					if ($arr_object_sub_versions) {
 						reset($arr_object_sub_versions);
@@ -899,7 +977,7 @@ class StoreTypeObjects {
 						$arr_object_sub_versions = $this->getTypeObjectSubVersions($object_sub_id);
 					}
 					$arr_object_sub_version = current($arr_object_sub_versions);					
-					$version = ($arr_object_sub_version['object_sub_version'] > 0 ? $arr_object_sub_version['object_sub_version'] : 0) + 1;
+					$num_version = ($arr_object_sub_version['object_sub_version'] > 0 ? $arr_object_sub_version['object_sub_version'] : 0) + 1;
 					
 					if ($arr_object_sub['object_sub']['object_sub_location_geometry']) {
 						
@@ -948,50 +1026,49 @@ class StoreTypeObjects {
 					}
 				} else {
 					
-					$version = ($this->versioning ? 1 : static::VERSION_NONE);
+					$num_version = ($this->do_versioning ? 1 : static::VERSION_NONE);
 					
 					if ($arr_object_sub['object_sub']['object_sub_location_geometry']) {
-						
-						$arr_object_sub['object_sub']['object_sub_location_geometry_version'] = $version;
+						$arr_object_sub['object_sub']['object_sub_location_geometry_version'] = $num_version;
 					}
 					
 					if ($arr_object_sub['object_sub']['object_sub_date_chronology']) {
 						
-						$arr_object_sub['object_sub']['object_sub_date_version'] = $version;
+						$arr_object_sub['object_sub']['object_sub_date_version'] = $num_version;
 						
-						if (!$this->versioning && !$this->insert_sub) {
+						if (!$this->do_versioning && !$this->is_insert_sub) {
 							
-							$this->arr_sql_delete['object_sub_date_chronology_version'][] = "UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DATE_CHRONOLOGY')."
-								SET active = FALSE
-								WHERE object_sub_id = ".$object_sub_id."
-									AND version = ".static::VERSION_NONE."
-							";
+							$this->arr_sql_delete['object_sub_date_chronology_version'][] = "UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DATE_CHRONOLOGY')
+								." SET active = FALSE"
+								." WHERE object_sub_id = ".$object_sub_id
+									." AND version = ".static::VERSION_NONE
+							;
 						}
 					}
 				}
 				
-				$object_sub_id = $this->addTypeObjectSubVersion($object_sub_id, $object_sub_details_id, $version, $arr_object_sub['object_sub']);
+				$object_sub_id = $this->addTypeObjectSubVersion($object_sub_id, $object_sub_details_id, $num_version, $arr_object_sub['object_sub']);
 
-			} else if ($action_object_sub == 'delete') {
+			} else if ($mode_action_object_sub == static::RECORD_ACTION_DELETE) {
 				
-				if (!$this->versioning) {
+				if (!$this->do_versioning) {
 				
-					$this->arr_sql_delete['object_sub_version'][] = "UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')."
-						SET active = FALSE, status = 0
-						WHERE id = ".$object_sub_id."
-							AND object_id = ".$this->object_id."
-							AND version >= ".static::VERSION_NONE."
-					";
+					$this->arr_sql_delete['object_sub_version'][] = "UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')
+						." SET active = FALSE, status = 0"
+						." WHERE id = ".$object_sub_id
+							." AND object_id = ".$this->object_id
+							." AND version >= ".static::VERSION_NONE
+					;
 				}
 				
 				$arr_object_sub['object_sub']['object_sub_sources'] = []; // Also remove sources
 				
-				$version = 0;
+				$num_version = 0;
 			}
 			
-			if ($action_object_sub) {
+			if ($mode_action_object_sub) {
 				
-				if ($action_object_sub != 'delete') {
+				if ($mode_action_object_sub != static::RECORD_ACTION_DELETE) {
 				
 					if (FormatTypeObjects::GEOMETRY_SRID && $arr_object_sub['object_sub']['object_sub_location_geometry_version']) {
 						
@@ -1008,13 +1085,12 @@ class StoreTypeObjects {
 					
 				}
 				
-				$version_log = ($this->versioning && $this->insert_sub ? static::VERSION_NEW : $version);
+				$num_version_log = ($this->do_versioning && $this->is_insert_sub ? static::VERSION_NEW : $num_version);
 			
-				$this->addTypeObjectSubVersionUser($object_sub_id, $version_log);
+				$this->addTypeObjectSubVersionUser($object_sub_id, $num_version_log);
 			}
 			
 			if ($object_sub_id) {
-				
 				$this->handleSources('object_sub', $arr_object_sub['object_sub']['object_sub_sources'], ['object_sub_id' => $object_sub_id]);
 			}
 							
@@ -1039,11 +1115,11 @@ class StoreTypeObjects {
 						
 					if (!$arr_object_sub_definition) {
 						
-						if ($this->insert_sub) {
+						if ($this->is_insert_sub) {
 							
 							$value_default = ($arr_object_sub_description['object_sub_description_value_type_settings']['default']['value'] ?? null);
 							
-							if ($value_default && $arr_object_sub_definition === null) {
+							if ($value_default !== null && $arr_object_sub_definition === null) {
 
 								if ($is_ref_type_id) {
 									$arr_object_sub_definition['object_sub_definition_ref_object_id'] = $value_default;
@@ -1053,7 +1129,7 @@ class StoreTypeObjects {
 							} else {
 								continue;
 							}
-						} else if (!$this->insert && $this->mode == self::MODE_OVERWRITE && $arr_object_sub_definition === null) {
+						} else if (!$this->is_insert && $this->mode == self::MODE_OVERWRITE && $arr_object_sub_definition === null) {
 							
 							$arr_object_sub_definition = ['object_sub_definition_value' => '', 'object_sub_definition_ref_object_id' => 0];
 						} else {
@@ -1061,12 +1137,15 @@ class StoreTypeObjects {
 						}
 					}
 					
-					$action_object_sub_definition = false;
+					$is_defined = false;
+					if ($is_ref_type_id) {
+						$is_defined = (isset($arr_object_sub_definition['object_sub_definition_ref_object_id']) || array_key_exists('object_sub_definition_ref_object_id', $arr_object_sub_definition));
+					} else {
+						$is_defined = (isset($arr_object_sub_definition['object_sub_definition_value']) || array_key_exists('object_sub_definition_value', $arr_object_sub_definition));
+					}
 
-					$is_defined = (($is_ref_type_id && (isset($arr_object_sub_definition['object_sub_definition_ref_object_id']) || array_key_exists('object_sub_definition_ref_object_id', $arr_object_sub_definition))) || (!$is_ref_type_id && (isset($arr_object_sub_definition['object_sub_definition_value']) || array_key_exists('object_sub_definition_value', $arr_object_sub_definition))));
-					
 					if ($is_defined) {
-						
+
 						$this->parseObjectSubDefinition($object_sub_details_id, $object_sub_description_id, $arr_object_sub_description['object_sub_description_value_type'], $arr_object_sub_definition['object_sub_definition_value'], $arr_object_sub_definition['object_sub_definition_ref_object_id']);
 						
 						if ($arr_object_sub_definition['object_sub_definition_value'] === false || $arr_object_sub_definition['object_sub_definition_value'] === '') {
@@ -1079,12 +1158,16 @@ class StoreTypeObjects {
 							$arr_object_sub_definition['object_sub_definition_value'] = array_unique(array_filter($arr_object_sub_definition['object_sub_definition_value']));
 						}*/
 						
-						if ($this->insert_sub) {
+						$do_versioning_description = ($this->do_versioning && (StoreType::getValueType($arr_object_sub_description['object_sub_description_value_type'], 'do_versioning') ?? true));
+						$mode_action_object_sub_definition = null;
+						$num_version = 0;
+						
+						if ($this->is_insert_sub) {
 							
 							if ($is_ref_type_id) {
 								
 								if ($arr_object_sub_definition['object_sub_definition_ref_object_id']) {
-									$action_object_sub_definition = 'insert';
+									$mode_action_object_sub_definition = static::RECORD_ACTION_INSERT;
 								}
 							} else {
 								
@@ -1093,7 +1176,7 @@ class StoreTypeObjects {
 									||
 									($arr_object_sub_description['object_sub_description_has_multi'] && $arr_object_sub_definition['object_sub_definition_value'])
 								) {
-									$action_object_sub_definition = 'insert';
+									$mode_action_object_sub_definition = static::RECORD_ACTION_INSERT;
 								}
 							}
 						} else {
@@ -1102,7 +1185,7 @@ class StoreTypeObjects {
 							
 							if ($is_ref_type_id) {
 								
-								if ($this->versioning) {
+								if ($this->do_versioning) {
 									
 									$arr_compare_object_sub_definition = $arr_object_sub_definition['object_sub_definition_ref_object_id'];
 									
@@ -1130,36 +1213,42 @@ class StoreTypeObjects {
 										if (!$arr_object_sub_definition['object_sub_definition_ref_object_id']) {
 											
 											if (!$is_appendable) {
-												$action_object_sub_definition = 'delete'; // Set object sub definition record deleted flag (version 0)
+												$mode_action_object_sub_definition = static::RECORD_ACTION_DELETE; // Set object sub definition record deleted flag (version 0)
 											}
 										} else {
 
-											// Update object sub definition record, find existing version or insert new version
-											foreach ($this->getTypeObjectSubDescriptionVersions($object_sub_details_id, $object_sub_id, $object_sub_description_id) as $arr_version) {
+											if ($do_versioning_description) {
 												
-												if (static::compareSQLValue($arr_object_sub_description['object_sub_description_value_type'], $arr_compare_object_sub_definition, $arr_version['object_sub_definition_ref_object_id']) && $arr_version['object_sub_definition_version'] > 0) {
+												// Update object sub definition record, find existing version or insert new version
+												foreach ($this->getTypeObjectSubDescriptionVersions($object_sub_details_id, $object_sub_id, $object_sub_description_id) as $arr_version) {
 													
-													$version = $arr_version['object_sub_definition_version'];
-													$action_object_sub_definition = 'version';
-													
-													break;
+													if (static::compareSQLValue($arr_object_sub_description['object_sub_description_value_type'], $arr_compare_object_sub_definition, $arr_version['object_sub_definition_ref_object_id']) && $arr_version['object_sub_definition_version'] > 0) {
+														
+														$num_version = $arr_version['object_sub_definition_version'];
+														$mode_action_object_sub_definition = static::RECORD_ACTION_VERSION;
+														
+														break;
+													}
 												}
-											}
 
-											$action_object_sub_definition = ($action_object_sub_definition ?: 'insert');
+												$mode_action_object_sub_definition = ($mode_action_object_sub_definition ?: static::RECORD_ACTION_INSERT);
+											} else {
+												
+												$mode_action_object_sub_definition = static::RECORD_ACTION_INSERT;
+											}
 										}
 									}
 								} else {
 									
 									if (!$arr_object_sub_definition['object_sub_definition_ref_object_id']) {
-										$action_object_sub_definition = 'delete';
+										$mode_action_object_sub_definition = static::RECORD_ACTION_DELETE;
 									} else {
-										$action_object_sub_definition = 'insert';
+										$mode_action_object_sub_definition = static::RECORD_ACTION_INSERT;
 									}
 								}
 							} else {
 								
-								if ($this->versioning) {
+								if ($this->do_versioning) {
 										
 									$arr_compare_object_sub_definition = $arr_object_sub_definition['object_sub_definition_value'];
 									$arr_current_object_sub_definition = $arr_current_object_sub['object_sub_definitions'][$object_sub_description_id]['object_sub_definition_value'];
@@ -1180,46 +1269,52 @@ class StoreTypeObjects {
 										if (!isset($arr_object_sub_definition['object_sub_definition_value']) || $arr_object_sub_definition['object_sub_definition_value'] === '' || ($arr_object_sub_description['object_sub_description_has_multi'] && !$arr_object_sub_definition['object_sub_definition_value'])) {
 											
 											if (!$is_appendable) {
-												$action_object_sub_definition = 'delete'; // Set object definition record deleted flag (version 0)
+												$mode_action_object_sub_definition = static::RECORD_ACTION_DELETE; // Set object definition record deleted flag (version 0)
 											}
 										} else {
 
-											// Update object definition record, find existing version or insert new version
-											foreach ($this->getTypeObjectSubDescriptionVersions($object_sub_details_id, $object_sub_id, $object_sub_description_id) as $arr_version) {
+											if ($do_versioning_description) {
 												
-												if (static::compareSQLValue($arr_object_sub_description['object_sub_description_value_type'], $arr_compare_object_sub_definition, $arr_version['object_sub_definition_value']) && $arr_version['object_sub_definition_version'] > 0) {
+												// Update object definition record, find existing version or insert new version
+												foreach ($this->getTypeObjectSubDescriptionVersions($object_sub_details_id, $object_sub_id, $object_sub_description_id) as $arr_version) {
 													
-													$version = $arr_version['object_sub_definition_version'];
-													$action_object_sub_definition = 'version';
-													
-													break;
+													if (static::compareSQLValue($arr_object_sub_description['object_sub_description_value_type'], $arr_compare_object_sub_definition, $arr_version['object_sub_definition_value']) && $arr_version['object_sub_definition_version'] > 0) {
+														
+														$num_version = $arr_version['object_sub_definition_version'];
+														$mode_action_object_sub_definition = static::RECORD_ACTION_VERSION;
+														
+														break;
+													}
 												}
+												
+												$mode_action_object_sub_definition = ($mode_action_object_sub_definition ?: static::RECORD_ACTION_INSERT);
+											} else {
+												
+												$mode_action_object_sub_definition = static::RECORD_ACTION_INSERT;
 											}
-											
-											$action_object_sub_definition = ($action_object_sub_definition ?: 'insert');
 										}
 									}
 								} else {
 									
 									if (!isset($arr_object_sub_definition['object_sub_definition_value']) || $arr_object_sub_definition['object_sub_definition_value'] === '' || ($arr_object_sub_description['object_sub_description_has_multi'] && !$arr_object_sub_definition['object_sub_definition_value'])) {
-										$action_object_sub_definition = 'delete';
+										$mode_action_object_sub_definition = static::RECORD_ACTION_DELETE;
 									} else {
-										$action_object_sub_definition = 'insert';
+										$mode_action_object_sub_definition = static::RECORD_ACTION_INSERT;
 									}
 								}
 							}
 						}
 						
-						if ($action_object_sub_definition == 'insert') {
+						if ($mode_action_object_sub_definition == static::RECORD_ACTION_INSERT) {
 							
-							if ($this->versioning && !$this->insert_sub) {
+							if ($this->do_versioning && $do_versioning_description && !$this->is_insert_sub) {
 								
 								$arr_version = $this->getTypeObjectSubDescriptionVersions($object_sub_details_id, $object_sub_id, $object_sub_description_id);
 								$arr_version = current($arr_version);
-								$version = ($arr_version && $arr_version['object_sub_definition_version'] > 0 ? $arr_version['object_sub_definition_version'] : 0) + 1;
+								$num_version = ($arr_version && $arr_version['object_sub_definition_version'] > 0 ? $arr_version['object_sub_definition_version'] : 0) + 1;
 							} else {
 								
-								$version = ($this->versioning ? 1 : static::VERSION_NONE);
+								$num_version = ($this->do_versioning && $do_versioning_description ? 1 : static::VERSION_NONE);
 							}
 							
 							if ($is_ref_type_id) {
@@ -1228,39 +1323,39 @@ class StoreTypeObjects {
 								$value = $arr_object_sub_definition['object_sub_definition_value'];
 							}
 							
-							$this->addTypeObjectSubDescriptionVersion($object_sub_id, $object_sub_details_id, $object_sub_description_id, $version, $value);
+							$this->addTypeObjectSubDescriptionVersion($object_sub_id, $object_sub_details_id, $object_sub_description_id, $num_version, $value);
 							
-						} else if ($action_object_sub_definition == 'delete') {
+						} else if ($mode_action_object_sub_definition == static::RECORD_ACTION_DELETE) {
 							
-							if (!$this->versioning) {
+							if (!$this->do_versioning) {
 								
-								$this->arr_sql_delete['object_sub_definition_version'][] = "UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').StoreType::getValueTypeTable($arr_object_sub_description['object_sub_description_value_type'])."
-									SET active = FALSE, status = 0
-									WHERE object_sub_description_id = ".$object_sub_description_id."
-										AND object_sub_id = ".$object_sub_id."
-										AND version >= ".static::VERSION_NONE."
-								";
+								$this->arr_sql_delete['object_sub_definition_version'][] = "UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').StoreType::getValueTypeTable($arr_object_sub_description['object_sub_description_value_type'])
+									." SET active = FALSE, status = 0"
+									." WHERE object_sub_description_id = ".$object_sub_description_id
+										." AND object_sub_id = ".$object_sub_id
+										." AND version >= ".static::VERSION_NONE
+								;
 							}
 							
 							$arr_object_sub_definition['object_sub_definition_sources'] = []; // Also remove sources
 							
-							$version = 0;
+							$num_version = 0;
 						}
 						
-						if ($action_object_sub_definition) {
+						if ($mode_action_object_sub_definition) {
 							
 							if ($arr_object_sub_description['object_sub_description_value_type'] == 'text' || $arr_object_sub_description['object_sub_description_value_type'] == 'text_layout' || $arr_object_sub_description['object_sub_description_value_type'] == 'text_tags') {
 								
-								if (!$this->insert) {
+								if (!$this->is_insert) {
 									
-									$this->arr_sql_delete['object_sub_definition_objects'][] = "UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITION_OBJECTS')."
-											SET state = 0
-										WHERE object_sub_description_id = ".$object_sub_description_id."
-											AND object_sub_id = ".$object_sub_id."
-									";
+									$this->arr_sql_delete['object_sub_definition_objects'][] = "UPDATE ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITION_OBJECTS')
+											." SET state = 0"
+										." WHERE object_sub_description_id = ".$object_sub_description_id
+											." AND object_sub_id = ".$object_sub_id
+									;
 								}
 								
-								if ($action_object_sub_definition != 'delete') {
+								if ($mode_action_object_sub_definition != static::RECORD_ACTION_DELETE) {
 									
 									$arr_object_sub_definition_text = self::parseObjectDefinitionText($arr_object_sub_definition['object_sub_definition_value']);
 									
@@ -1273,7 +1368,6 @@ class StoreTypeObjects {
 									}
 									
 									if ($arr_sql_insert) {
-										
 										$this->arr_sql_insert['object_sub_definition_objects'][] = implode(',', $arr_sql_insert);
 									}
 								} else {
@@ -1282,9 +1376,9 @@ class StoreTypeObjects {
 								}
 							}
 							
-							$version_log = ($this->versioning && $this->insert_sub ? static::VERSION_NEW : $version);
+							$num_version_log = ($this->do_versioning && $do_versioning_description && $this->is_insert_sub ? static::VERSION_NEW : $num_version);
 							
-							$this->addTypeObjectSubDescriptionVersionUser($object_sub_id, $object_sub_description_id, $version_log);
+							$this->addTypeObjectSubDescriptionVersionUser($object_sub_id, $object_sub_description_id, $num_version_log);
 						}
 					}
 				}
@@ -1295,10 +1389,10 @@ class StoreTypeObjects {
 		
 		if ($this->arr_actions) {
 			
-			if ($this->insert) {
+			if ($this->is_insert) {
 				$this->addTypeObjectUpdate();
 			} else {
-				$this->arr_sql_insert['object_dating'][] = "(".$this->object_id.", ".DBFunctions::timeNow().", ".DBFunctions::timeNow().")"; // Update object dating with latest date
+				$this->arr_sql_insert['object_dating'][] = "(".$this->object_id.", ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow().")"; // Update object dating with latest date
 			}
 		}
 				
@@ -1315,16 +1409,18 @@ class StoreTypeObjects {
 
 		$arr_object_sub_details = $this->arr_type_set['object_sub_details'][$object_sub_details_id];
 		
-		if ($arr_object_sub_details['object_sub_details']['object_sub_details_is_single']) { // Overwrite a possible existing sub-object when it's unique
+		if ($arr_object_sub_details['object_sub_details']['object_sub_details_is_single']) { // Overwrite a possible existing sub-object when it's single
 			
 			if ($this->object_id && !$arr_object_sub['object_sub']['object_sub_id'] && $this->arr_object_set['object_subs']) {
 				
 				foreach ($this->arr_object_set['object_subs'] as $cur_object_sub_id => $arr_cur_object_sub) {
 					
-					if ($arr_cur_object_sub['object_sub']['object_sub_details_id'] == $object_sub_details_id) {
-						$arr_object_sub['object_sub']['object_sub_id'] = $cur_object_sub_id;
-						break;
+					if ($arr_cur_object_sub['object_sub']['object_sub_details_id'] != $object_sub_details_id) {
+						continue;
 					}
+					
+					$arr_object_sub['object_sub']['object_sub_id'] = $cur_object_sub_id;
+					break;
 				}
 			}
 		}
@@ -1334,12 +1430,12 @@ class StoreTypeObjects {
 		$parse_object_sub = false;
 		$is_double = false;
 		
-		// Subobject
+		// Sub-object
 		
 		$has_date = (isset($arr_object_sub['object_sub']['object_sub_date_type']) || isset($arr_object_sub['object_sub']['object_sub_date_chronology']) || isset($arr_object_sub['object_sub']['object_sub_date_object_sub_id']) || isset($arr_object_sub['object_sub']['object_sub_date_start']) || isset($arr_object_sub['object_sub']['object_sub_date_end']));
 		$has_location = (isset($arr_object_sub['object_sub']['object_sub_location_type']) || isset($arr_object_sub['object_sub']['object_sub_location_ref_object_id']));
 		
-		if (($arr_object_sub['object_sub']['object_sub_self'] || $has_date || $has_location) && $arr_object_sub['object_sub']['object_sub_version'] != 'deleted') { // Subobject wants to be inserted/updated
+		if (($arr_object_sub['object_sub']['object_sub_self'] || $has_date || $has_location) && $arr_object_sub['object_sub']['object_sub_state'] != StoreTypeObjects::OBJECT_STATE_DELETED) { // Subobject wants to be inserted/updated
 			
 			$arr_cur_object_sub = ($object_sub_id ? $this->arr_object_set['object_subs'][$object_sub_id] : false);
 			$date_is_locked = ($arr_object_sub_details['object_sub_details']['object_sub_details_date_use_object_sub_details_id'] || $arr_object_sub_details['object_sub_details']['object_sub_details_date_start_use_object_sub_description_id'] || $arr_object_sub_details['object_sub_details']['object_sub_details_date_start_use_object_description_id']);
@@ -1521,23 +1617,24 @@ class StoreTypeObjects {
 			];
 			
 			// Do not parse empty subobject on new insert
+			
 			if ($object_sub_id) {
 				$parse_object_sub = true;
-			} else if ((!$arr_object_sub_details['object_sub_details']['object_sub_details_has_date'] || $date_is_locked) && (!$arr_object_sub_details['object_sub_details']['object_sub_details_has_location'] || $location_is_locked)) {
+			} else if ((!$arr_object_sub_details['object_sub_details']['object_sub_details_has_date'] || $date_is_locked) && (!$arr_object_sub_details['object_sub_details']['object_sub_details_has_location'] || $location_is_locked)) { // Although empty, with no input possibility for both date and location, it could still be valid
 				$parse_object_sub = true;
 			} else if ($object_sub_date_chronology || $object_sub_location_geometry || $object_sub_location_ref_object_id) {
 				$parse_object_sub = true;
 			}
 		}
 		
-		if ($arr_object_sub['object_sub']['object_sub_version'] == 'deleted') { // Subobject wants to be deleted
+		if ($arr_object_sub['object_sub']['object_sub_state'] == StoreTypeObjects::OBJECT_STATE_DELETED) { // Sub-object wants to be deleted
 			
 			$arr_object_sub = ['object_sub' => [ // Also remove any possible references to subobject definitions
 				'object_sub_id' => $object_sub_id,
 				'object_sub_details_id' => $object_sub_details_id,
-				'object_sub_version' => 'deleted'
+				'object_sub_state' => StoreTypeObjects::OBJECT_STATE_DELETED
 			]];
-		} else if (!$parse_object_sub) { // Subobject itself has nothing to do, perhaps its definitions
+		} else if (!$parse_object_sub) { // Sub-object itself has nothing to do, perhaps its definitions
 
 			$arr_object_sub['object_sub'] = [
 				'object_sub_id' => $object_sub_id,
@@ -1546,14 +1643,11 @@ class StoreTypeObjects {
 			];
 		}
 		
-		// Subobject definitions
+		// Sub-object definitions
 		
 		if ($arr_object_sub['object_sub_definitions']) {
-			
-			// Set key to object_sub_description_id
-			$arr_object_sub['object_sub_definitions'] = array_combine(arrValuesRecursive('object_sub_description_id', $arr_object_sub['object_sub_definitions']), $arr_object_sub['object_sub_definitions']);
+			$arr_object_sub['object_sub_definitions'] = array_combine(arrValuesRecursive('object_sub_description_id', $arr_object_sub['object_sub_definitions']), $arr_object_sub['object_sub_definitions']); // Set key to object_sub_description_id
 		} else {
-			
 			$arr_object_sub['object_sub_definitions'] = [];
 		}
 		
@@ -1570,10 +1664,12 @@ class StoreTypeObjects {
 				if (!$object_sub_id) {
 					
 					if ($is_ref_type_id) {
+						
 						if (!$arr_object_sub_definition['object_sub_definition_ref_object_id']) {
 							unset($arr_object_sub['object_sub_definitions'][$object_sub_description_id]);
 						}
 					} else {
+						
 						if (!isset($arr_object_sub_definition['object_sub_definition_value']) || $arr_object_sub_definition['object_sub_definition_value'] === false || $arr_object_sub_definition['object_sub_definition_value'] === '') {
 							unset($arr_object_sub['object_sub_definitions'][$object_sub_description_id]);
 						}
@@ -1584,7 +1680,7 @@ class StoreTypeObjects {
 
 					if ($arr_object_sub_definition === null) {
 						
-						if ($this->object_id || (!$this->object_id && ($arr_object_sub_description['object_sub_description_value_type_settings']['default']['value'] ?? null))) {
+						if ($this->object_id || (!$this->object_id && isset($arr_object_sub_description['object_sub_description_value_type_settings']['default']['value']))) {
 							continue;
 						}
 					} else if (($is_ref_type_id && $arr_object_sub_definition['object_sub_definition_ref_object_id']) || (!$is_ref_type_id && isset($arr_object_sub_definition['object_sub_definition_value']) && $arr_object_sub_definition['object_sub_definition_value'] !== false && $arr_object_sub_definition['object_sub_definition_value'] !== '')) {
@@ -1597,7 +1693,7 @@ class StoreTypeObjects {
 			}
 		}
 
-		// Append or discard subobjects
+		// Append or discard sub-objects
 		
 		if ($parse_object_sub || $arr_object_sub['object_sub_definitions']) {
 			
@@ -1611,9 +1707,15 @@ class StoreTypeObjects {
 						
 						$arr_object_sub['object_sub']['object_sub_id'] = $this->arr_append_object_sub_details_ids[$object_sub_details_id];
 					} else {
-					
-						foreach ((array)$this->arr_object_set['object_subs'] as $cur_object_sub_id => $arr_cur_object_sub) {
-							if ($arr_cur_object_sub['object_sub']['object_sub_details_id'] == $object_sub_details_id) {
+						
+						if ($this->arr_object_set['object_subs']) {
+							
+							foreach ($this->arr_object_set['object_subs'] as $cur_object_sub_id => $arr_cur_object_sub) {
+								
+								if ($arr_cur_object_sub['object_sub']['object_sub_details_id'] != $object_sub_details_id) {
+									continue;
+								}
+								
 								$arr_object_sub['object_sub']['object_sub_id'] = $cur_object_sub_id;
 								break;
 							}
@@ -1624,49 +1726,55 @@ class StoreTypeObjects {
 					$arr_object_sub['object_sub']['object_sub_id'] = $this->arr_append_object_sub_ids[$object_sub_id];
 				
 				} else if ($parse_object_sub) {
-										
-					foreach ((array)$this->arr_object_set['object_subs'] as $cur_object_sub_id => $arr_cur_object_sub) {
-						
-						if ($arr_cur_object_sub['object_sub']['object_sub_details_id'] != $object_sub_details_id) {
-							continue;
-						}
-												
-						$str_compare = $arr_object_sub['object_sub']['object_sub_date_chronology'].'-'.$arr_object_sub['object_sub']['object_sub_location_ref_object_sub_details_id'].'-'.$arr_object_sub['object_sub']['object_sub_location_ref_object_id'].'-'.$arr_object_sub['object_sub']['object_sub_location_geometry'];
-						$str_current = FormatTypeObjects::formatToSQLValue('chronology', $arr_cur_object_sub['object_sub']['object_sub_date_chronology']).'-'.(!$arr_cur_object_sub['object_sub']['object_sub_location_ref_object_id'] && $arr_cur_object_sub['object_sub']['object_sub_location_geometry'] ? 0 : $arr_cur_object_sub['object_sub']['object_sub_location_ref_object_sub_details_id']).'-'.$arr_cur_object_sub['object_sub']['object_sub_location_ref_object_id'].'-'.(!$arr_cur_object_sub['object_sub']['object_sub_location_ref_object_id'] ? $arr_cur_object_sub['object_sub']['object_sub_location_geometry'] : '');
 							
-						if ($str_compare == $str_current) {
-
-							$is_double = true;
+					if ($this->arr_object_set['object_subs']) {
+					
+						foreach ($this->arr_object_set['object_subs'] as $cur_object_sub_id => $arr_cur_object_sub) {
 							
-							foreach ($arr_cur_object_sub['object_sub_definitions'] as $cur_object_sub_description_id => $arr_cur_object_sub_definition) {
+							if ($arr_cur_object_sub['object_sub']['object_sub_details_id'] != $object_sub_details_id) {
+								continue;
+							}
+													
+							$str_compare = $arr_object_sub['object_sub']['object_sub_date_chronology'].'-'.$arr_object_sub['object_sub']['object_sub_location_ref_object_sub_details_id'].'-'.$arr_object_sub['object_sub']['object_sub_location_ref_object_id'].'-'.$arr_object_sub['object_sub']['object_sub_location_geometry'];
+							$str_current = FormatTypeObjects::formatToSQLValue('chronology', $arr_cur_object_sub['object_sub']['object_sub_date_chronology']).'-'.(!$arr_cur_object_sub['object_sub']['object_sub_location_ref_object_id'] && $arr_cur_object_sub['object_sub']['object_sub_location_geometry'] ? 0 : $arr_cur_object_sub['object_sub']['object_sub_location_ref_object_sub_details_id']).'-'.$arr_cur_object_sub['object_sub']['object_sub_location_ref_object_id'].'-'.(!$arr_cur_object_sub['object_sub']['object_sub_location_ref_object_id'] ? $arr_cur_object_sub['object_sub']['object_sub_location_geometry'] : '');
 								
-								if ($arr_object_sub_details['object_sub_descriptions'][$cur_object_sub_description_id]['object_sub_description_ref_type_id']) {
+							if ($str_compare == $str_current) {
+
+								$is_double = true;
+								
+								foreach ($arr_cur_object_sub['object_sub_definitions'] as $cur_object_sub_description_id => $arr_cur_object_sub_definition) {
 									
-									if ($arr_cur_object_sub_definition['object_sub_definition_ref_object_id'] != $arr_object_sub['object_sub_definitions'][$cur_object_sub_description_id]['object_sub_definition_ref_object_id']) {
-										$is_double = false;
-										break;
-									} 
-								} else {
-									
-									$object_sub_definition_value = FormatTypeObjects::formatToSQLValue($arr_object_sub_details['object_sub_descriptions'][$cur_object_sub_description_id]['object_sub_description_value_type'], $arr_object_sub['object_sub_definitions'][$cur_object_sub_description_id]['object_sub_definition_value']);
-									if ($arr_cur_object_sub_definition['object_sub_definition_value'] != $object_sub_definition_value) {
-										$is_double = false;
-										break;
+									if ($arr_object_sub_details['object_sub_descriptions'][$cur_object_sub_description_id]['object_sub_description_ref_type_id']) {
+										
+										if ($arr_cur_object_sub_definition['object_sub_definition_ref_object_id'] != $arr_object_sub['object_sub_definitions'][$cur_object_sub_description_id]['object_sub_definition_ref_object_id']) {
+											
+											$is_double = false;
+											break;
+										} 
+									} else {
+										
+										$object_sub_definition_value = FormatTypeObjects::formatToSQLValue($arr_object_sub_details['object_sub_descriptions'][$cur_object_sub_description_id]['object_sub_description_value_type'], $arr_object_sub['object_sub_definitions'][$cur_object_sub_description_id]['object_sub_definition_value']);
+										
+										if ($arr_cur_object_sub_definition['object_sub_definition_value'] != $object_sub_definition_value) {
+											
+											$is_double = false;
+											break;
+										}
 									}
 								}
-							}
-							
-							if ($is_double) {
-								$arr_object_sub = [];
-								break;
+								
+								if ($is_double) {
+									
+									$arr_object_sub = [];
+									break;
+								}
 							}
 						}
 					}
 				}
 			} else if (!$object_sub_id) {
 				
-				if (!$arr_object_sub_details['object_sub_details']['object_sub_details_is_single'] && $date_is_locked && $location_is_locked && !$arr_object_sub['object_sub_definitions']) { // Do not process sub-object when it's not unique and does not contain any information
-					
+				if (!$arr_object_sub_details['object_sub_details']['object_sub_details_is_single'] && (!$arr_object_sub_details['object_sub_details']['object_sub_details_has_date'] || $date_is_locked) && (!$arr_object_sub_details['object_sub_details']['object_sub_details_has_location'] || $location_is_locked) && !$arr_object_sub['object_sub_definitions']) { // Do not process sub-object when it's not single and does not contain any information
 					$arr_object_sub = [];
 				}
 			}
@@ -1688,10 +1796,10 @@ class StoreTypeObjects {
 		// Value
 		
 		if (isset($value)) {
-			$value = FormatTypeObjects::formatToSQLValue($type, $value);
+			$value = FormatTypeObjects::formatToSQLValue($type, $value, $this->arr_secondary_values);
 		}
 	
-		if ($type == 'serial_varchar') {
+		if ($type == 'serial_string') {
 			
 			$has_serial = false;
 			$is_array = is_array($value);
@@ -1767,10 +1875,10 @@ class StoreTypeObjects {
 		// Value
 		
 		if (isset($value)) {
-			$value = FormatTypeObjects::formatToSQLValue($type, $value);
+			$value = FormatTypeObjects::formatToSQLValue($type, $value, $this->arr_secondary_values);
 		}
 		
-		if ($type == 'serial_varchar') {
+		if ($type == 'serial_string') {
 			
 			$has_serial = false;
 			$is_array = is_array($value);
@@ -1800,7 +1908,7 @@ class StoreTypeObjects {
 					foreach ($value as &$value_update) {
 					
 						$value_update = preg_replace_callback(
-							static::TAGCODE_PARSE_SERIAL_VARCHAR,
+							'/'.static::TAGCODE_PARSE_SERIAL_VARCHAR.'/',
 							function ($arr_matches) use ($num_serial) {
 								
 								$num_pad = (int)$arr_matches[1];
@@ -1816,7 +1924,7 @@ class StoreTypeObjects {
 				} else {
 					
 					$value = preg_replace_callback(
-						static::TAGCODE_PARSE_SERIAL_VARCHAR,
+						'/'.static::TAGCODE_PARSE_SERIAL_VARCHAR.'/',
 						function ($arr_matches) use ($num_serial) {
 							
 							$num_pad = (int)$arr_matches[1];
@@ -1840,6 +1948,7 @@ class StoreTypeObjects {
 			$this->stmt_object_sub_details_id = DB::prepare("SELECT nodegoat_tos.object_sub_details_id
 					FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos
 				WHERE nodegoat_tos.id = ".DBStatement::assign('object_sub_id', 'i')."
+					AND nodegoat_tos.object_sub_details_id IN (".implode(',', array_keys($this->arr_type_set['object_sub_details'])).")
 				LIMIT 1
 			");
 		}
@@ -1851,7 +1960,7 @@ class StoreTypeObjects {
 
 		$res->freeResult();
 		
-		return $arr_row[0];
+		return (isset($arr_row[0]) ? (int)$arr_row[0] : null);
 	}
 	
 	private function handleSources($type, $arr_source_types, $arr_options = []) {
@@ -1981,44 +2090,37 @@ class StoreTypeObjects {
 		
 		switch ($type) {
 			case 'object':
-				$sql_delete = "DELETE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SOURCES')."
-								WHERE object_id = ".$this->object_id;
+				$sql_delete = "DELETE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SOURCES')
+					." WHERE object_id = ".$this->object_id;
 				break;
 			case 'object_definition':
-				$sql_delete = "DELETE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITION_SOURCES')."
-								WHERE object_description_id = ".$arr_options['object_description_id']."
-									AND object_id = ".$this->object_id;
+				$sql_delete = "DELETE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITION_SOURCES')
+					." WHERE object_description_id = ".$arr_options['object_description_id']
+						." AND object_id = ".$this->object_id;
 				break;
 			case 'object_sub':
-				$sql_delete = "DELETE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_SOURCES')."
-								WHERE object_sub_id = ".$arr_options['object_sub_id'];
+				$sql_delete = "DELETE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_SOURCES')
+					." WHERE object_sub_id = ".$arr_options['object_sub_id'];
 				break;
 			case 'object_sub_definition':
-				$sql_delete = "DELETE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITION_SOURCES')."
-								WHERE object_sub_description_id = ".$arr_options['object_sub_description_id']."
-									AND object_sub_id = ".$arr_options['object_sub_id'];
+				$sql_delete = "DELETE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITION_SOURCES')
+					." WHERE object_sub_description_id = ".$arr_options['object_sub_description_id']
+						." AND object_sub_id = ".$arr_options['object_sub_id'];
 				break;
 		}
 
 		if ($arr_sql_insert) {
-			
 			$this->arr_sql_insert[$type.'_source'][] = implode(',', $arr_sql_insert);
 		}
 		
 		if ($arr_sql_delete) {
-			
-			$this->arr_sql_delete[$type.'_source'][] = "
-				".$sql_delete."
-					AND (
-						".implode(' OR ', $arr_sql_delete)."
-					)
-			";
+			$this->arr_sql_delete[$type.'_source'][] = $sql_delete." AND (".implode(' OR ', $arr_sql_delete).")";
 		}
 	}
 	
-	protected function addTypeObjectVersion($version, $value = null) {
+	protected function addTypeObjectVersion($num_version, $value = null) {
 		
-		$sql_value = "(".($this->object_id ? $this->object_id.", " : "").$version.", ".$this->type_id.", ".($value !== null ? "'".DBFunctions::strEscape($value)."'" : 'NULL').", ".($this->versioning ? '0' : '1').")";
+		$sql_value = "(".($this->object_id ? $this->object_id.", " : "").$num_version.", ".$this->type_id.", ".($value !== null ? "'".DBFunctions::strEscape($value)."'" : 'NULL').", ".($this->do_versioning ? '0' : '1').")";
 								
 		if (!$this->object_id) {
 			
@@ -2031,7 +2133,7 @@ class StoreTypeObjects {
 			$this->object_id = DB::lastInsertID();
 			self::$last_object_id = $this->object_id;
 			
-			$this->arr_sql_insert['object_dating'][] = "(".$this->object_id.", ".DBFunctions::timeNow().", ".DBFunctions::timeNow().")"; // Ensure object has a dating record, even when making an object exist only (e.g. through merge)
+			$this->arr_sql_insert['object_dating'][] = "(".$this->object_id.", ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow().")"; // Ensure object has a dating record, even when making an object exist only (e.g. through merge)
 		} else {
 			
 			$this->arr_sql_insert['object_version'][] = $sql_value;
@@ -2040,88 +2142,94 @@ class StoreTypeObjects {
 		return $this->object_id;
 	}
 	
-	protected function addTypeObjectVersionUser($version, $user_id = false, $date = false, $system_object_id = false) {
+	protected function addTypeObjectVersionUser($num_version, $user_id = false, $date = false, $system_object_id = false) {
 		
 		if ($this->arr_actions === false) { // store() could be circumvented by extended classes
 			$this->arr_actions = [];
 		}
 		$this->arr_actions['object'] = true;
 		
-		if (!$this->versioning) {
+		if (!$this->do_versioning) {
 			return;
 		}
 		
-		$this->arr_sql_insert['object_version_user'][] = "(".$this->object_id.", ".$version.", ".($user_id !== false ? (int)$user_id : $this->user_id).", ".($date ? "'".$date."'" : DBFunctions::timeNow()).", ".($system_object_id !== false ? ((int)$system_object_id ?: 'NULL') : ($this->system_object_id ?: 'NULL')).")";
+		$this->arr_sql_insert['object_version_user'][] = "(".$this->object_id.", ".$num_version.", ".($user_id !== false ? (int)$user_id : $this->user_id).", ".($date ? "'".$date."'" : DBFunctions::dateTimeNow()).", ".($system_object_id !== false ? ((int)$system_object_id ?: 'NULL') : ($this->system_object_id ?: 'NULL')).")";
 	}
 	
-	protected function addTypeObjectDescriptionVersion($object_description_id, $version, $value) {
+	protected function addTypeObjectDescriptionVersion($object_description_id, $num_version, $value) {
 		
 		$arr_object_description = $this->arr_type_set['object_descriptions'][$object_description_id];
-		$is_alternate = ($version <= static::VERSION_OFFSET_ALTERNATE_ACTIVE);
+		$str_value_type = $arr_object_description['object_description_value_type'];
+		$is_alternate = ($num_version <= static::VERSION_OFFSET_ALTERNATE_ACTIVE);
 		$arr_sql_insert = [];
 		
+		$num_count = 0;
+		$str_sql_combination = '';
+		
 		if ($arr_object_description['object_description_ref_type_id']) {
-			
-			$count = 0;
-			
+
 			foreach ($value as $object_definition_ref_object_id) {
 				
-				$arr_sql_insert[] = "(".$object_description_id.", ".$this->object_id.", ".$version.", ".(int)($object_definition_ref_object_id === static::LAST_OBJECT_ID ? self::$last_object_id : $object_definition_ref_object_id).", ".$count.", ".($this->versioning ? '0' : '1').")";
+				$num_ref_object_id = (int)($object_definition_ref_object_id === static::LAST_OBJECT_ID ? self::$last_object_id : $object_definition_ref_object_id);
 				
-				$count++;
+				$arr_sql_insert[] = "(".$object_description_id.", ".$this->object_id.", ".$num_version.", ".$num_ref_object_id.", ".$num_count.", ".($this->do_versioning ? '0' : '1').")";
+				
+				$num_count++;
+				$str_sql_combination .= ($str_sql_combination !== '' ? ',' : '').'\''.$num_ref_object_id.'-'.$num_count.'\'';
 			}
 		} else {
 			
 			if ($arr_object_description['object_description_has_multi']) {
-				
-				$count = 0;
-				
+
 				foreach ($value as $object_definition_value) {
 					
-					$arr_sql_insert[] = "(".$object_description_id.", ".$this->object_id.", ".$version.", '".DBFunctions::strEscape($object_definition_value)."', ".$count.", ".($this->versioning || $is_alternate ? '0' : '1').")";
+					$arr_sql_insert[] = "(".$object_description_id.", ".$this->object_id.", ".$num_version.", ".FormatTypeObjects::formatToSQLStore($str_value_type, $object_definition_value, $this->arr_secondary_values).", ".$num_count.", ".($this->do_versioning || $is_alternate ? '0' : '1').")";
 					
-					$count++;
+					$num_count++;
 				}
 			} else {
 				
-				$arr_sql_insert[] = "(".$object_description_id.", ".$this->object_id.", ".$version.", '".DBFunctions::strEscape($value)."', 0, ".($this->versioning || $is_alternate ? '0' : '1').")";
+				$arr_sql_insert[] = "(".$object_description_id.", ".$this->object_id.", ".$num_version.", ".FormatTypeObjects::formatToSQLStore($str_value_type, $value, $this->arr_secondary_values).", 0, ".($this->do_versioning || $is_alternate ? '0' : '1').")";
 			}
 		}
+
+		$this->arr_sql_insert['object_definition_version'][$str_value_type][] = implode(',', $arr_sql_insert);
 		
-		$value_type = $arr_object_description['object_description_value_type'];
-		$this->arr_sql_insert['object_definition_version'][$value_type][] = implode(',', $arr_sql_insert);
-		
-		if (!$this->versioning && !$this->insert) {
+		if (!$this->do_versioning && !$this->is_insert) {
 			
 			if ($arr_object_description['object_description_ref_type_id'] || $arr_object_description['object_description_has_multi']) {
 				
-				$sql_value = (StoreType::getValueTypeValue($value_type) == 'ref_object_id' ? implode(',', array_keys($arr_sql_insert)) : "'".implode("','", array_keys($arr_sql_insert))."'");
+				if (StoreType::getValueTypeValue($str_value_type) == 'ref_object_id') {
+					$str_sql_delete = 'CONCAT(ref_object_id, \'-\', identifier) NOT IN ('.$str_sql_combination.')';
+				} else {
+					$str_sql_delete = 'identifier > '.($num_count > 0 ? $num_count - 1 : 0);
+				}
 				
-				$this->arr_sql_delete['object_definition_version'][] = "DELETE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').StoreType::getValueTypeTable($value_type)."
-					WHERE object_description_id = ".$object_description_id." AND object_id = ".$this->object_id." AND version = ".$version."
-						AND ".StoreType::getValueTypeValue($value_type)." NOT IN (".$sql_value.")
-				";
+				$this->arr_sql_delete['object_definition_version'][] = "DELETE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').StoreType::getValueTypeTable($str_value_type)
+					." WHERE object_description_id = ".$object_description_id." AND object_id = ".$this->object_id." AND version = ".$num_version
+						." AND ".$str_sql_delete
+				;
 			}
 		}
 	}
 	
-	protected function addTypeObjectDescriptionVersionUser($object_description_id, $version, $user_id = false, $date = false, $system_object_id = false) {
+	protected function addTypeObjectDescriptionVersionUser($object_description_id, $num_version, $user_id = false, $date = false, $system_object_id = false) {
 		
 		$this->arr_actions['object_definition'] = true;
 		
-		if (!$this->versioning) {
+		if (!$this->do_versioning) {
 			return;
 		}
 		
-		$this->arr_sql_insert['object_definition_version_user'][] = "(".$object_description_id.", ".$this->object_id.", ".$version.", ".($user_id !== false ? (int)$user_id : $this->user_id).", ".($date ? "'".$date."'" : DBFunctions::timeNow()).", ".($system_object_id !== false ? ((int)$system_object_id ?: 'NULL') : ($this->system_object_id ?: 'NULL')).")";
+		$this->arr_sql_insert['object_definition_version_user'][] = "(".$object_description_id.", ".$this->object_id.", ".$num_version.", ".($user_id !== false ? (int)$user_id : $this->user_id).", ".($date ? "'".$date."'" : DBFunctions::dateTimeNow()).", ".($system_object_id !== false ? ((int)$system_object_id ?: 'NULL') : ($this->system_object_id ?: 'NULL')).")";
 	}
 	
-	protected function addTypeObjectSubVersion($object_sub_id, $object_sub_details_id, $version, $arr_value) {
+	protected function addTypeObjectSubVersion($object_sub_id, $object_sub_details_id, $num_version, $arr_value) {
 		
 		$sql_date_version = ($arr_value['object_sub_date_version'] ? (int)$arr_value['object_sub_date_version'] : "NULL");
 		$sql_location_geometry_version = ($arr_value['object_sub_location_geometry_version'] ? (int)$arr_value['object_sub_location_geometry_version'] : "NULL");
 		
-		$sql_value = "(".($object_sub_id ? $object_sub_id.", " : "").$this->object_id.", ".$object_sub_details_id.", ".$version.", ".$sql_date_version.", ".$sql_location_geometry_version.", ".(int)$arr_value['object_sub_location_ref_object_id'].", ".(int)$arr_value['object_sub_location_ref_type_id'].", ".(int)$arr_value['object_sub_location_ref_object_sub_details_id'].", ".($this->versioning ? '0' : '1').")";
+		$sql_value = "(".($object_sub_id ? $object_sub_id.", " : "").$this->object_id.", ".$object_sub_details_id.", ".$num_version.", ".$sql_date_version.", ".$sql_location_geometry_version.", ".(int)$arr_value['object_sub_location_ref_object_id'].", ".(int)$arr_value['object_sub_location_ref_type_id'].", ".(int)$arr_value['object_sub_location_ref_object_sub_details_id'].", ".($this->do_versioning ? '0' : '1').")";
 	
 		if (!$object_sub_id) {
 			
@@ -2150,26 +2258,25 @@ class StoreTypeObjects {
 		return $object_sub_id;
 	}
 	
-	protected function addTypeObjectSubChronologyVersion($object_sub_id, $version, $value) {
+	protected function addTypeObjectSubChronologyVersion($object_sub_id, $num_version, $value) {
 		
 		$arr_sql_split = explode(';', $value);
 
-		$this->arr_sql_insert['object_sub_date_version'][] = "(".$object_sub_id.", ".$arr_sql_split[0].", ".(int)$version.")";
+		$this->arr_sql_insert['object_sub_date_version'][] = "(".$object_sub_id.", ".$arr_sql_split[0].", ".(int)$num_version.")";
 		unset($arr_sql_split[0]);
 		
 		foreach ($arr_sql_split as $arr_sql_chronology) {
-			$this->arr_sql_insert['object_sub_date_chronology_version'][] = "(".$object_sub_id.", ".$arr_sql_chronology.", TRUE, ".(int)$version.")";
+			$this->arr_sql_insert['object_sub_date_chronology_version'][] = "(".$object_sub_id.", ".$arr_sql_chronology.", TRUE, ".(int)$num_version.")";
 		}
 	}
 	
-	protected function addTypeObjectSubGeometryVersion($object_sub_id, $version, $value, $num_srid = null) {
+	protected function addTypeObjectSubGeometryVersion($object_sub_id, $num_version, $value, $num_srid = null) {
 		
 		if ($num_srid === null) {
 			
 			$num_srid = FormatTypeObjects::GEOMETRY_SRID;
 			
 			if (FormatTypeObjects::GEOMETRY_SRID) {
-				
 				$num_srid = FormatTypeObjects::geometryToSRID($value); // Get SRID from JSON
 			}
 		}
@@ -2180,38 +2287,38 @@ class StoreTypeObjects {
 			$sql_value = "ST_SetSRID(ST_GeomFromGeoJSON('".DBFunctions::strEscape($value)."'), ".(int)$num_srid.")";
 		}
 		
-		$this->arr_sql_insert['object_sub_location_geometry_version'][] = "(".$object_sub_id.", ".$sql_value.", ".(int)$version.")";
+		$this->arr_sql_insert['object_sub_location_geometry_version'][] = "(".$object_sub_id.", ".$sql_value.", ".(int)$num_version.")";
 	}
 	
-	protected function addTypeObjectSubVersionUser($object_sub_id, $version, $user_id = false, $date = false, $system_object_id = false) {
+	protected function addTypeObjectSubVersionUser($object_sub_id, $num_version, $user_id = false, $date = false, $system_object_id = false) {
 		
 		$this->arr_actions['object_sub'] = true;
 		
-		if (!$this->versioning) {
+		if (!$this->do_versioning) {
 			return;
 		}
 		
-		$this->arr_sql_insert['object_sub_version_user'][] = "(".$object_sub_id.", ".$version.", ".($user_id !== false ? (int)$user_id : $this->user_id).", ".($date ? "'".$date."'" : DBFunctions::timeNow()).", ".($system_object_id !== false ? ((int)$system_object_id ?: 'NULL') : ($this->system_object_id ?: 'NULL')).")";
+		$this->arr_sql_insert['object_sub_version_user'][] = "(".$object_sub_id.", ".$num_version.", ".($user_id !== false ? (int)$user_id : $this->user_id).", ".($date ? "'".$date."'" : DBFunctions::dateTimeNow()).", ".($system_object_id !== false ? ((int)$system_object_id ?: 'NULL') : ($this->system_object_id ?: 'NULL')).")";
 	}
 	
-	protected function addTypeObjectSubDescriptionVersion($object_sub_id, $object_sub_details_id, $object_sub_description_id, $version, $value) {
+	protected function addTypeObjectSubDescriptionVersion($object_sub_id, $object_sub_details_id, $object_sub_description_id, $num_version, $value) {
 		
 		$arr_object_sub_description = $this->arr_type_set['object_sub_details'][$object_sub_details_id]['object_sub_descriptions'][$object_sub_description_id];
-		$is_alternate = ($version <= static::VERSION_OFFSET_ALTERNATE_ACTIVE);
+		$is_alternate = ($num_version <= static::VERSION_OFFSET_ALTERNATE_ACTIVE);
 		
-		$value_type = $arr_object_sub_description['object_sub_description_value_type'];
-		$this->arr_sql_insert['object_sub_definition_version'][$value_type][] = "(".$object_sub_description_id.", ".$object_sub_id.", ".$version.", ".($arr_object_sub_description['object_sub_description_ref_type_id'] ? (int)($value === static::LAST_OBJECT_ID ? self::$last_object_id : $value) : "'".DBFunctions::strEscape($value)."'").", ".($this->versioning || $is_alternate ? '0' : '1').")";
+		$str_value_type = $arr_object_sub_description['object_sub_description_value_type'];
+		$this->arr_sql_insert['object_sub_definition_version'][$str_value_type][] = "(".$object_sub_description_id.", ".$object_sub_id.", ".$num_version.", ".($arr_object_sub_description['object_sub_description_ref_type_id'] ? (int)($value === static::LAST_OBJECT_ID ? self::$last_object_id : $value) : FormatTypeObjects::formatToSQLStore($str_value_type, $value, $this->arr_secondary_values)).", ".($this->do_versioning || $is_alternate ? '0' : '1').")";
 	}
 	
-	protected function addTypeObjectSubDescriptionVersionUser($object_sub_id, $object_sub_description_id, $version, $user_id = false, $date = false, $system_object_id = false) {
+	protected function addTypeObjectSubDescriptionVersionUser($object_sub_id, $object_sub_description_id, $num_version, $user_id = false, $date = false, $system_object_id = false) {
 		
 		$this->arr_actions['object_sub_definition'] = true;
 		
-		if (!$this->versioning) {
+		if (!$this->do_versioning) {
 			return;
 		}
 		
-		$this->arr_sql_insert['object_sub_definition_version_user'][] = "(".$object_sub_description_id.", ".$object_sub_id.", ".$version.", ".($user_id !== false ? (int)$user_id : $this->user_id).", ".($date ? "'".$date."'" : DBFunctions::timeNow()).", ".($system_object_id !== false ? ((int)$system_object_id ?: 'NULL') : ($this->system_object_id ?: 'NULL')).")";
+		$this->arr_sql_insert['object_sub_definition_version_user'][] = "(".$object_sub_description_id.", ".$object_sub_id.", ".$num_version.", ".($user_id !== false ? (int)$user_id : $this->user_id).", ".($date ? "'".$date."'" : DBFunctions::dateTimeNow()).", ".($system_object_id !== false ? ((int)$system_object_id ?: 'NULL') : ($this->system_object_id ?: 'NULL')).")";
 	}
 		
 	public function save() {
@@ -2245,7 +2352,7 @@ class StoreTypeObjects {
 						(id, version, type_id".", name, status)
 							VALUES
 						".implode(',', $arr_sql_insert)."
-						".(!$this->versioning ? DBFunctions::onConflict('id, version', ['name', 'status']) : "")."
+						".(!$this->do_versioning ? DBFunctions::onConflict('id, version', ['name', 'status']) : "")."
 					";
 					break;
 				case 'object_sub_version':
@@ -2254,7 +2361,7 @@ class StoreTypeObjects {
 						(id, object_id, object_sub_details_id, version, date_version, location_geometry_version, location_ref_object_id, location_ref_type_id, location_ref_object_sub_details_id, status)
 							VALUES 
 						".implode(',', $arr_sql_insert)."
-						".(!$this->versioning ? DBFunctions::onConflict('id, version', ['date_version', 'location_geometry_version', 'location_ref_object_id', 'location_ref_type_id', 'location_ref_object_sub_details_id', 'status']) : "")."
+						".(!$this->do_versioning ? DBFunctions::onConflict('id, version', ['date_version', 'location_geometry_version', 'location_ref_object_id', 'location_ref_type_id', 'location_ref_object_sub_details_id', 'status']) : "")."
 					";
 					break;
 				case 'object_sub_date_version':
@@ -2263,7 +2370,7 @@ class StoreTypeObjects {
 						(object_sub_id, span_period_amount, span_period_unit, span_cycle_object_id, version)
 							VALUES 
 						".implode(',', $arr_sql_insert)."
-						".(!$this->versioning ? DBFunctions::onConflict('object_sub_id, version', ['span_period_amount', 'span_period_unit', 'span_cycle_object_id']) : '')."
+						".(!$this->do_versioning ? DBFunctions::onConflict('object_sub_id, version', ['span_period_amount', 'span_period_unit', 'span_cycle_object_id']) : '')."
 					";
 					break;
 				case 'object_sub_date_chronology_version':
@@ -2272,7 +2379,7 @@ class StoreTypeObjects {
 						(object_sub_id, offset_amount, offset_unit, cycle_object_id, cycle_direction, date_value, date_object_sub_id, date_direction, identifier, active, version)
 							VALUES 
 						".implode(',', $arr_sql_insert)."
-						".(!$this->versioning ? DBFunctions::onConflict('object_sub_id, identifier, version', ['offset_amount', 'offset_unit', 'cycle_object_id', 'cycle_direction', 'date_value', 'date_object_sub_id', 'date_direction', 'active']) : '')."
+						".(!$this->do_versioning ? DBFunctions::onConflict('object_sub_id, identifier, version', ['offset_amount', 'offset_unit', 'cycle_object_id', 'cycle_direction', 'date_value', 'date_object_sub_id', 'date_direction', 'active']) : '')."
 					";
 					break;
 				case 'object_sub_location_geometry_version':
@@ -2281,7 +2388,7 @@ class StoreTypeObjects {
 						(object_sub_id, geometry, version)
 							VALUES 
 						".implode(',', $arr_sql_insert)."
-						".(!$this->versioning ? DBFunctions::onConflict('object_sub_id, version', ['geometry']) : "")."
+						".(!$this->do_versioning ? DBFunctions::onConflict('object_sub_id, version', ['geometry']) : "")."
 					";
 					break;
 				
@@ -2296,17 +2403,31 @@ class StoreTypeObjects {
 					break;
 				case 'object_definition_version':
 				
-					foreach ($arr_sql_insert as $value_type => $arr_sql) {
+					foreach ($arr_sql_insert as $str_value_type => $arr_sql) {
 						
-						$sql_value = StoreType::getValueTypeValue($value_type);
-						$sql_table_affix = StoreType::getValueTypeTable($value_type);
-						$sql_primary_key = ($sql_value == 'ref_object_id' ? 'object_id, object_description_id, ref_object_id, identifier, version' : 'object_id, object_description_id, identifier, version');
+						$str_sql_value = StoreType::getValueTypeValue($str_value_type);
+						$str_sql_value_secondary = StoreType::getValueType($str_value_type, 'value_secondary');
+						$str_sql_table_affix = StoreType::getValueTypeTable($str_value_type);
+						$str_sql_primary_key = ($str_sql_value == 'ref_object_id' ? 'object_id, object_description_id, ref_object_id, identifier, version' : 'object_id, object_description_id, identifier, version');
 						
-						$arr_sql_query[] = "INSERT INTO ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$sql_table_affix."
-							(object_description_id, object_id, version, ".$sql_value.", identifier, status)
+						$str_sql_value_columns = $str_sql_value;
+						$arr_sql_fields_update = [$str_sql_value];
+						
+						if ($str_sql_value_secondary) {
+							
+							$str_sql_value_columns .= ', '.$str_sql_value_secondary;
+							$arr_sql_fields_update[] = $str_sql_value_secondary;
+						}
+						
+						if (!$this->do_versioning) {
+							$arr_sql_fields_update[] = 'status';
+						}
+						
+						$arr_sql_query[] = "INSERT INTO ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$str_sql_table_affix."
+							(object_description_id, object_id, version, ".$str_sql_value_columns.", identifier, status)
 								VALUES
 							".implode(',', $arr_sql)."
-							".(!$this->versioning ? DBFunctions::onConflict($sql_primary_key, [$sql_value, 'status']) : DBFunctions::onConflict($sql_primary_key, [$sql_value]))."
+							".DBFunctions::onConflict($str_sql_primary_key, $arr_sql_fields_update)."
 						";
 					}
 					break;
@@ -2330,17 +2451,31 @@ class StoreTypeObjects {
 					break;
 				case 'object_sub_definition_version':
 				
-					foreach ($arr_sql_insert as $value_type => $arr_sql) {
+					foreach ($arr_sql_insert as $str_value_type => $arr_sql) {
 						
-						$sql_value = StoreType::getValueTypeValue($value_type);
-						$sql_table_affix = StoreType::getValueTypeTable($value_type);
-						$sql_primary_key = ($sql_value == 'ref_object_id' ? 'object_sub_description_id, object_sub_id, ref_object_id, version' : 'object_sub_description_id, object_sub_id, version');
+						$str_sql_value = StoreType::getValueTypeValue($str_value_type);
+						$str_sql_value_secondary = StoreType::getValueType($str_value_type, 'value_secondary');
+						$str_sql_table_affix = StoreType::getValueTypeTable($str_value_type);
+						$str_sql_primary_key = ($sql_value == 'ref_object_id' ? 'object_sub_description_id, object_sub_id, ref_object_id, version' : 'object_sub_description_id, object_sub_id, version');
 						
-						$arr_sql_query[] = "INSERT INTO ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$sql_table_affix."
-							(object_sub_description_id, object_sub_id, version, ".$sql_value.", status)
+						$str_sql_value_columns = $str_sql_value;
+						$arr_sql_fields_update = [$str_sql_value];
+						
+						if ($str_sql_value_secondary) {
+							
+							$str_sql_value_columns .= ', '.$str_sql_value_secondary;
+							$arr_sql_fields_update[] = $str_sql_value_secondary;
+						}
+						
+						if (!$this->do_versioning) {
+							$arr_sql_fields_update[] = 'status';
+						}
+						
+						$arr_sql_query[] = "INSERT INTO ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_affix."
+							(object_sub_description_id, object_sub_id, version, ".$str_sql_value_columns.", status)
 								VALUES
 							".implode(',', $arr_sql)."
-							".(!$this->versioning ? DBFunctions::onConflict($sql_primary_key, [$sql_value, 'status']) : DBFunctions::onConflict($sql_primary_key, [$sql_value]))."
+							".DBFunctions::onConflict($str_sql_primary_key, $arr_sql_fields_update)."
 						";
 					}
 					break;
@@ -2431,6 +2566,8 @@ class StoreTypeObjects {
 		
 		$this->arr_sql_insert = [];
 		$this->arr_sql_delete = [];
+		
+		$this->arr_secondary_values = [];
 	}
 	
 	public function commit($accept = false) {
@@ -2477,14 +2614,23 @@ class StoreTypeObjects {
 	
 	public function touch($str_sql_table = false) {
 		
-		static::touchTypeObjects($this->type_id, ($str_sql_table ?: $this->str_sql_table_name_object_updates));
+		if (!$str_sql_table) {
+			
+			if (!$this->has_object_updates) { // Table with touched objects was never generated
+				return;
+			}
+			
+			$str_sql_table = $this->str_sql_table_name_object_updates;			
+		}
+		
+		static::touchTypeObjects($this->type_id, $str_sql_table);
 	}
 
 	// Delete
 	
 	public function delTypeObject($accept) {
 						
-		if (!$this->versioning) {
+		if (!$this->do_versioning) {
 			
 			$res = DB::query("
 				".DBFunctions::updateWith(
@@ -2503,7 +2649,7 @@ class StoreTypeObjects {
 			
 			$res = DB::query("INSERT INTO ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_VERSION')."
 				(object_id, version, user_id, date)
-				SELECT nodegoat_to_updates.id, 0, ".$this->user_id.", ".DBFunctions::timeNow()."
+				SELECT nodegoat_to_updates.id, 0, ".$this->user_id.", ".DBFunctions::dateTimeNow()."
 					FROM ".$this->str_sql_table_name_object_updates." nodegoat_to_updates
 					WHERE (SELECT
 						CASE WHEN version = 0 THEN 1 ELSE NULL END
@@ -2541,7 +2687,7 @@ class StoreTypeObjects {
 			CREATE TEMPORARY TABLE ".$table_name_objects_deleted." (
 				id INT,
 					PRIMARY KEY (id)
-			) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
+			) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY)."
 				".(DB::ENGINE_IS_MYSQL ? "AS (".$sql_query.")"
 				:
 				"; INSERT INTO ".$table_name_objects_deleted."
@@ -2577,13 +2723,13 @@ class StoreTypeObjects {
 		$this->arr_lock_errors = [];
 		
 		$table_name = DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_LOCK');
-		$sql_expired = "(".$table_name.".identifier != '' AND (".$table_name.".date_updated + ".DBFunctions::interval(self::$timeout_lock, 'SECOND').") < ".DBFunctions::timeNow().")";
+		$sql_expired = "(".$table_name.".identifier != '' AND (".$table_name.".date_updated + ".DBFunctions::interval(self::$timeout_lock, 'SECOND').") < ".DBFunctions::dateTimeNow().")";
 				
 		$arr_res = DB::queryMulti("
 			INSERT INTO ".$table_name."
 				(object_id, type, user_id, date, date_updated, identifier)
 				SELECT
-					nodegoat_to_updates.id AS object_id, ".(int)$type.", ".(int)$this->user_id.", ".DBFunctions::timeNow().", ".DBFunctions::timeNow().", '".DBFunctions::strEscape($key)."'
+					nodegoat_to_updates.id AS object_id, ".(int)$type.", ".(int)$this->user_id.", ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow().", '".DBFunctions::strEscape($key)."'
 				FROM ".$this->str_sql_table_name_object_updates." nodegoat_to_updates
 				".DBFunctions::onConflict('object_id, type', false, "
 					user_id = CASE WHEN ".$sql_expired." THEN [user_id] ELSE ".$table_name.".user_id END,
@@ -2654,12 +2800,12 @@ class StoreTypeObjects {
 		$key = ($key ?: $this->lock_key);
 		
 		$table_name = DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_LOCK');
-		$sql_expired = "(".$table_name.".identifier != '' AND (".$table_name.".date_updated + ".DBFunctions::interval(self::$timeout_lock, 'SECOND').") < ".DBFunctions::timeNow().")";
+		$sql_expired = "(".$table_name.".identifier != '' AND (".$table_name.".date_updated + ".DBFunctions::interval(self::$timeout_lock, 'SECOND').") < ".DBFunctions::dateTimeNow().")";
 		
 		$sql_insert = "INSERT INTO ".$table_name."
 			(object_id, type, user_id, date, date_updated, identifier)
 				VALUES
-			(".$this->object_id.", ".(int)$type.", ".(int)$this->user_id.", ".DBFunctions::timeNow().", ".DBFunctions::timeNow().", '".DBFunctions::strEscape($key)."')
+			(".$this->object_id.", ".(int)$type.", ".(int)$this->user_id.", ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow().", '".DBFunctions::strEscape($key)."')
 			".DBFunctions::onConflict('object_id, type', false, "
 				user_id = CASE WHEN ".$sql_expired." THEN [user_id] ELSE ".$table_name.".user_id END,
 				date = CASE WHEN ".$sql_expired." THEN [date] ELSE ".$table_name.".date END,
@@ -2803,7 +2949,7 @@ class StoreTypeObjects {
 	
 	public static function cleanLocks($arr_settings, $num_time = false) {
 		
-		$sql_time = ($num_time ? DBFunctions::str2Date((int)$num_time) : false);
+		$sql_time = ($num_time ? DBFunctions::str2DateTime((int)$num_time) : false);
 		
 		$res = DB::query("
 			DELETE FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_LOCK')."
@@ -2866,14 +3012,14 @@ class StoreTypeObjects {
 		$sql = "INSERT INTO ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DISCUSSION')."
 			(object_id, body, date_edited, user_id_edited)
 				VALUES
-			(".$this->object_id.", '".DBFunctions::strEscape($arr_discussion['object_discussion_body'])."', ".DBFunctions::timeNow().", ".(int)$this->user_id.")
+			(".$this->object_id.", '".DBFunctions::strEscape($arr_discussion['object_discussion_body'])."', ".DBFunctions::dateTimeNow().", ".(int)$this->user_id.")
 			".DBFunctions::onConflict('object_id', ['body', 'date_edited', 'user_id_edited'])."
 		;";
 		
 		$sql .= "INSERT INTO ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')."
 			(object_id, date, date_object, date_discussion)
 				VALUES
-			(".$this->object_id.", ".DBFunctions::timeNow().", ".DBFunctions::timeNow().", ".DBFunctions::timeNow().")
+			(".$this->object_id.", ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow().")
 			".DBFunctions::onConflict('object_id', ['date', 'date_discussion'])."
 		;";
 		
@@ -2888,7 +3034,7 @@ class StoreTypeObjects {
 			body AS object_discussion_body,
 			date_edited AS object_discussion_date_edited,
 			CASE
-				WHEN (date_edited + ".DBFunctions::interval(6, 'SECOND').") > ".DBFunctions::timeNow()." THEN user_id_edited
+				WHEN (date_edited + ".DBFunctions::interval(6, 'SECOND').") > ".DBFunctions::dateTimeNow()." THEN user_id_edited
 				ELSE NULL
 			END AS object_discussion_user_id_edited
 				FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DISCUSSION')."
@@ -2902,9 +3048,9 @@ class StoreTypeObjects {
 	
 	// Versions
 	
-	public function setVersioning($versioning = true) {
+	public function setVersioning($do_versioning = true) {
 		
-		$this->versioning = ($versioning === true);
+		$this->do_versioning = ($do_versioning === true);
 	}
 	
 	public function getTypeObjectVersions() {
@@ -2928,8 +3074,8 @@ class StoreTypeObjects {
 		while ($arr_row = $res->fetchRow()) {
 			
 			$arr[$arr_row[1]] = [
-				'object_version' => $arr_row[1],
-				'object_active' => $arr_row[2],
+				'object_version' => (int)$arr_row[1],
+				'object_active' => DBFunctions::unescapeAs($arr_row[2], DBFunctions::TYPE_BOOLEAN),
 				'object_name_plain' => $arr_row[0]
 			];
 		}
@@ -2981,16 +3127,16 @@ class StoreTypeObjects {
 			while ($arr_row = $res->fetchRow()) {
 				
 				$value = $arr_row[0];
-				$version = $arr_row[1];
-				$active = $arr_row[2];
+				$num_version = (int)$arr_row[1];
+				$is_active = DBFunctions::unescapeAs($arr_row[2], DBFunctions::TYPE_BOOLEAN);
 				
-				$s_arr =& $arr[$version];
+				$s_arr =& $arr[$num_version];
 				
 				if (!$s_arr) {
 					
 					$s_arr = [
-						'object_definition_version' => $version,
-						'object_definition_active' => $active,
+						'object_definition_version' => $num_version,
+						'object_definition_active' => $is_active,
 						'object_definition_ref_object_id' => ($has_multi ? [] : ''),
 						'object_definition_value' => null
 					];
@@ -3049,16 +3195,16 @@ class StoreTypeObjects {
 			while ($arr_row = $res->fetchRow()) {
 				
 				$value = $arr_row[0];
-				$version = $arr_row[1];
-				$active = $arr_row[2];
+				$num_version = (int)$arr_row[1];
+				$is_active = DBFunctions::unescapeAs($arr_row[2], DBFunctions::TYPE_BOOLEAN);
 				
-				$s_arr =& $arr[$version];
+				$s_arr =& $arr[$num_version];
 				
 				if (!$s_arr) {
 					
 					$s_arr = [
-						'object_definition_version' => $version,
-						'object_definition_active' => $active,
+						'object_definition_version' => $num_version,
+						'object_definition_active' => $is_active,
 						'object_definition_value' => ($has_multi ? [] : '')
 					];
 				}
@@ -3103,27 +3249,27 @@ class StoreTypeObjects {
 		while ($arr_row = $res->fetchRow()) {
 			
 			$date_chronology = $arr_row[0];
-			$date_version = $arr_row[1];
+			$num_date_version = $arr_row[1];
 			$location_ref_object_id = $arr_row[2];
 			$location_ref_type_id = $arr_row[3];
 			$location_ref_object_sub_details_id = $arr_row[4];
 			$location_geometry = $arr_row[5];
-			$location_geometry_version = $arr_row[6];
-			$version = $arr_row[7];
-			$active = $arr_row[8];
+			$num_location_geometry_version = $arr_row[6];
+			$num_version = (int)$arr_row[7];
+			$is_active = DBFunctions::unescapeAs($arr_row[8], DBFunctions::TYPE_BOOLEAN);
 			
-			$arr[$version] = [
-				'object_sub_version' => $version,
-				'object_sub_active' => $active,
+			$arr[$num_version] = [
+				'object_sub_version' => $num_version,
+				'object_sub_active' => $is_active,
 				'object_sub_date_chronology' => $date_chronology,
-				'object_sub_date_version' => (int)$date_version,
+				'object_sub_date_version' => (int)$num_date_version,
 				'object_sub_location_type' => ($location_ref_type_id ? 'reference' : 'geometry'),
 				'object_sub_location_ref_object_id' => (int)$location_ref_object_id,
 				'object_sub_location_ref_object_name' => '',
 				'object_sub_location_ref_type_id' => (int)$location_ref_type_id,
 				'object_sub_location_ref_object_sub_details_id' => (int)$location_ref_object_sub_details_id,
 				'object_sub_location_geometry' => $location_geometry,
-				'object_sub_location_geometry_version' => (int)$location_geometry_version
+				'object_sub_location_geometry_version' => (int)$num_location_geometry_version
 			];
 		}
 		
@@ -3131,7 +3277,7 @@ class StoreTypeObjects {
 			
 			$arr_type_object_names = [];
 			
-			foreach ($arr as $version => $arr_version) {
+			foreach ($arr as $num_version => $arr_version) {
 				
 				$ref_object_id = $arr_version['object_sub_location_ref_object_id'];
 				
@@ -3147,7 +3293,7 @@ class StoreTypeObjects {
 				$arr_type_object_names[$type_id] = FilterTypeObjects::getTypeObjectNames($type_id, array_keys($value));
 			}
 			
-			foreach ($arr as $version => &$arr_version) {
+			foreach ($arr as $num_version => &$arr_version) {
 				
 				$arr_version['object_sub_location_ref_object_name'] = $arr_type_object_names[$arr_version['object_sub_location_ref_type_id']][$arr_version['object_sub_location_ref_object_id']];
 			}
@@ -3200,16 +3346,16 @@ class StoreTypeObjects {
 			while ($arr_row = $res->fetchRow()) {
 				
 				$value = $arr_row[0];
-				$version = $arr_row[1];
-				$active = $arr_row[2];
+				$num_version = (int)$arr_row[1];
+				$is_active = DBFunctions::unescapeAs($arr_row[2], DBFunctions::TYPE_BOOLEAN);
 				
-				$s_arr =& $arr[$version];
+				$s_arr =& $arr[$num_version];
 				
 				if (!$s_arr) {
 					
 					$s_arr = [
-						'object_sub_definition_version' => $version,
-						'object_sub_definition_active' => $active,
+						'object_sub_definition_version' => $num_version,
+						'object_sub_definition_active' => $is_active,
 						'object_sub_definition_ref_object_id' => ($has_multi ? [] : ''),
 						'object_sub_definition_value' => null
 					];
@@ -3268,16 +3414,16 @@ class StoreTypeObjects {
 			while ($arr_row = $res->fetchRow()) {
 				
 				$value = $arr_row[0];
-				$version = $arr_row[1];
-				$active = $arr_row[2];
+				$num_version = (int)$arr_row[1];
+				$is_active = DBFunctions::unescapeAs($arr_row[2], DBFunctions::TYPE_BOOLEAN);
 				
-				$s_arr =& $arr[$version];
+				$s_arr =& $arr[$num_version];
 				
 				if (!$s_arr) {
 					
 					$s_arr = [
-						'object_sub_definition_version' => $version,
-						'object_sub_definition_active' => $active,
+						'object_sub_definition_version' => $num_version,
+						'object_sub_definition_active' => $is_active,
 						'object_sub_definition_value' => ($has_multi ? [] : '')
 					];
 				}
@@ -3302,15 +3448,15 @@ class StoreTypeObjects {
 	public function getTypeObjectVersionsUsers() {
 				
 		$arr = [];
-						
+		
 		$res = DB::query("SELECT nodegoat_to_ver.version, nodegoat_to_ver.date, nodegoat_to_ver.system_object_id, u.id, u.name
-								FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_VERSION')." nodegoat_to_ver
-								LEFT JOIN ".DB::getTable('TABLE_USERS')." u ON (u.id = nodegoat_to_ver.user_id)
-							WHERE nodegoat_to_ver.object_id = ".$this->object_id."
-							ORDER BY CASE
-								WHEN nodegoat_to_ver.version = ".static::VERSION_NEW." THEN 1
-								ELSE nodegoat_to_ver.version
-							END DESC, nodegoat_to_ver.date
+				FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_VERSION')." nodegoat_to_ver
+				LEFT JOIN ".DB::getTable('TABLE_USERS')." u ON (u.id = nodegoat_to_ver.user_id)
+			WHERE nodegoat_to_ver.object_id = ".$this->object_id."
+			ORDER BY CASE
+				WHEN nodegoat_to_ver.version = ".static::VERSION_NEW." THEN 1
+				ELSE nodegoat_to_ver.version
+			END DESC, nodegoat_to_ver.date
 		");
 		
 		while ($arr_row = $res->fetchAssoc()) {
@@ -3332,13 +3478,13 @@ class StoreTypeObjects {
 		$arr = [];
 						
 		$res = DB::query("SELECT nodegoat_to_def_ver.version, nodegoat_to_def_ver.date, nodegoat_to_def_ver.system_object_id, u.id, u.name
-								FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITION_VERSION')." nodegoat_to_def_ver
-								LEFT JOIN ".DB::getTable('TABLE_USERS')." u ON (u.id = nodegoat_to_def_ver.user_id)
-							WHERE nodegoat_to_def_ver.object_id = ".$this->object_id." AND nodegoat_to_def_ver.object_description_id = ".$object_description_id."
-							ORDER BY CASE
-								WHEN nodegoat_to_def_ver.version = ".static::VERSION_NEW." THEN 1
-								ELSE nodegoat_to_def_ver.version
-							END DESC, nodegoat_to_def_ver.date
+				FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITION_VERSION')." nodegoat_to_def_ver
+				LEFT JOIN ".DB::getTable('TABLE_USERS')." u ON (u.id = nodegoat_to_def_ver.user_id)
+			WHERE nodegoat_to_def_ver.object_id = ".$this->object_id." AND nodegoat_to_def_ver.object_description_id = ".$object_description_id."
+			ORDER BY CASE
+				WHEN nodegoat_to_def_ver.version = ".static::VERSION_NEW." THEN 1
+				ELSE nodegoat_to_def_ver.version
+			END DESC, nodegoat_to_def_ver.date
 		");
 		
 		while ($arr_row = $res->fetchAssoc()) {
@@ -3360,13 +3506,13 @@ class StoreTypeObjects {
 		$arr = [];
 						
 		$res = DB::query("SELECT nodegoat_tos_ver.version, nodegoat_tos_ver.date, nodegoat_tos_ver.system_object_id, u.id, u.name
-								FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_VERSION')." nodegoat_tos_ver
-								LEFT JOIN ".DB::getTable('TABLE_USERS')." u ON (u.id = nodegoat_tos_ver.user_id)
-							WHERE nodegoat_tos_ver.object_sub_id = ".$object_sub_id."
-							ORDER BY CASE
-								WHEN nodegoat_tos_ver.version = ".static::VERSION_NEW." THEN 1
-								ELSE nodegoat_tos_ver.version
-							END DESC, nodegoat_tos_ver.date
+				FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_VERSION')." nodegoat_tos_ver
+				LEFT JOIN ".DB::getTable('TABLE_USERS')." u ON (u.id = nodegoat_tos_ver.user_id)
+			WHERE nodegoat_tos_ver.object_sub_id = ".$object_sub_id."
+			ORDER BY CASE
+				WHEN nodegoat_tos_ver.version = ".static::VERSION_NEW." THEN 1
+				ELSE nodegoat_tos_ver.version
+			END DESC, nodegoat_tos_ver.date
 		");
 		
 		while ($arr_row = $res->fetchAssoc()) {
@@ -3388,13 +3534,13 @@ class StoreTypeObjects {
 		$arr = [];
 						
 		$res = DB::query("SELECT nodegoat_tos_def_ver.version, nodegoat_tos_def_ver.date, nodegoat_tos_def_ver.system_object_id, u.id, u.name
-								FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITION_VERSION')." nodegoat_tos_def_ver
-								LEFT JOIN ".DB::getTable('TABLE_USERS')." u ON (u.id = nodegoat_tos_def_ver.user_id)
-							WHERE nodegoat_tos_def_ver.object_sub_id = ".$object_sub_id." AND nodegoat_tos_def_ver.object_sub_description_id = ".$object_sub_description_id."
-							ORDER BY CASE
-								WHEN nodegoat_tos_def_ver.version = ".static::VERSION_NEW." THEN 1
-								ELSE nodegoat_tos_def_ver.version
-							END DESC, nodegoat_tos_def_ver.date
+				FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITION_VERSION')." nodegoat_tos_def_ver
+				LEFT JOIN ".DB::getTable('TABLE_USERS')." u ON (u.id = nodegoat_tos_def_ver.user_id)
+			WHERE nodegoat_tos_def_ver.object_sub_id = ".$object_sub_id." AND nodegoat_tos_def_ver.object_sub_description_id = ".$object_sub_description_id."
+			ORDER BY CASE
+				WHEN nodegoat_tos_def_ver.version = ".static::VERSION_NEW." THEN 1
+				ELSE nodegoat_tos_def_ver.version
+			END DESC, nodegoat_tos_def_ver.date
 		");
 		
 		while ($arr_row = $res->fetchAssoc()) {
@@ -3413,9 +3559,20 @@ class StoreTypeObjects {
 	
 	// Version Update
 	
+	public function useTypeVersionable() {
+		
+		// Make sure we only target the most relevant versionalbe descriptions (and prevent deadlocks with other processes)
+		
+		if (isset($this->arr_type_versionable)) {
+			return;
+		}
+		
+		$this->arr_type_versionable = StoreType::getTypeVersionableIDs($this->type_id);
+	}
+	
 	public function updateTypeObjectVersion() {
 				
-		if (!$this->versioning) {
+		if (!$this->do_versioning) {
 			
 			$str_sql_table_name_object_updates_changed = DB::getTableTemporary(DATABASE_NODEGOAT_TEMP.'.nodegoat_object_updates_changed');
 			
@@ -3426,7 +3583,7 @@ class StoreTypeObjects {
 					id INT,
 					description_id INT,
 					PRIMARY KEY (id, description_id)
-				) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
+				) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
 
 				INSERT INTO ".$str_sql_table_name_object_updates_changed."
 					(SELECT nodegoat_to.id AS id, 0 AS description_id
@@ -3485,7 +3642,7 @@ class StoreTypeObjects {
 				".DBFunctions::updateWith(
 					DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_VERSION'), 'nodegoat_to_ver', 'object_id',
 					"JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_to_ver.object_id)",
-					['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::timeNow()]
+					['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::dateTimeNow()]
 				)."
 					AND nodegoat_to_ver.date_audited IS NULL
 				;
@@ -3494,10 +3651,17 @@ class StoreTypeObjects {
 	}
 	
 	public function updateTypeObjectDescriptionVersion() {
-				
+		
+		$this->useTypeVersionable();
+		
+		if (!$this->arr_type_versionable['object_descriptions']) {
+			return;
+		}
+		
 		$sql = '';
+		$sql_use_ids = arr2String($this->arr_type_versionable['object_descriptions'], ',');
 				
-		if (!$this->versioning) {
+		if (!$this->do_versioning) {
 			
 			$str_sql_table_name_object_updates_changed = DB::getTableTemporary(DATABASE_NODEGOAT_TEMP.'.nodegoat_object_updates_changed');
 			
@@ -3510,13 +3674,14 @@ class StoreTypeObjects {
 						id INT,
 						description_id INT,
 						PRIMARY KEY (id, description_id)
-					) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
+					) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
 					
 					INSERT INTO ".$str_sql_table_name_object_updates_changed."
 						(SELECT nodegoat_to_def.object_id AS id, nodegoat_to_def.object_description_id AS description_id
 							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$str_sql_table_name_affix." nodegoat_to_def
 								JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_to_def.object_id)
-							WHERE nodegoat_to_def.version = ".static::VERSION_NONE."
+							WHERE nodegoat_to_def.object_description_id IN (".$sql_use_ids.")
+								AND nodegoat_to_def.version = ".static::VERSION_NONE."
 								AND nodegoat_to_def.status = 1
 						)
 						".DBFunctions::onConflict('id, description_id', ['id'])."
@@ -3531,6 +3696,7 @@ class StoreTypeObjects {
 						END",
 						'status' => '0']
 					)."
+						AND nodegoat_to_def.object_description_id IN (".$sql_use_ids.")
 						AND nodegoat_to_def.version >= ".static::VERSION_NONE."
 					;
 				";
@@ -3545,6 +3711,7 @@ class StoreTypeObjects {
 						"JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_to_def.object_id)",
 						['active' => 'FALSE', 'status' => '0']
 					)."
+						AND nodegoat_to_def.object_description_id IN (".$sql_use_ids.")
 						AND EXISTS (SELECT TRUE
 							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITION_VERSION')."
 							WHERE object_description_id = nodegoat_to_def.object_description_id AND object_id = nodegoat_to_def.object_id AND date_audited IS NULL
@@ -3558,6 +3725,7 @@ class StoreTypeObjects {
 						"JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_to_def.object_id)",
 						['active' => 'TRUE']
 					)."
+						AND nodegoat_to_def.object_description_id IN (".$sql_use_ids.")
 						AND nodegoat_to_def.version = (SELECT
 							CASE
 								WHEN version = ".static::VERSION_NEW." THEN 1
@@ -3576,8 +3744,9 @@ class StoreTypeObjects {
 				".DBFunctions::updateWith(
 					DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITION_VERSION'), 'nodegoat_to_def_ver', 'object_id',
 					"JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_to_def_ver.object_id)",
-					['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::timeNow()]
+					['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::dateTimeNow()]
 				)."
+					AND nodegoat_to_def_ver.object_description_id IN (".$sql_use_ids.")
 					AND nodegoat_to_def_ver.date_audited IS NULL
 				;
 			";
@@ -3588,7 +3757,15 @@ class StoreTypeObjects {
 	
 	public function updateTypeObjectSubVersion() {
 		
-		if (!$this->versioning) {
+		$this->useTypeVersionable();
+		
+		if (!$this->arr_type_versionable['object_sub_details']) {
+			return;
+		}
+
+		$sql_use_ids = arr2String(array_keys($this->arr_type_versionable['object_sub_details']), ',');
+		
+		if (!$this->do_versioning) {
 			
 			$str_sql_table_name_object_updates_changed = DB::getTableTemporary(DATABASE_NODEGOAT_TEMP.'.nodegoat_object_updates_changed');
 			
@@ -3599,13 +3776,14 @@ class StoreTypeObjects {
 					id INT,
 					description_id INT,
 					PRIMARY KEY (id, description_id)
-				) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
+				) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
 
 				INSERT INTO ".$str_sql_table_name_object_updates_changed."
 					(SELECT nodegoat_tos.id AS id, 0 AS description_id
 						FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos
 							JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_tos.object_id)
-						WHERE nodegoat_tos.version = ".static::VERSION_NONE."
+						WHERE nodegoat_tos.object_sub_details_id IN (".$sql_use_ids.")
+							AND nodegoat_tos.version = ".static::VERSION_NONE."
 							AND nodegoat_tos.status = 1
 					)
 				;
@@ -3619,6 +3797,7 @@ class StoreTypeObjects {
 					END",
 					'status' => '0']
 				)."
+					AND nodegoat_tos.object_sub_details_id IN (".$sql_use_ids.")
 					AND nodegoat_tos.version >= ".static::VERSION_NONE."
 				;
 			");
@@ -3630,6 +3809,7 @@ class StoreTypeObjects {
 					"JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_tos.object_id)",
 					['active' => 'FALSE', 'status' => '0']
 				)."
+					AND nodegoat_tos.object_sub_details_id IN (".$sql_use_ids.")
 					AND EXISTS (SELECT TRUE
 						FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_VERSION')."
 						WHERE object_sub_id = nodegoat_tos.id AND date_audited IS NULL
@@ -3643,6 +3823,7 @@ class StoreTypeObjects {
 					"JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_tos.object_id)",
 					['active' => 'TRUE']
 				)."
+					AND nodegoat_tos.object_sub_details_id IN (".$sql_use_ids.")
 					AND nodegoat_tos.version = (SELECT
 						CASE
 							WHEN version = ".static::VERSION_NEW." THEN 1
@@ -3657,9 +3838,9 @@ class StoreTypeObjects {
 				
 				".DBFunctions::updateWith(
 					DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_VERSION'), 'nodegoat_tos_ver', 'object_sub_id',
-					"JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_ver.object_sub_id)
+					"JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_ver.object_sub_id AND nodegoat_tos.object_sub_details_id IN (".$sql_use_ids."))
 					JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_tos.object_id)",
-					['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::timeNow()]
+					['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::dateTimeNow()]
 				)."
 					AND nodegoat_tos_ver.date_audited IS NULL
 				;
@@ -3668,10 +3849,18 @@ class StoreTypeObjects {
 	}
 	
 	public function updateTypeObjectSubDescriptionVersion() {
+		
+		$this->useTypeVersionable();
 				
+		if (!$this->arr_type_versionable['object_sub_descriptions']) {
+			return;
+		}
+		
 		$sql = '';
-				
-		if (!$this->versioning) {
+		$sql_use_ids = arr2String($this->arr_type_versionable['object_sub_descriptions'], ',');
+		$sql_use_sub_ids = arr2String(array_keys($this->arr_type_versionable['object_sub_details']), ',');
+		
+		if (!$this->do_versioning) {
 			
 			$str_sql_table_name_object_updates_changed = DB::getTableTemporary(DATABASE_NODEGOAT_TEMP.'.nodegoat_object_updates_changed');
 			
@@ -3684,14 +3873,15 @@ class StoreTypeObjects {
 						id INT,
 						description_id INT,
 						PRIMARY KEY (id, description_id)
-					) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
+					) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
 					
 					INSERT INTO ".$str_sql_table_name_object_updates_changed."
 						(SELECT nodegoat_tos_def.object_sub_id AS id, nodegoat_tos_def.object_sub_description_id AS description_id
 							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." nodegoat_tos_def
-								JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_def.object_sub_id)
+								JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_def.object_sub_id AND nodegoat_tos.object_sub_details_id IN (".$sql_use_sub_ids."))
 								JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_tos.object_id)
-							WHERE nodegoat_tos_def.version = ".static::VERSION_NONE."
+							WHERE nodegoat_tos_def.object_sub_description_id IN (".$sql_use_ids.")
+								AND nodegoat_tos_def.version = ".static::VERSION_NONE."
 								AND nodegoat_tos_def.status = 1
 						)
 					;
@@ -3705,6 +3895,7 @@ class StoreTypeObjects {
 						END",
 						'status' => '0']
 					)."
+						AND nodegoat_tos_def.object_sub_description_id IN (".$sql_use_ids.")
 						AND nodegoat_tos_def.version >= ".static::VERSION_NONE."
 					;
 				";
@@ -3716,10 +3907,11 @@ class StoreTypeObjects {
 				$sql .= "
 					".DBFunctions::updateWith(
 						DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix, 'nodegoat_tos_def', 'object_sub_id',
-						"JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_def.object_sub_id)
+						"JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_def.object_sub_id AND nodegoat_tos.object_sub_details_id IN (".$sql_use_sub_ids."))
 						JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_tos.object_id)",
 						['active' => 'FALSE', 'status' => '0']
 					)."
+						AND nodegoat_tos_def.object_sub_description_id IN (".$sql_use_ids.")
 						AND EXISTS (SELECT TRUE
 							FROM ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITION_VERSION')."
 							WHERE object_sub_description_id = nodegoat_tos_def.object_sub_description_id AND object_sub_id = nodegoat_tos_def.object_sub_id AND date_audited IS NULL
@@ -3730,10 +3922,11 @@ class StoreTypeObjects {
 					
 					".DBFunctions::updateWith(
 						DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix, 'nodegoat_tos_def', 'object_sub_id',
-						"JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_def.object_sub_id)
+						"JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_def.object_sub_id AND nodegoat_tos.object_sub_details_id IN (".$sql_use_sub_ids."))
 						JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_tos.object_id)",
 						['active' => 'TRUE']
 					)."
+						AND nodegoat_tos_def.object_sub_description_id IN (".$sql_use_ids.")
 						AND nodegoat_tos_def.version = (SELECT
 							CASE
 								WHEN version = ".static::VERSION_NEW." THEN 1
@@ -3751,10 +3944,11 @@ class StoreTypeObjects {
 			$sql .= "
 				".DBFunctions::updateWith(
 					DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITION_VERSION'), 'nodegoat_tos_def_ver', 'object_sub_id',
-					"JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_def_ver.object_sub_id)
+					"JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.id = nodegoat_tos_def_ver.object_sub_id AND nodegoat_tos.object_sub_details_id IN (".$sql_use_sub_ids."))
 					JOIN ".$this->str_sql_table_name_object_updates." nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_tos.object_id)",
-					['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::timeNow()]
+					['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::dateTimeNow()]
 				)."
+					AND nodegoat_tos_def_ver.object_sub_description_id IN (".$sql_use_ids.")
 					AND nodegoat_tos_def_ver.date_audited IS NULL
 				;
 			";
@@ -3802,8 +3996,15 @@ class StoreTypeObjects {
 	}
 	
 	public function presetTypeObjectDescriptionVersion() {
+		
+		$this->useTypeVersionable();
 				
+		if (!$this->arr_type_versionable['object_descriptions']) {
+			return;
+		}
+		
 		$sql = '';
+		$sql_use_ids = arr2String($this->arr_type_versionable['object_descriptions'], ',');
 		
 		foreach (StoreType::getValueTypeTables() as $str_sql_table_name_affix => $arr_value_type_table) {
 			
@@ -3832,7 +4033,7 @@ class StoreTypeObjects {
 									AND nodegoat_to_active.active = TRUE
 							) AS has_active
 							FROM ".$this->str_sql_table_name_object_updates." nodegoat_to_updates 
-							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$str_sql_table_name_affix." nodegoat_to_def ON (nodegoat_to_def.object_id = nodegoat_to_updates.id)
+							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$str_sql_table_name_affix." nodegoat_to_def ON (nodegoat_to_def.object_id = nodegoat_to_updates.id AND nodegoat_to_def.object_description_id IN (".$sql_use_ids."))
 						) nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_to_def.object_id AND nodegoat_to_updates.object_description_id = nodegoat_to_def.object_description_id)",
 						'nodegoat_to_updates.last_version, nodegoat_to_updates.has_active'
 					],
@@ -3843,6 +4044,7 @@ class StoreTypeObjects {
 						ELSE 0
 					END)"]
 				)."
+					AND nodegoat_to_def.object_description_id IN (".$sql_use_ids.")
 			;";
 		}
 		
@@ -3850,6 +4052,14 @@ class StoreTypeObjects {
 	}
 	
 	public function presetTypeObjectSubVersion() {
+		
+		$this->useTypeVersionable();
+		
+		if (!$this->arr_type_versionable['object_sub_details']) {
+			return;
+		}
+
+		$sql_use_ids = arr2String(array_keys($this->arr_type_versionable['object_sub_details']), ',');
 				
 		$res = DB::query("
 			".DBFunctions::updateWith(
@@ -3875,7 +4085,7 @@ class StoreTypeObjects {
 								AND nodegoat_tos_active.active = TRUE
 						) AS has_active
 						FROM ".$this->str_sql_table_name_object_updates." nodegoat_to_updates 
-						JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.object_id = nodegoat_to_updates.id)
+						JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.object_id = nodegoat_to_updates.id AND nodegoat_tos.object_sub_details_id IN (".$sql_use_ids."))
 					) nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_tos.object_id AND nodegoat_to_updates.object_sub_id = nodegoat_tos.id)",
 					'nodegoat_to_updates.last_version, nodegoat_to_updates.has_active'
 				],
@@ -3886,12 +4096,21 @@ class StoreTypeObjects {
 					ELSE 0
 				END)"]
 			)."
+				AND nodegoat_tos.object_sub_details_id IN (".$sql_use_ids.")
 		");
 	}
 	
 	public function presetTypeObjectSubDescriptionVersion() {
+		
+		$this->useTypeVersionable();
 				
+		if (!$this->arr_type_versionable['object_sub_descriptions']) {
+			return;
+		}
+		
 		$sql = '';
+		$sql_use_ids = arr2String($this->arr_type_versionable['object_sub_descriptions'], ',');
+		$sql_use_sub_ids = arr2String(array_keys($this->arr_type_versionable['object_sub_details']), ',');
 		
 		foreach (StoreType::getValueTypeTables() as $str_sql_table_name_affix => $arr_value_type_table) {
 			
@@ -3920,8 +4139,8 @@ class StoreTypeObjects {
 									AND nodegoat_to_active.active = TRUE
 							) AS has_active
 							FROM ".$this->str_sql_table_name_object_updates." nodegoat_to_updates 
-							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.object_id = nodegoat_to_updates.id)
-							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." nodegoat_tos_def ON (nodegoat_tos_def.object_sub_id = nodegoat_tos.id)
+							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.object_id = nodegoat_to_updates.id AND nodegoat_tos.object_sub_details_id IN (".$sql_use_sub_ids."))
+							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." nodegoat_tos_def ON (nodegoat_tos_def.object_sub_id = nodegoat_tos.id AND nodegoat_tos_def.object_sub_description_id IN (".$sql_use_ids."))
 						) nodegoat_to_updates ON (nodegoat_to_updates.object_sub_id = nodegoat_tos_def.object_sub_id AND nodegoat_to_updates.object_sub_description_id = nodegoat_tos_def.object_sub_description_id)",
 						'nodegoat_to_updates.last_version, nodegoat_to_updates.has_active'
 					],
@@ -3932,6 +4151,7 @@ class StoreTypeObjects {
 						ELSE 0
 					END)"]
 				)."
+					AND nodegoat_tos_def.object_sub_description_id IN (".$sql_use_ids.")
 			;";
 		}
 		
@@ -3957,7 +4177,7 @@ class StoreTypeObjects {
 					) nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_to_ver.object_id)",
 					'nodegoat_to_updates.last_version'
 				],
-				['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::timeNow()]
+				['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::dateTimeNow()]
 			)."
 				AND nodegoat_to_ver.date_audited IS NULL
 				".(!$all ? "AND nodegoat_to_ver.version = last_version" : "")."
@@ -3968,7 +4188,14 @@ class StoreTypeObjects {
 	
 	public function discardTypeObjectDescriptionVersion($all = false) {
 		
+		$this->useTypeVersionable();
+		
+		if (!$this->arr_type_versionable['object_descriptions']) {
+			return;
+		}
+		
 		$sql = '';
+		$sql_use_ids = arr2String($this->arr_type_versionable['object_descriptions'], ',');
 		
 		foreach (StoreType::getValueTypeTables() as $str_sql_table_name_affix => $arr_value_type_table) {
 				
@@ -3988,12 +4215,13 @@ class StoreTypeObjects {
 								LIMIT 1
 							) AS last_version
 							FROM ".$this->str_sql_table_name_object_updates." nodegoat_to_updates
-							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$str_sql_table_name_affix." nodegoat_to_def ON (nodegoat_to_def.object_id = nodegoat_to_updates.id AND ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_FULL, 'record', 'nodegoat_to_def').")
+							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_DEFINITIONS').$str_sql_table_name_affix." nodegoat_to_def ON (nodegoat_to_def.object_id = nodegoat_to_updates.id AND nodegoat_to_def.object_description_id IN (".$sql_use_ids.") AND ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_FULL, 'record', 'nodegoat_to_def').")
 						) nodegoat_to_updates ON (nodegoat_to_updates.id = nodegoat_to_def_ver.object_id AND nodegoat_to_updates.object_description_id = nodegoat_to_def_ver.object_description_id)",
 						'nodegoat_to_updates.last_version'
 					],
-					['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::timeNow()]
+					['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::dateTimeNow()]
 				)."
+					AND nodegoat_to_def_ver.object_description_id IN (".$sql_use_ids.")
 					AND nodegoat_to_def_ver.date_audited IS NULL
 					".(!$all ? "AND nodegoat_to_def_ver.version = last_version" : "")."
 			;";
@@ -4005,6 +4233,14 @@ class StoreTypeObjects {
 	}
 	
 	public function discardTypeObjectSubVersion($all = false) {
+		
+		$this->useTypeVersionable();
+		
+		if (!$this->arr_type_versionable['object_sub_details']) {
+			return;
+		}
+
+		$sql_use_ids = arr2String(array_keys($this->arr_type_versionable['object_sub_details']), ',');
 		
 		$res = DB::query("
 			".DBFunctions::updateWith(
@@ -4021,11 +4257,11 @@ class StoreTypeObjects {
 							LIMIT 1
 						) AS last_version
 						FROM ".$this->str_sql_table_name_object_updates." nodegoat_to_updates 
-						JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.object_id = nodegoat_to_updates.id AND ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_FULL, 'object_sub', 'nodegoat_tos').")
+						JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.object_id = nodegoat_to_updates.id AND nodegoat_tos.object_sub_details_id IN (".$sql_use_ids.") AND ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_FULL, 'object_sub', 'nodegoat_tos').")
 					) nodegoat_to_updates ON (nodegoat_to_updates.object_sub_id = nodegoat_tos_ver.object_sub_id)",
 					'nodegoat_to_updates.last_version'
 				],
-				['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::timeNow()]
+				['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::dateTimeNow()]
 			)."
 				AND nodegoat_tos_ver.date_audited IS NULL
 				".(!$all ? "AND nodegoat_tos_ver.version = last_version" : "")."
@@ -4035,8 +4271,16 @@ class StoreTypeObjects {
 	}
 	
 	public function discardTypeObjectSubDescriptionVersion($all = false) {
+		
+		$this->useTypeVersionable();
 				
+		if (!$this->arr_type_versionable['object_sub_descriptions']) {
+			return;
+		}
+		
 		$sql = '';
+		$sql_use_ids = arr2String($this->arr_type_versionable['object_sub_descriptions'], ',');
+		$sql_use_sub_ids = arr2String(array_keys($this->arr_type_versionable['object_sub_details']), ',');
 		
 		foreach (StoreType::getValueTypeTables() as $str_sql_table_name_affix => $arr_value_type_table) {
 			
@@ -4056,13 +4300,14 @@ class StoreTypeObjects {
 								LIMIT 1
 							) AS last_version
 							FROM ".$this->str_sql_table_name_object_updates." nodegoat_to_updates 
-							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.object_id = nodegoat_to_updates.id)
-							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." nodegoat_tos_def ON (nodegoat_tos_def.object_sub_id = nodegoat_tos.id AND ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_FULL, 'record', 'nodegoat_tos_def').")
+							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUBS')." nodegoat_tos ON (nodegoat_tos.object_id = nodegoat_to_updates.id AND nodegoat_tos.object_sub_details_id IN (".$sql_use_sub_ids."))
+							JOIN ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_SUB_DEFINITIONS').$str_sql_table_name_affix." nodegoat_tos_def ON (nodegoat_tos_def.object_sub_id = nodegoat_tos.id AND nodegoat_tos_def.object_sub_description_id IN (".$sql_use_ids.") AND ".GenerateTypeObjects::generateVersioning(GenerateTypeObjects::VERSIONING_FULL, 'record', 'nodegoat_tos_def').")
 						) nodegoat_to_updates ON (nodegoat_to_updates.object_sub_id = nodegoat_tos_def_ver.object_sub_id AND nodegoat_to_updates.object_sub_description_id = nodegoat_tos_def_ver.object_sub_description_id)",
 						'nodegoat_to_updates.last_version'
 					],
-					['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::timeNow()]
+					['user_id_audited' => $this->user_id, 'date_audited' => DBFunctions::dateTimeNow()]
 				)."
+					AND nodegoat_tos_def_ver.object_sub_description_id IN (".$sql_use_ids.") 
 					AND nodegoat_tos_def_ver.date_audited IS NULL
 					".(!$all ? "AND nodegoat_tos_def_ver.version = last_version" : "")."
 			;";
@@ -4073,9 +4318,18 @@ class StoreTypeObjects {
 		$this->presetTypeObjectSubDescriptionVersion();
 	}
 	
-	public function cleanTypeObjects() {
+	public function cleanTypeObjects($str_sql_table = false) {
+		
+		if (!$str_sql_table) {
+			
+			if (!$this->has_object_updates) { // Table with touched objects was never generated
+				return;
+			}
+			
+			$str_sql_table = $this->str_sql_table_name_object_updates;			
+		}
 				
-		StoreTypeObjectsProcessing::cleanTypesObjects($this->str_sql_table_name_object_updates);
+		StoreTypeObjectsProcessing::cleanTypesObjects($str_sql_table);
 	}
 		
 	protected function addTypeObjectUpdate() {
@@ -4107,7 +4361,7 @@ class StoreTypeObjects {
 			CREATE TEMPORARY TABLE ".$this->str_sql_table_name_object_updates." (
 				id INT,
 				PRIMARY KEY (id)
-			) ".DBFunctions::sqlTableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
+			) ".DBFunctions::tableOptions(DBFunctions::TABLE_OPTION_MEMORY).";
 		");
 		
 		$this->stmt_object_updates = DB::prepare("INSERT INTO ".$this->str_sql_table_name_object_updates." (id)
@@ -4128,7 +4382,7 @@ class StoreTypeObjects {
 			INSERT INTO ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')."
 				(object_id, date, date_object)
 				(SELECT
-					id, ".DBFunctions::timeNow().", ".DBFunctions::timeNow()."
+					id, ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow()."
 						FROM ".$sql_table."
 				)
 				".DBFunctions::onConflict('object_id', ['date'])."
@@ -4347,6 +4601,9 @@ class StoreTypeObjects {
 				$value_2 = json_decode($value_2, true);
 				
 				return arrIsEqual($value_1, $value_2);
+			case 'vector':
+			
+				return (FormatTypeObjects::formatToVector($value_1) === FormatTypeObjects::formatToVector($value_2));
 			default:
 			
 				return false;
