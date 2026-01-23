@@ -3102,7 +3102,7 @@ class StoreType {
 			
 			if ($arr_element[0] == 'object') {
 				
-				if ($arr_element[1] == 'name') {
+				if ($arr_element[1] == 'name' || $arr_element[1] == 'name_plain') {
 					$arr_selection['type'] = $arr_type_set['type'];
 				}
 			} else if ($arr_element[0] == 'object_description') {
