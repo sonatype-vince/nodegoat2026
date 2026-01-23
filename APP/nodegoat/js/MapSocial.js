@@ -82,6 +82,7 @@ function MapSocial(elm_draw, PARENT, options) {
 	font_family = null,
 	size_text = 12,
 	size_text_min = 8,
+	size_text_max = 30,
 	num_text_scaled = null,
 	color_text = '#000000',
 	opacity_text = 1,
@@ -207,6 +208,9 @@ function MapSocial(elm_draw, PARENT, options) {
 			if (size_text < size_text_min) {
 				size_text_min = size_text;
 			}
+			if (size_text > size_text_max) {
+				size_text_max = size_text;
+			}
 		}
 		
 		width_line_max = parseFloat(options.arr_visual.social.line.width.max);
@@ -270,6 +274,9 @@ function MapSocial(elm_draw, PARENT, options) {
 		}
 		if (typeof arr_setting_advanced.label_size_min != 'undefined') {
 			size_text_min = parseFloat(arr_setting_advanced.label_size_min);
+		}
+		if (typeof arr_setting_advanced.label_size_max != 'undefined') {
+			size_text_max = parseFloat(arr_setting_advanced.label_size_max);
 		}
 		if (typeof arr_setting_advanced.metrics != 'undefined') {
 			//use_metrics = parseBool(arr_setting_advanced.metrics, false);
@@ -419,7 +426,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				const func_stage_settings = function(stage_check) {
 					
-					stage_check.isRenderGroup = false;
+					stage_check.isRenderGroup = true; // Default for render stage
 					stage_check.cullableChildren = false;
 					stage_check.interactiveChildren = false;
 					stage_check.eventMode = 'none';
@@ -530,7 +537,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				stage = func_stage_settings(new PIXI.Container());
 				stage_2 = func_stage_settings(new PIXI.Container());
-								
+				
 				elm_plot_lines = new PIXI.Container();
 				elm_plot_dots = new PIXI.Container();
 				elm_plot_info = new PIXI.Container();
@@ -550,7 +557,11 @@ function MapSocial(elm_draw, PARENT, options) {
 				num_text_scaled = size_text;
 				if (do_text_scale) {
 					num_text_scaled = Math.floor(num_scale * size_text);
-					num_text_scaled = (num_text_scaled < size_text_min ? size_text_min : num_text_scaled);
+					if (num_text_scaled < size_text_min) {
+						num_text_scaled = size_text_min;
+					} else if (num_text_scaled > size_text_max) {
+						num_text_scaled = size_text_max;
+					}
 				}
 				if (do_text_pixel) { // Resize text in blocks using remainder
 					num_text_scaled = (num_text_scaled - (num_text_scaled % size_text_min));
@@ -634,7 +645,13 @@ function MapSocial(elm_draw, PARENT, options) {
 						num_text_calculate = (num_text_calculate - (num_text_calculate % size_text_min));
 					}
 					
-					num_text_scaled = (num_text_calculate < size_text_min ? size_text_min / num_scale : num_text_calculate / num_scale);
+					if (num_text_calculate < size_text_min) {
+						num_text_scaled = size_text_min / num_scale;
+					} else if (num_text_calculate > size_text_max) {
+						num_text_scaled = size_text_max / num_scale;
+					} else {
+						num_text_scaled = num_text_calculate / num_scale;
+					}
 				}
 			
 				if (show_arrowhead) {
@@ -1879,7 +1896,11 @@ function MapSocial(elm_draw, PARENT, options) {
 					if (do_text_scale) {
 						
 						num_text_scaled = Math.floor(num_scale * size_text);
-						num_text_scaled = (num_text_scaled < size_text_min ? size_text_min : num_text_scaled);
+						if (num_text_scaled < size_text_min) {
+							num_text_scaled = size_text_min;
+						} else if (num_text_scaled > size_text_max) {
+							num_text_scaled = size_text_max;
+						}
 						if (do_text_pixel) {
 							num_text_scaled = (num_text_scaled - (num_text_scaled % size_text_min));
 						}
@@ -1899,7 +1920,13 @@ function MapSocial(elm_draw, PARENT, options) {
 						num_text_calculate = (num_text_calculate - (num_text_calculate % size_text_min));
 					}
 					
-					num_text_scaled = (num_text_calculate < size_text_min ? size_text_min / num_scale : num_text_calculate / num_scale);
+					if (num_text_calculate < size_text_min) {
+						num_text_scaled = size_text_min / num_scale;
+					} else if (num_text_calculate > size_text_max) {
+						num_text_scaled = size_text_max / num_scale;
+					} else {
+						num_text_scaled = num_text_calculate / num_scale;
+					}
 				}
 			}
 
@@ -2176,24 +2203,14 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				pos_elm = null;
 							
-				if (!elm) {
-					
-					if (arr_node.has_conditions) {
-						elm = new PIXI.Container();
-					} else {
-						elm = new PIXI.Graphics();
-					}
-					
-					arr_node.elm = elm;
-					elm_plot_dots.addChild(elm);
-					
+				if (elm === null) {
+
 					if (arr_node.show_text) {
 						
 						const elm_text = new PIXI.Text(arr_node.name_text, {fontSize: num_text_scaled, fontFamily: font_family, fill: color_text});
 						elm_text.alpha = opacity_text;
 						
-						elm_text.anchor.x = 0;
-						elm_text.anchor.y = 0.5;
+						elm_text.anchor.set(0, 0.5);
 						
 						elm_plot_info.addChild(elm_text);
 
@@ -2201,12 +2218,6 @@ function MapSocial(elm_draw, PARENT, options) {
 					}
 				} else {
 
-					if (arr_node.has_conditions) {
-						elm.children = [];
-					} else {
-						//elm.clear();
-					}
-					
 					elm.visible = true;
 					
 					if (arr_node.elm_text !== null && do_text_scale) {
@@ -2227,6 +2238,16 @@ function MapSocial(elm_draw, PARENT, options) {
 					
 					if (arr_node.has_conditions) {
 						
+						if (elm === null) {
+							
+							elm = new PIXI.Container();
+							elm_plot_dots.addChild(elm);
+							
+							arr_node.elm = elm;
+						}
+						
+						let num_index = 0;
+
 						if (!show_icon_as_node) {
 							
 							let arr_colors = arr_node.colors;
@@ -2237,15 +2258,30 @@ function MapSocial(elm_draw, PARENT, options) {
 								arr_colors = null;
 							}
 							
-							let elm_stroke = null;
+							let elm_stroke = elm.children[0];
+							elm_stroke = (elm_stroke === undefined ? null : elm_stroke);
+							let elm_new = null;
 
 							if (arr_colors === null || do_highlight) {
-								elm_stroke = getGraphicsElementNode(null, num_size_radius_scaled, SocialUtilities.parseColor(str_color, opacity_node), num_width_stroke_scaled, (num_width_stroke_scaled ? SocialUtilities.parseColor(color_node_stroke, opacity_node_stroke) : null));
+								elm_new = getGraphicsElementNode(elm_stroke, num_size_radius_scaled, SocialUtilities.parseColor(str_color, opacity_node), num_width_stroke_scaled, (num_width_stroke_scaled ? SocialUtilities.parseColor(color_node_stroke, opacity_node_stroke) : null));
 							} else {
-								elm_stroke = getGraphicsElementNodePie(null, num_size_radius_scaled, arr_colors, opacity_node, num_width_stroke_scaled, (num_width_stroke_scaled ? SocialUtilities.parseColor(color_node_stroke, opacity_node_stroke) : null));
+								elm_new = getGraphicsElementNodePie(elm_stroke, num_size_radius_scaled, arr_colors, opacity_node, num_width_stroke_scaled, (num_width_stroke_scaled ? SocialUtilities.parseColor(color_node_stroke, opacity_node_stroke) : null));
 							}
 
-							elm.addChild(elm_stroke);
+							if (elm_new !== null) {
+								
+								if (elm_stroke !== null) {
+									elm.replaceChild(elm_stroke, elm_new);
+								} else {
+									elm.addChild(elm_new);
+								}
+							}
+							
+							num_index++;
+						}
+						
+						if (elm.children[num_index] !== undefined) { // Remove old icons
+							elm.removeChildAt(num_index);
 						}
 		
 						if (arr_node.icons !== false && arr_node.icons.length) {
@@ -2316,9 +2352,21 @@ function MapSocial(elm_draw, PARENT, options) {
 						}
 					} else {
 						
-						getGraphicsElementNode(elm, num_size_radius_scaled, SocialUtilities.parseColor(str_color, opacity_node), num_width_stroke_scaled, (num_width_stroke_scaled ? SocialUtilities.parseColor(color_node_stroke, opacity_node_stroke) : null));
-					}
+						const elm_new = getGraphicsElementNode(elm, num_size_radius_scaled, SocialUtilities.parseColor(str_color, opacity_node), num_width_stroke_scaled, (num_width_stroke_scaled ? SocialUtilities.parseColor(color_node_stroke, opacity_node_stroke) : null));
 					
+						if (elm_new !== null) {
+
+							if (elm !== null) {
+								elm_plot_dots.replaceChild(elm, elm_new);
+							} else {
+								elm_plot_dots.addChild(elm_new);
+							}
+							
+							elm = elm_new;
+							arr_node.elm = elm_new;
+						}
+					}
+
 					if (pos_elm) {
 						elm.position = pos_elm;
 					} else {
@@ -2329,7 +2377,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				let elm_circle = null;
 				
-				if (!elm) {
+				if (elm === null) {
 					
 					elm = stage.createElementNS(stage_ns, 'g');
 					svg_group.appendChild(elm);
@@ -2374,13 +2422,14 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				if (arr_node.has_conditions) {
 				
-					// Remove possible previous pie and icons
-					const elms_paths = arr_node.elm.getElementsByTagName('g');
-					
-					while (elms_paths.length) {
-						elms_paths[elms_paths.length - 1].remove();
+					for (let i = elm.children.length-1; i >= 0; i--) { // Remove possible previous pie and icons
+						
+						if (elm.children[i].tagName !== 'g') {
+							continue;
+						}
+						elm.children[i].remove();
 					}
-					
+
 					if (arr_node.colors !== null && !do_highlight) {
 						
 						if (arr_node.colors.length == 1) {
@@ -2411,7 +2460,7 @@ function MapSocial(elm_draw, PARENT, options) {
 									elms_pie.appendChild(elm_path);
 								}
 								
-								arr_node.elm.appendChild(elms_pie);
+								elm.appendChild(elms_pie);
 							}
 						}
 					}
@@ -2469,7 +2518,7 @@ function MapSocial(elm_draw, PARENT, options) {
 						
 						elms_icon.setAttribute('transform', 'translate('+(-(num_width_sum / 2))+' '+(num_offset)+')');
 						
-						arr_node.elm.appendChild(elms_icon);
+						elm.appendChild(elms_icon);
 					}
 				}
 				
@@ -2482,7 +2531,7 @@ function MapSocial(elm_draw, PARENT, options) {
 					
 					if (use_best_quality) {
 						
-						elm_circle_stoke = arr_node.elm.children[1];
+						elm_circle_stoke = elm.children[1];
 						if (elm_circle_stoke === undefined || elm_circle_stoke.tagName !== 'circle') {
 							elm_circle_stoke = null;
 						}
@@ -2935,12 +2984,10 @@ function MapSocial(elm_draw, PARENT, options) {
 						
 			if (display == DISPLAY_PIXEL) {
 
-				arr_node.elm.position.x = (pos_x + pos_translation.x) * num_scale;
-				arr_node.elm.position.y = (pos_y + pos_translation.y) * num_scale;
+				arr_node.elm.position.set((pos_x + pos_translation.x) * num_scale, (pos_y + pos_translation.y) * num_scale);
 				
-				if (arr_node.elm_text) {
-					arr_node.elm_text.position.x = arr_node.elm.position.x + ((num_size_radius + num_offset_dot_text) * num_scale);
-					arr_node.elm_text.position.y = arr_node.elm.position.y;
+				if (arr_node.elm_text !== null) {
+					arr_node.elm_text.position.set(arr_node.elm.position.x + ((num_size_radius + num_offset_dot_text) * num_scale), arr_node.elm.position.y);
 				}
 			} else {
 				
@@ -4026,7 +4073,7 @@ function MapSocial(elm_draw, PARENT, options) {
 					
 				arr_node.is_active = false;
 				
-				if (arr_node.elm !== false) {
+				if (arr_node.elm !== null) {
 					
 					if (display == DISPLAY_PIXEL) {
 						
@@ -4042,7 +4089,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			}
 		} else {
 			
-			if (arr_node.elm) {
+			if (arr_node.elm !== null) {
 				arr_remove_nodes.push(arr_node.id);
 			}
 		}
@@ -4920,7 +4967,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			arr_node.is_active = false;
 			arr_node.is_checked = false;
 			arr_node.identifier = '';
-			arr_node.elm = false;
+			arr_node.elm = null;
 			arr_node.elm_text = null;
 			arr_node.color = false;
 			arr_node.redraw_node = false;
@@ -4954,25 +5001,34 @@ function MapSocial(elm_draw, PARENT, options) {
 		var num_radius = (num_radius < 0.5 ? 0.5 : Math.round(num_radius * 2) / 2); // 0.5 rounding
 		const str_identifier = num_radius+'|'+num_stroke+'|'+color_stroke+'|'+color;
 		
-		let context = arr_cache_graphics_nodes.get(str_identifier);
+		let texture = arr_cache_graphics_nodes.get(str_identifier);
 		
-		if (context === undefined) {
+		if (texture === undefined) {
 			
-			context = new PIXI.GraphicsContext();
-			context.circle(0, 0, num_radius);
+			const elm_graphics = new PIXI.Graphics();
+			elm_graphics.circle(0, 0, num_radius);
 			if (color_stroke !== null) {
-				context.stroke({width: num_stroke, color: color_stroke, alignment: 0});
+				elm_graphics.stroke({width: num_stroke, color: color_stroke, alignment: 0});
 			}
-			context.fill(color);
+			elm_graphics.fill(color);
 			
-			arr_cache_graphics_nodes.set(str_identifier, context);
+			texture = renderer.generateTexture({target: elm_graphics, resolution: renderer.resolution, antialias: true, textureSourceOptions: {scaleMode: 'linear'}});
+			
+			arr_cache_graphics_nodes.set(str_identifier, texture);
 		}
 
-		if (elm === null) {
-			return new PIXI.Graphics(context);	
+		if (elm === null || !(elm instanceof PIXI.Sprite)) {
+
+			const elm_new = new PIXI.Sprite(texture);
+			elm_new.anchor = 0.5;
+			
+			return elm_new;
 		}
+
+		elm.texture = texture;
+		elm.anchor = 0.5;
 		
-		elm.context = context;
+		return null;
 	};
 	
 	var getGraphicsElementNodePie = function(elm, num_radius, arr_colors, num_opacity, num_stroke, color_stroke) {
@@ -5017,10 +5073,15 @@ function MapSocial(elm_draw, PARENT, options) {
 			arr_cache_graphics_nodes_pie.set(str_identifier, context);
 		}
 
-		if (elm === null) {
-			return new PIXI.Graphics(context);	
+		if (elm === null || !(elm instanceof PIXI.Graphics)) {
+			
+			const elm_new = new PIXI.Graphics(context);
+			
+			return elm_new;
 		}
 		
 		elm.context = context;
+		
+		return null;
 	};
 };

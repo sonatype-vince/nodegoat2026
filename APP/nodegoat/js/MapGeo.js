@@ -580,7 +580,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				
 				const func_stage_settings = function(stage_check) {
 					
-					stage_check.isRenderGroup = false;
+					stage_check.isRenderGroup = true; // Default for render stage
 					stage_check.cullableChildren = false;
 					stage_check.interactiveChildren = false;
 					stage_check.eventMode = 'none';
@@ -3113,15 +3113,6 @@ function MapGeo(elm_draw, PARENT, options) {
 										num_calc_bright = 2 - num_calc_bright;
 									}
 									
-									/*const arr_filter = arr_location.arr_filter;
-									const matrix = arr_filter.matrix;
-
-									matrix[4] = (((arr_color_hint.r - arr_color_location.r) * num_calc_bright) / 255);
-									matrix[9] = (((arr_color_hint.g - arr_color_location.g) * num_calc_bright) / 255);
-									matrix[14] = (((arr_color_hint.b - arr_color_location.b) * num_calc_bright) / 255);
-									
-									arr_filter.func_update();*/
-									
 									const arr_color_new = GeoUtilities.lerpColorsArray(arr_color_location, arr_color_hint, num_calc_bright);
 									elm_location.style.fill = 'rgb('+arr_color_new.r+','+arr_color_new.g+','+arr_color_new.b+')';
 								} else {
@@ -3787,12 +3778,12 @@ function MapGeo(elm_draw, PARENT, options) {
 		
 		if (arr_object_sub_dot === undefined) {
 			
-			arr_object_sub_dots[locate_identifier] = {locate_identifier: locate_identifier, object_sub_ids: [], count: 0, count_unweighted: 0, weight: 0, updated: false, is_added: false, identifier: false, identifier_geometry: false, arr_settings: {size: 0, assets: {}}, elm: false, elm_geometry: false, arr_info: false, info_show: false, info_hover: false, arr_location: false, num_zoom: false, arr_geometry_plotable: false, xy_geometry_center: false, hint: false, arr_hint_queue: [], highlight_color: false, highlight_class: false};
+			arr_object_sub_dots[locate_identifier] = {locate_identifier: locate_identifier, object_sub_ids: [], count: 0, count_unweighted: 0, weight: 0, updated: false, is_added: false, identifier: false, identifier_geometry: false, arr_settings: {size: 0, assets: {}}, elm: null, elm_geometry: null, arr_info: false, info_show: false, info_hover: false, arr_location: false, num_zoom: false, arr_geometry_plotable: false, xy_geometry_center: false, hint: false, arr_hint_queue: [], highlight_color: false, highlight_class: false};
 			
 			arr_object_sub_dot = arr_object_sub_dots[locate_identifier];
 			
 			if (show_info_dot) {
-				arr_object_sub_dot.arr_info = {identifier: '', elm: false, elm_text: false, elm_pointer: false, width: false, height: false, duration: false, is_added: false};
+				arr_object_sub_dot.arr_info = {identifier: '', elm: null, elm_text: null, elm_pointer: null, width: false, height: false, duration: false, is_added: false};
 			}
 
 			const arr_geometry_package = arr_object_sub.arr_geometry_package;
@@ -4174,7 +4165,7 @@ function MapGeo(elm_draw, PARENT, options) {
 			arr_object_sub_line = arr_object_sub_lines_locate[connect_identifier];
 			
 			if (show_info_line) {
-				arr_object_sub_line.arr_info = {identifier: false, elm: false, elm_text: false, elm_pointer: false, x: false, y: false, width: false, height: false, percentage: false, delay: false, duration: false, x_base: false, y_base: false, update: false, is_added: false};
+				arr_object_sub_line.arr_info = {identifier: false, elm: null, elm_text: null, elm_pointer: null, x: false, y: false, width: false, height: false, percentage: false, delay: false, duration: false, x_base: false, y_base: false, update: false, is_added: false};
 			}
 			
 			arr_object_sub_lines_locate.arr_con.push(arr_object_sub_line);
@@ -5896,35 +5887,40 @@ function MapGeo(elm_draw, PARENT, options) {
 				}
 			} else {
 				
-				if (arr_object_sub_dot.is_added && arr_object_sub_dot.identifier !== false) { // Check for dot existance, making sure the previous identifier was plottable
-					elm_plot_dots.removeChild(arr_object_sub_dot.elm);
-				}
-				
+				const is_plotted = (arr_object_sub_dot.is_added && arr_object_sub_dot.identifier !== false); // Check for dot existance, making sure the previous identifier was plottable
+
 				const has_icon = arr_dot_icons.length;
 				const has_colors = (arr_dot_colors.length === 1 || !opacity_dot ? false : true);
 				
-				let elm_plot = null;
+				let elm_plot = arr_object_sub_dot.elm;
 				
 				if (display == DISPLAY_PIXEL) {
 					
-					if (has_colors || has_icon) {
+					if (elm_plot === null) {
 						elm_plot = new PIXI.Container();
 					}
-				
+					
+					let elm_dot = elm_plot.children[0];
+					elm_dot = (elm_dot !== undefined ? elm_dot : null);
+					let elm_new = null;
+					
 					if (!has_colors) {
-						
-						const elm_dot = getGraphicsElementDot(null, dot_icon, num_size_radius, (opacity_dot ? GeoUtilities.parseColor(arr_dot_colors[0].color, opacity_dot) : null), width_dot_stroke, (width_dot_stroke ? GeoUtilities.parseColor(color_dot_stroke, opacity_dot_stroke) : null));
-
-						if (elm_plot !== null) {
-							elm_plot.addChild(elm_dot);
-						} else {
-							elm_plot = elm_dot;
-						}
+						elm_new = getGraphicsElementDot(elm_dot, dot_icon, num_size_radius, (opacity_dot ? GeoUtilities.parseColor(arr_dot_colors[0].color, opacity_dot) : null), width_dot_stroke, (width_dot_stroke ? GeoUtilities.parseColor(color_dot_stroke, opacity_dot_stroke) : null));
 					} else {
+						elm_new = getGraphicsElementDotPie(elm_dot, num_size_radius, arr_dot_colors, opacity_dot, width_dot_stroke, (width_dot_stroke ? GeoUtilities.parseColor(color_dot_stroke, opacity_dot_stroke) : null), num_weight_total);
+					}
+					
+					if (elm_new !== null) {
 						
-						const elm_dot = getGraphicsElementDotPie(null, num_size_radius, arr_dot_colors, opacity_dot, width_dot_stroke, (width_dot_stroke ? GeoUtilities.parseColor(color_dot_stroke, opacity_dot_stroke) : null), num_weight_total);
-
-						elm_plot.addChild(elm_dot);
+						if (elm_dot !== null) {
+							elm_plot.replaceChild(elm_dot, elm_new);
+						} else {
+							elm_plot.addChild(elm_new);
+						}
+					}
+					
+					if (elm_plot.children[1] !== undefined) { // Remove old icons
+						elm_plot.removeChildAt(1);
 					}
 					
 					if (has_icon) {
@@ -5986,17 +5982,17 @@ function MapGeo(elm_draw, PARENT, options) {
 						
 						elm_plot.addChild(elms_icon);
 					}
-
+					
+					elm_plot_dots.addChild(elm_plot); // Always add changed on top
+					elm_plot.visible = true;
 					elm_plot.position.set(Math.floor(x_origin - pos_offset_x), Math.floor(y_origin - pos_offset_y));
-					
-					elm_plot_dots.addChild(elm_plot);
 					do_render_dots = true;
-					
+
 					if (do_show_info && !arr_object_sub_dot.info_show) {
 						count_info_show_object_sub_dots++;
 					}
 					arr_object_sub_dot.info_show = do_show_info;
-									
+					
 					if (show_location) {
 						
 						let elm_location = null;
@@ -6037,36 +6033,61 @@ function MapGeo(elm_draw, PARENT, options) {
 						elm_location.visible = false;
 						
 						if (arr_location.elm_line !== null) {
-							
 							moveDotLocation(arr_object_sub_dot, arr_location.x_offset, arr_location.y_offset);
 						} else {
-							
 							elm_location.position.set(Math.floor((x_origin - pos_offset_x) + arr_location.x_offset_element), Math.floor((y_origin - pos_offset_y) + arr_location.y_offset_origin + arr_location.y_offset_element));
 						}
 					}
 				} else {
-
-					if (has_colors || has_icon || (use_best_quality && width_dot_stroke)) {
+					
+					if (elm_plot === null) {
 						elm_plot = stage.createElementNS(stage_ns, 'g');
 					}
-				
-					if (!has_colors) {
+					
+					const mode_draw_dot = (has_colors ? 'pie' : 'single');
+					
+					if (elm_plot.mode_dot !== mode_draw_dot) {
 						
-						let elm_dot = null;
+						for (let i = elm_plot.children.length-1; i >= 0; i--) {
+							elm_plot.children[i].remove();
+						}
+						elm_plot.mode_dot = mode_draw_dot;
+					}
+					
+					let num_child_index = 0;
+
+					if (mode_draw_dot == 'single') {
+
+						let elm_dot = elm_plot.children[0];
+						elm_dot = (elm_dot !== undefined ? elm_dot : null);
 						
 						if (dot_icon == 'square') {
 							
 							const num_width = (use_best_quality ? num_size : (num_size + width_dot_stroke));
 							const num_offset = (-num_width / 2);
 							
-							elm_dot = stage.createElementNS(stage_ns, 'rect');
+							if (elm_dot === null || elm_dot.tagName !== 'rect') {
+								
+								if (elm_dot !== null) {
+									elm_plot.removeChild(elm_dot);
+								}
+								elm_dot = stage.createElementNS(stage_ns, 'rect');
+								elm_plot.appendChild(elm_dot);
+							}
 							elm_dot.setAttribute('x', num_offset);
 							elm_dot.setAttribute('y', num_offset);
 							elm_dot.setAttribute('width', num_width);
 							elm_dot.setAttribute('height', num_width);
 						} else {
 							
-							elm_dot = stage.createElementNS(stage_ns, 'circle');
+							if (elm_dot === null || elm_dot.tagName !== 'circle') {
+								
+								if (elm_dot !== null) {
+									elm_plot.removeChild(elm_dot);
+								}
+								elm_dot = stage.createElementNS(stage_ns, 'circle');
+								elm_plot.appendChild(elm_dot);
+							}
 							elm_dot.setAttribute('cx', 0);
 							elm_dot.setAttribute('cy', 0);
 							elm_dot.setAttribute('r', (use_best_quality ? num_size_radius : (num_size_radius + width_dot_stroke / 2)));
@@ -6077,58 +6098,86 @@ function MapGeo(elm_draw, PARENT, options) {
 							elm_dot.style.fill = 'none';
 						}
 						
+						num_child_index++;
+
 						if (width_dot_stroke) {
 							
 							let elm_dot_stroke = elm_dot;
-							
+
 							if (use_best_quality) {
+								
+								elm_dot_stroke = elm_plot.children[1];
+								elm_dot_stroke = (elm_dot_stroke !== undefined ? elm_dot_stroke : null);
 								
 								if (dot_icon == 'square') {
 									
 									const num_width = (num_size + width_dot_stroke);
 									const num_offset = (-num_width / 2);
 									
-									elm_dot_stroke = stage.createElementNS(stage_ns, 'rect');
+									if (elm_dot_stroke === null || elm_dot_stroke.tagName !== 'rect') {
+
+										if (elm_dot_stroke !== null) {
+											elm_plot.removeChild(elm_dot_stroke);
+										}
+										elm_dot_stroke = stage.createElementNS(stage_ns, 'rect');
+										elm_plot.appendChild(elm_dot_stroke);
+									}
 									elm_dot_stroke.setAttribute('x', num_offset);
 									elm_dot_stroke.setAttribute('y', num_offset);
 									elm_dot_stroke.setAttribute('width', num_width);
 									elm_dot_stroke.setAttribute('height', num_width);
 								} else {
 									
-									elm_dot_stroke = stage.createElementNS(stage_ns, 'circle');
+									if (elm_dot_stroke === null || elm_dot_stroke.tagName !== 'circle') {
+									
+										if (elm_dot_stroke !== null) {
+											elm_plot.removeChild(elm_dot_stroke);
+										}
+										elm_dot_stroke = stage.createElementNS(stage_ns, 'circle');
+										elm_plot.appendChild(elm_dot_stroke);
+									}
 									elm_dot_stroke.setAttribute('cx', 0);
 									elm_dot_stroke.setAttribute('cy', 0);
 									elm_dot_stroke.setAttribute('r', (num_size_radius + width_dot_stroke / 2));
 								}
 								
 								elm_dot_stroke.style.fill = 'none';
-								elm_plot.appendChild(elm_dot_stroke);
+								
+								num_child_index++;
 							}
 							
 							elm_dot_stroke.style.stroke = GeoUtilities.parseColor(color_dot_stroke, opacity_dot_stroke);
 							elm_dot_stroke.style.strokeWidth = width_dot_stroke;
 						}
-						
-						if (elm_plot !== null) {
-							elm_plot.appendChild(elm_dot);
-						} else {
-							elm_plot = elm_dot;
-						}
 					} else {
 
-						let num_count = 0;
-						
-						const elm_circle = stage.createElementNS(stage_ns, 'circle');
-						elm_circle.setAttribute('cx', 0);
-						elm_circle.setAttribute('cy', 0);
-						elm_circle.setAttribute('r', (num_size_radius + width_dot_stroke / 2));
-						elm_circle.style.fill = 'none';
-						if (width_dot_stroke) {
-							elm_circle.style.stroke = GeoUtilities.parseColor(color_dot_stroke, opacity_dot_stroke);
-							elm_circle.style.strokeWidth = width_dot_stroke;
+						let elm_dot = elm_plot.children[0];
+						elm_dot = (elm_dot !== undefined ? elm_dot : null);
+
+						if (elm_dot === null) {
+							
+							elm_dot = stage.createElementNS(stage_ns, 'circle');
+							elm_plot.appendChild(elm_dot);
+						} else {
+							
+							for (let i = elm_plot.children.length-1; i >= 1; i--) { // Clean everything after first child
+								elm_plot.children[i].remove();
+							}
 						}
-						elm_plot.appendChild(elm_circle);
 						
+						num_child_index++;
+						
+						elm_dot.setAttribute('cx', 0);
+						elm_dot.setAttribute('cy', 0);
+						elm_dot.setAttribute('r', (num_size_radius + width_dot_stroke / 2));
+						elm_dot.style.fill = 'none';
+						if (width_dot_stroke) {
+							elm_dot.style.stroke = GeoUtilities.parseColor(color_dot_stroke, opacity_dot_stroke);
+							elm_dot.style.strokeWidth = width_dot_stroke;
+						}
+						
+						let num_count = 0;
+												
 						for (let i = 0, len = arr_dot_colors.length; i < len; i++) {
 							
 							const num_start = (num_count / num_weight_total) * 2 * Math.PI;
@@ -6139,6 +6188,15 @@ function MapGeo(elm_draw, PARENT, options) {
 							elm_path.setAttribute('d','M '+0+','+0+' L '+(0 + num_size_radius * Math.cos(num_start))+','+(0 + num_size_radius * Math.sin(num_start))+' A '+num_size_radius+','+num_size_radius+' 0 '+(num_end - num_start < Math.PI ? 0 : 1)+',1 '+(0 + num_size_radius * Math.cos(num_end))+','+(0 + num_size_radius * Math.sin(num_end))+' z');
 							elm_path.style.fill = GeoUtilities.parseColor(arr_dot_colors[i].color, opacity_dot);
 							elm_plot.appendChild(elm_path);
+							
+							num_child_index++;
+						}
+					}
+					
+					if (elm_plot.children[num_child_index] !== undefined) { // Clean everything after num_child_index
+						
+						for (let i = elm_plot.children.length-1; i >= num_child_index; i--) {
+							elm_plot.children[i].remove();
 						}
 					}
 					
@@ -6207,7 +6265,7 @@ function MapGeo(elm_draw, PARENT, options) {
 					elm_plot.setAttribute('transform', 'translate('+Math.floor(x_origin - pos_offset_x)+' '+Math.floor(y_origin - pos_offset_y)+')');
 					elm_plot.setAttribute('class', str_svg_classes);
 					
-					fragment_plot_dots.appendChild(elm_plot);
+					fragment_plot_dots.appendChild(elm_plot); // Always add changed on top
 
 					if (show_location) {
 						
@@ -6232,33 +6290,6 @@ function MapGeo(elm_draw, PARENT, options) {
 							
 							//elm_location.setAttribute('x', elm_location.getAttribute('x') - (arr_object_sub_dot.arr_location.width / 2)); // Using text-anchor text is automatically centered 
 							//elm_location.setAttribute('y', elm_location.getAttribute('y') - arr_object_sub_dot.arr_location.height); // svg positions the y axis of text to its bottom
-							
-							if (hint_dot === 'location') {
-								
-								/*const id = 'filter_location_'+fragment_plot_locations.children.length;
-								
-								const elm_filters = stage.createElementNS(stage_ns, 'filter');
-								elm_filters.setAttribute('id', id);
-								drawer_defs.appendChild(elm_filters);
-															
-								const matrix = [
-									1,0,0,0,0,
-									0,1,0,0,0,
-									0,0,1,0,0,
-									0,0,0,1,0
-								];
-								const elm_filter = stage.createElementNS(stage_ns, 'feColorMatrix');
-								elm_filter.setAttribute('in', 'SourceGraphic');
-								elm_filter.setAttribute('type', 'matrix');
-								elm_filter.setAttribute('values', matrix.join(' '));
-								elm_filters.appendChild(elm_filter);
-								
-								elm_location.setAttribute('filter', 'url(#'+id+')');
-								
-								arr_object_sub_dot.arr_location.arr_filter = {func_update: function() {
-									elm_filter.setAttribute('values', matrix.join(' '));
-								}, matrix: matrix};*/
-							}
 						} else {
 							
 							elm_location = arr_object_sub_dot.arr_location.elm;
@@ -6784,7 +6815,7 @@ function MapGeo(elm_draw, PARENT, options) {
 				elm = arr_hint_pool.shift(); // Get an elm to be used from the pool
 				
 				if (elm === undefined) {
-					elm = new PIXI.Graphics();
+					elm = new PIXI.Sprite();
 				}
 
 				elm_plot_between.addChild(elm);
@@ -7596,12 +7627,17 @@ function MapGeo(elm_draw, PARENT, options) {
 			
 			arr_cache_graphics_dots.set(str_identifier, context);
 		}
-
-		if (elm === null) {
-			return new PIXI.Graphics(context);	
+		
+		if (elm === null || !(elm instanceof PIXI.Graphics)) {
+			
+			const elm_new = new PIXI.Graphics(context);
+			
+			return elm_new;
 		}
 		
 		elm.context = context;
+		
+		return null;
 	};
 	
 	var getGraphicsElementDotPie = function(elm, num_radius, arr_colors, num_opacity, num_stroke, color_stroke, num_weight_total) {
@@ -7646,11 +7682,16 @@ function MapGeo(elm_draw, PARENT, options) {
 			arr_cache_graphics_dots_pie.set(str_identifier, context);
 		}
 
-		if (elm === null) {
-			return new PIXI.Graphics(context);	
+		if (elm === null || !(elm instanceof PIXI.Graphics)) {
+			
+			const elm_new = new PIXI.Graphics(context);
+			
+			return elm_new;
 		}
 		
 		elm.context = context;
+		
+		return null;
 	};
 
 	var getGraphicsElementHint = function(elm, num_radius, color, num_opacity, num_stroke, color_stroke, num_opacity_stroke) {
@@ -7660,25 +7701,34 @@ function MapGeo(elm_draw, PARENT, options) {
 		var num_opacity_stroke = Math.round(num_opacity_stroke * 100) / 100;
 		const str_identifier = num_radius+'|'+color+'|'+num_opacity+'|'+num_stroke+'|'+color_stroke+'|'+num_opacity_stroke;
 		
-		let context = arr_cache_graphics_hints.get(str_identifier);
+		let texture = arr_cache_graphics_hints.get(str_identifier);
 		
-		if (context === undefined) {
+		if (texture === undefined) {
 			
-			context = new PIXI.GraphicsContext();
-			context.circle(0, 0, num_radius);
-			context.fill({color: color, alpha: num_opacity});
+			elm_graphics = new PIXI.Graphics();
+			elm_graphics.circle(0, 0, num_radius);
+			elm_graphics.fill({color: color, alpha: num_opacity});
 			if (num_stroke) {
-				context.stroke({width: num_stroke, color: color_stroke, alpha: num_opacity_stroke, alignment: 0.5});
+				elm_graphics.stroke({width: num_stroke, color: color_stroke, alpha: num_opacity_stroke, alignment: 0.5});
 			}
 			
-			arr_cache_graphics_hints.set(str_identifier, context);
+			texture = renderer_activity.generateTexture({target: elm_graphics, resolution: renderer_activity.resolution, antialias: true, textureSourceOptions: {scaleMode: 'linear'}});
+			
+			arr_cache_graphics_hints.set(str_identifier, texture);
 		}
 
-		if (elm === null) {
-			return new PIXI.Graphics(context);	
+		if (elm === null || !(elm instanceof PIXI.Sprite)) {
+
+			const elm_new = new PIXI.Sprite(texture);
+			elm_new.anchor = 0.5;
+			
+			return elm_new;
 		}
+
+		elm.texture = texture;
+		elm.anchor = 0.5;
 		
-		elm.context = context;
+		return null;
 	};
 	
 	var parseObjectName = function(str_name) {
