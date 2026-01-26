@@ -1034,7 +1034,6 @@ function MapTimeline(element, PARENT, options) {
 			}
 
 			if (do_redraw) {
-			
 				doDraw();
 			}
 		});

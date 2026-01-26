@@ -52,32 +52,32 @@ function MapDrawPoints(element, PARENT, options) {
 		if (move === false || calc_zoom === false || calc_zoom) { // Move stop, resize, or zoomed
 	
 			// Reposition drawer
-			var width = pos.size.width;
-			var height = pos.size.height;
+			const num_width = pos.size.width;
+			const num_height = pos.size.height;
 			
-			drawer.style.width = width+'px';
-			drawer.style.height = height+'px';
+			drawer.style.width = num_width+'px';
+			drawer.style.height = num_height+'px';
 			
-			var redraw = (calc_zoom ? true : false);
+			let do_redraw = (calc_zoom ? true : false);
 			
-			var x = -pos.x - pos.offset.x - (width/2);
-			var y = -pos.y - pos.offset.y - (height/2);
+			const num_x = -pos.x - pos.offset.x - (num_width/2);
+			const num_y = -pos.y - pos.offset.y - (num_height/2);
 
-			if (redraw || (x - pos_offset_extra_x) + (pos.view.width/2) > (width/2) || (x - pos_offset_extra_x) - (pos.view.width/2) < -(width/2) || (y - pos_offset_extra_y) + (pos.view.height/2) > (height/2) || (y - pos_offset_extra_y) - (pos.view.height/2) < -(height/2)) {
+			if (do_redraw || (num_x - pos_offset_extra_x) + (pos.view.width/2) > (num_width/2) || (num_x - pos_offset_extra_x) - (pos.view.width/2) < -(num_width/2) || (num_y - pos_offset_extra_y) + (pos.view.height/2) > (num_height/2) || (num_y - pos_offset_extra_y) - (pos.view.height/2) < -(num_height/2)) {
 		
-				pos_offset_extra_x = x;
-				pos_offset_extra_y = y;
+				pos_offset_extra_x = num_x;
+				pos_offset_extra_y = num_y;
 
-				var str = 'translate('+x+'px, '+y+'px)';
+				const str = 'translate('+num_x+'px, '+num_y+'px)';
 				drawer.style.transform = drawer.style.webkitTransform = str;
 				
-				redraw = true;
+				do_redraw = true;
 			}
 
 			pos_offset_x = pos.offset.x + pos_offset_extra_x;
 			pos_offset_y = pos.offset.y + pos_offset_extra_y;
 			
-			if (redraw) {
+			if (do_redraw) {
 				PARENT.doDraw();
 			}
 		}
@@ -86,8 +86,6 @@ function MapDrawPoints(element, PARENT, options) {
 	this.prepareData = function(arr_data_source) {
 		
 		arr_data = arr_data_source;
-		
-		PARENT.doDraw();
 	};
 	
 	this.drawData = function() {
@@ -104,28 +102,28 @@ function MapDrawPoints(element, PARENT, options) {
 			return;
 		}
 		
-		for (var key in arr_data.points) {
+		for (const key in arr_data.points) {
 			
-			var arr_point = arr_data.points[key];
+			const arr_point = arr_data.points[key];
 			
-			var xy = PARENT.obj_map.plotPoint(arr_point.latitude, arr_point.longitude);
+			const arr_xy = PARENT.obj_map.plotPoint(arr_point.latitude, arr_point.longitude);
 						
-			var dot = addDot(xy, options.arr_visual.dot.color);
+			const elm_dot = addDot(arr_xy, options.arr_visual.dot.color);
 		}
 	};
 	
-	var addDot = function(xy, color) {
+	var addDot = function(arr_xy, str_color) {
 		
-		var r = options.arr_visual.dot.size.min;
+		const num_r = options.arr_visual.dot.size.min;
 	
-		var x = xy.x - (r/2) - pos_offset_x;
-		var y = xy.y - (r/2) - pos_offset_y;
+		const num_x = arr_xy.x - (num_r/2) - pos_offset_x;
+		const num_y = arr_xy.y - (num_r/2) - pos_offset_y;
 		
-		var elm = stage.createElementNS(stage_ns, 'circle');
-		elm.setAttribute('cx', x);
-		elm.setAttribute('cy', y);
-		elm.setAttribute('r', r);
-		elm.style.fill = color;
+		const elm = stage.createElementNS(stage_ns, 'circle');
+		elm.setAttribute('cx', num_x);
+		elm.setAttribute('cy', num_y);
+		elm.setAttribute('r', num_r);
+		elm.style.fill = str_color;
 		elm.style.stroke = options.arr_visual.dot.stroke_color;
 		elm.style.strokeWidth = options.arr_visual.dot.stroke_width;
 		elm_plot.appendChild(elm);

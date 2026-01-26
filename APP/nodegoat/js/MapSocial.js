@@ -66,7 +66,7 @@ function MapSocial(elm_draw, PARENT, options) {
 	cur_node_id = false,
 	arr_highlighted_nodes = [],
 	arr_remove_nodes = [],
-	size_init = {width: 0, height: 0},
+	arr_size_initialise = {},
 	size_renderer = {},
 	renderer = false,
 	renderer_2 = false,
@@ -116,6 +116,7 @@ function MapSocial(elm_draw, PARENT, options) {
 	pos_hover_poll = false,
 	pos_move = {x: 0, y: 0},
 	pos_translation = {x: 0, y: 0},
+	pos_stage = {x: 0, y: 0},
 	
 	use_metrics = false,
 	metrics_process = false,
@@ -131,7 +132,6 @@ function MapSocial(elm_draw, PARENT, options) {
 	count_links = 0,
 	count_nodes = 0,
 	arr_assets_texture_icons = {},
-	num_zoom_initialise = null,
 	
 	is_weighted = false,
 	force_options = {},
@@ -302,10 +302,7 @@ function MapSocial(elm_draw, PARENT, options) {
 		if (options.arr_visual.social.settings.include_location_references) {
 			include_location_nodes = true;
 		}
-		
-		var pos_map = PARENT.obj_map.getPosition();
-		size_init = {width: pos_map.size.width, height: pos_map.size.height};
-		
+
 		let arr_scripts = ['/js/support/d3-force.pack.js'];
 		if (display == DISPLAY_PIXEL) {
 			arr_scripts.push('/CMS/js/support/pixi8.min.js');
@@ -338,14 +335,20 @@ function MapSocial(elm_draw, PARENT, options) {
 				}
 			
 				SELF.drawData = drawData;
-				
-				key_move = PARENT.obj_map.move(rePosition);
-				
-				if (num_zoom_initialise) {
+
+				if (display == DISPLAY_PIXEL) {
+					
+					key_move = PARENT.obj_map.move(rePosition, null, false);
+					PARENT.obj_map.setZoom(PARENT.obj_map.getZoom());
+
+					PARENT.doDraw(); // First draw using possible scaling
+				} else {
+					
+					PARENT.doDraw(); // First draw native before possible scaling
+					
+					key_move = PARENT.obj_map.move(rePosition, null, false);
 					PARENT.obj_map.setZoom(PARENT.obj_map.getZoom());
 				}
-				
-				PARENT.doDraw();
 			};
 			
 			if (arr_data.legend.conditions) {
@@ -393,10 +396,13 @@ function MapSocial(elm_draw, PARENT, options) {
 					});
 				}
 			}
-			
-			num_zoom_initialise = pos_map.level;
-				
+
 			if (display == DISPLAY_PIXEL) {
+				
+				const pos_map = PARENT.obj_map.getPosition();
+				const num_zoom_initialise = pos_map.level;
+				
+				arr_size_initialise = {level: num_zoom_initialise}; // Rendering target
 									
 				if (num_zoom_initialise < 0) {
 					num_scale = num_scale * Math.pow(0.7, Math.abs(num_zoom_initialise));
@@ -567,8 +573,10 @@ function MapSocial(elm_draw, PARENT, options) {
 					num_text_scaled = (num_text_scaled - (num_text_scaled % size_text_min));
 				}
 			} else {
+				
+				arr_size_initialise = {level: 0, width: 100000, height: 50000}; // Native rendering origin
 
-				size_renderer = {width: pos_map.size.width, height: pos_map.size.height};
+				size_renderer = {width: arr_size_initialise.width, height: arr_size_initialise.height};
 				
 				renderer = document.createElementNS(stage_ns, 'svg');
 				renderer.setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns', stage_ns);
@@ -712,8 +720,9 @@ function MapSocial(elm_draw, PARENT, options) {
 		elm_search_container.remove();
 		elm_layout.remove();
 		
+		in_first_run = false; // Abort doTick();
 		ANIMATOR.animate(null, key_animate);
-
+		PARENT.obj_map.move(null, key_move);
 		simulation.close();
 		
 		if (display == DISPLAY_PIXEL) { // Destroy WEBGL memory
@@ -977,8 +986,8 @@ function MapSocial(elm_draw, PARENT, options) {
 			elm_layout_status[0].innerHTML = str_html;
 		};
 		
-		this.draw = (use_simulation_native ? new HandleSimulationDrawNative(SELF) : new HandleSimulationDrawWorker(SELF));
-		this.layout = new HandleSimulationLayout(SELF);
+		this.draw = (use_simulation_native ? new HandleSimulationDrawNative(SELF) : new HandleSimulationDrawWorker(SELF)); // Default drawing native/fallback
+		this.layout = new HandleSimulationLayout(SELF); // Extendable layout algorithms
 	};
 	
 	var HandleSimulationDrawNative = function(obj) {
@@ -1845,8 +1854,8 @@ function MapSocial(elm_draw, PARENT, options) {
 				for (let i = 0, len = arr_active_nodes.length; i < len; i++) {
 					
 					const arr_node = arr_active_nodes[i];
-					const num_dx = (((arr_node.x + pos_translation.x) * num_scale) + (stage.position ? stage.position.x : 0)) - pos_hover_poll.x;
-					const num_dy = (((arr_node.y + pos_translation.y) * num_scale) + (stage.position ? stage.position.y : 0)) - pos_hover_poll.y;
+					const num_dx = (((arr_node.x + pos_translation.x) * num_scale) + pos_stage.x) - pos_hover_poll.x;
+					const num_dy = (((arr_node.y + pos_translation.y) * num_scale) + pos_stage.y) - pos_hover_poll.y;
 					
 					const num_distance_squared = num_dx * num_dx + num_dy * num_dy;
 					const num_radius_squared = ((arr_node.radius * num_scale) + 2) * ((arr_node.radius * num_scale) + 2);
@@ -1876,8 +1885,8 @@ function MapSocial(elm_draw, PARENT, options) {
 
 	var rePosition = function(move, pos, zoom, calc_zoom) {
 
-		var width = pos.size.width;
-		var height = pos.size.height;
+		const num_width = pos.size.width;
+		const num_height = pos.size.height;
 
 		if (calc_zoom) { // Zoomed related
 			
@@ -1908,7 +1917,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				}
 			} else {
 				
-				num_scale = width / size_init.width;
+				num_scale = num_width / arr_size_initialise.width;
 				
 				if (!do_text_scale) { // Reversed scaling as whole svg already scales
 					
@@ -1935,23 +1944,23 @@ function MapSocial(elm_draw, PARENT, options) {
 		
 		if (display == DISPLAY_PIXEL) {
 			
-			if (width != size_renderer.width || height != size_renderer.height) {
+			if (num_width != size_renderer.width || num_height != size_renderer.height) {
 				
 				do_redraw = true;
 				do_draw = true;
 					
 				size_renderer.resolution = pos.render.resolution;
 				
-				renderer.resize(width, height);
+				renderer.resize(num_width, num_height);
 				renderer.resolution = size_renderer.resolution;
-				renderer_2.resize(width, height);
+				renderer_2.resize(num_width, num_height);
 				renderer_2.resolution = size_renderer.resolution;
 				
-				elm_canvas.width = width;
-				elm_canvas.height = height;	
+				elm_canvas.width = num_width;
+				elm_canvas.height = num_height;	
 				
-				geometry_shader_uniforms.uniforms.u_bounds[0] = width;
-				geometry_shader_uniforms.uniforms.u_bounds[1] = height;
+				geometry_shader_uniforms.uniforms.u_bounds[0] = num_width;
+				geometry_shader_uniforms.uniforms.u_bounds[1] = num_height;
 				
 				simulation.resize();
 				simulation.resume();
@@ -1980,14 +1989,17 @@ function MapSocial(elm_draw, PARENT, options) {
 			
 			if (typeof calc_zoom == 'string') { // Zoom in/out
 				
-				stage.position.x = (width - (width * num_scale)) / 2;
-				stage_2.position.x = (width - (width * num_scale)) / 2;
+				pos_stage.x = (num_width - (num_width * num_scale)) / 2;
+				pos_stage.y = (num_height - (num_height * num_scale)) / 2;
 				
-				stage.position.y = (height - (height * num_scale)) / 2;
-				stage_2.position.y = (height - (height * num_scale)) / 2;
+				stage.position.x = pos_stage.x;
+				stage_2.position.x = pos_stage.x;
+				
+				stage.position.y = pos_stage.y;
+				stage_2.position.y = pos_stage.y;
 
-				geometry_shader_uniforms.uniforms.u_stagetranslation[0] = stage.position.x;
-				geometry_shader_uniforms.uniforms.u_stagetranslation[1] = stage.position.y;
+				geometry_shader_uniforms.uniforms.u_stagetranslation[0] = pos_stage.x;
+				geometry_shader_uniforms.uniforms.u_stagetranslation[1] = pos_stage.y;
 				geometry_shader_uniforms.uniforms.u_scale[0] = num_scale;
 				geometry_shader_uniforms.uniforms.u_scale[1] = num_scale;
 			}
@@ -1995,14 +2007,14 @@ function MapSocial(elm_draw, PARENT, options) {
 			geometry_shader_uniforms.update();
 		} else {
 				
-			drawer.style.width = width+'px';
-			drawer.style.height = height+'px';
+			drawer.style.width = num_width+'px';
+			drawer.style.height = num_height+'px';
 			
 			svg_group.setAttribute('transform', 'scale('+num_scale+')');
 		}
 		
-		size_renderer.width = width;
-		size_renderer.height = height;
+		size_renderer.width = num_width;
+		size_renderer.height = num_height;
 
 		if (!in_first_run) {	
 			drawTick();
@@ -3201,8 +3213,8 @@ function MapSocial(elm_draw, PARENT, options) {
 				const pos_hover = PARENT.obj_map.getMousePosition(false);
 				const arr_node = arr_nodes[cur_node_id];
 				
-				arr_node.x = ((pos_hover.x - (stage.position ? stage.position.x : 0)) / num_scale) - pos_translation.x;
-				arr_node.y = ((pos_hover.y - (stage.position ? stage.position.y : 0)) / num_scale) - pos_translation.y;
+				arr_node.x = ((pos_hover.x - pos_stage.x) / num_scale) - pos_translation.x;
+				arr_node.y = ((pos_hover.y - pos_stage.y) / num_scale) - pos_translation.y;
 				
 				arr_node.fx = arr_node.x;
 				arr_node.fy = arr_node.y;
@@ -3380,11 +3392,9 @@ function MapSocial(elm_draw, PARENT, options) {
 					
 					const elm_tooltip_static = $('<div class="tooltip label">'+str_title+'</div>').appendTo(elm);
 					
-					//const num_left = (((arr_node.x + arr_node.radius + num_offset_dot_text + pos_translation.x) * num_scale) + (stage.position ? stage.position.x : 0));
-					//const num_top = (((arr_node.y + pos_translation.y) * num_scale) + (stage.position ? stage.position.y : 0)) - (elm_tooltip_static.outerHeight() / 2);
 					const num_radius_distance = Math.sqrt(2 * ((arr_node.radius + num_offset_dot_text) * (arr_node.radius + num_offset_dot_text))) / 2;
-					const num_left = (((arr_node.x + num_radius_distance + pos_translation.x) * num_scale) + (stage.position ? stage.position.x : 0));
-					const num_top = (((arr_node.y + num_radius_distance + pos_translation.y) * num_scale) + (stage.position ? stage.position.y : 0));
+					const num_left = (((arr_node.x + num_radius_distance + pos_translation.x) * num_scale) + pos_stage.x);
+					const num_top = (((arr_node.y + num_radius_distance + pos_translation.y) * num_scale) + pos_stage.y);
 					
 					elm_tooltip_static[0].style.left = num_left+'px';
 					elm_tooltip_static[0].style.top = num_top+'px';
@@ -4976,8 +4986,8 @@ function MapSocial(elm_draw, PARENT, options) {
 			
 			if (focus_object_id == object_id) {
 				
-				arr_node.x = (size_renderer.width / 2 / num_scale);
-				arr_node.y = (size_renderer.height / 2 / num_scale);
+				arr_node.x = (size_renderer.width / 2);
+				arr_node.y = (size_renderer.height / 2);
 				
 				arr_node.fixed = 1;
 				arr_node.fx = arr_node.x;

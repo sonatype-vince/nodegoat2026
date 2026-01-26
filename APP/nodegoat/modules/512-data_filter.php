@@ -2263,6 +2263,7 @@ class data_filter extends base_module {
 						obj_labmap.prepareData({
 							points: [arr_latlong_mouse]
 						});
+						obj_labmap.doDraw();
 						elm_latitude.val(arr_latlong_mouse.latitude);
 						elm_longitude.val(arr_latlong_mouse.longitude);
 					});

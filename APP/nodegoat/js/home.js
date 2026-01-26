@@ -457,16 +457,16 @@ function DateParser() {
 }
 var DATEPARSER = new DateParser();
 
-function TSchuifje(elm, options) {
+function TSchuifje(elm, arr_options_settings) {
 	
 	var SELF = this;
 	
-	const arr_options = $.extend({
+	var arr_options_settings = $.extend({
 		bounds: {},
 		min: false,
 		max: false,
 		call_change: false
-	}, options || {});
+	}, arr_options_settings || {});
 	
 	var elm = $(elm);
 	
@@ -849,8 +849,8 @@ function TSchuifje(elm, options) {
 		
 		arr_settings.dating.show_ce = (arr_settings.bounds.min.getFullYear() < 1);
 		
-		var str_date_min = DATEPARSER.date2StrDate(arr_settings.min, arr_settings.dating.show_ce);
-		var str_date_max = DATEPARSER.date2StrDate(arr_settings.max, arr_settings.dating.show_ce);
+		let str_date_min = DATEPARSER.date2StrDate(arr_settings.min, arr_settings.dating.show_ce);
+		let str_date_max = DATEPARSER.date2StrDate(arr_settings.max, arr_settings.dating.show_ce);
 		
 		elm_handler_left_label.text(str_date_min);
 		elm_handler_right_label.text(str_date_max);
@@ -863,8 +863,8 @@ function TSchuifje(elm, options) {
 		elm_date_min.val(str_date_min);
 		elm_date_max.val(str_date_max);
 		
-		if (arr_options.call_change) {
-			arr_options.call_change(arr_settings);
+		if (arr_options_settings.call_change) {
+			arr_options_settings.call_change(arr_settings);
 		}
 		
 		if (play_mode == 'time') {
@@ -879,26 +879,26 @@ function TSchuifje(elm, options) {
 		elm_bar_inner[0].style.left = Math.floor((calc_min - calc_bounds.min) * calc_one_width)+'px';
 		elm_bar_inner[0].style.right = Math.floor((calc_bounds.max - calc_max) * calc_one_width)+'px';
 		
-		var width_elm_handler_left_label = elm_handler_left_label[0].offsetWidth;
-		var offset_elm_handler_left_label = ((width_elm_handler_left_label/2) - width_elm_handler);
-		var width_elm_handler_right_label = elm_handler_right_label[0].offsetWidth;
-		var offset_elm_handler_right_label = (width_elm_handler_right_label/2);
+		const num_width_elm_handler_left_label = elm_handler_left_label[0].offsetWidth;
+		const num_offset_elm_handler_left_label = ((num_width_elm_handler_left_label/2) - width_elm_handler);
+		const num_width_elm_handler_right_label = elm_handler_right_label[0].offsetWidth;
+		const num_offset_elm_handler_right_label = (num_width_elm_handler_right_label/2);
 		
-		var width_bar = (calc_max - calc_min) * calc_one_width;
-		var width_label_left = width_elm_handler_left_label + margin_elm_handler_label; // x extra spacing between labels
-		var width_label_right = width_elm_handler_right_label + margin_elm_handler_label; // x extra spacing between labels
-		var width_labels = width_label_left + width_label_right;
+		const num_width_bar = (calc_max - calc_min) * calc_one_width;
+		const num_width_label_left = num_width_elm_handler_left_label + margin_elm_handler_label; // x extra spacing between labels
+		const num_width_label_right = num_width_elm_handler_right_label + margin_elm_handler_label; // x extra spacing between labels
+		const num_width_labels = num_width_label_left + num_width_label_right;
 	
-		if (width_bar < (width_labels / 2)) {
+		if (num_width_bar < (num_width_labels / 2)) {
 			
-			var offset_labels = (width_labels / 2) - width_bar;
+			const num_offset_labels = (num_width_labels / 2) - num_width_bar;
 			
-			elm_handler_left_label[0].style.left = Math.floor(-offset_elm_handler_left_label - (offset_labels/2)) + 'px';
-			elm_handler_right_label[0].style.left = Math.floor(-offset_elm_handler_right_label + (offset_labels/2)) + 'px';
+			elm_handler_left_label[0].style.left = Math.floor(-num_offset_elm_handler_left_label - (num_offset_labels/2)) + 'px';
+			elm_handler_right_label[0].style.left = Math.floor(-num_offset_elm_handler_right_label + (num_offset_labels/2)) + 'px';
 		} else {
 			
-			elm_handler_left_label[0].style.left = Math.floor(-offset_elm_handler_left_label) + 'px';
-			elm_handler_right_label[0].style.left = Math.floor(-offset_elm_handler_right_label) + 'px';
+			elm_handler_left_label[0].style.left = Math.floor(-num_offset_elm_handler_left_label) + 'px';
+			elm_handler_right_label[0].style.left = Math.floor(-num_offset_elm_handler_right_label) + 'px';
 		}
 		
 		if (play_mode == 'time') {
@@ -918,11 +918,13 @@ function TSchuifje(elm, options) {
 		} else {
 				
 			if (movement == 'move' || movement == 'resize-left') {
+				
 				if ((calc_min + calc_difference) < calc_bounds.min) {
 					calc_difference = calc_bounds.min - calc_min;
 				}
 			}
 			if (movement == 'move' || movement == 'resize-right') {
+				
 				if ((calc_max + calc_difference) > calc_bounds.max) {
 					calc_difference = calc_bounds.max - calc_max;
 				}
@@ -939,9 +941,10 @@ function TSchuifje(elm, options) {
 				}
 				
 				if (movement == 'resize-left' && calc_min > calc_max) {
-					var org_calc = calc_min;
+					
+					const calc_org = calc_min;
 					calc_min = calc_max;
-					calc_max = org_calc;
+					calc_max = calc_org;
 					var movement = 'resize-right';
 				}
 			}
@@ -957,9 +960,10 @@ function TSchuifje(elm, options) {
 				}
 				
 				if (movement == 'resize-right' && calc_max < calc_min) {
-					var org_calc = calc_max;
+					
+					const calc_org = calc_max;
 					calc_max = calc_min;
-					calc_min = org_calc;
+					calc_min = calc_org;
 					var movement = 'resize-left';
 				}
 			}
@@ -1090,6 +1094,7 @@ function TSchuifje(elm, options) {
 	this.close = function() {
 		
 		arr_size_change.func_stop();
+		arr_options_settings.call_change = null;
 		
 		if (removeListeners) {
 			removeListeners();
@@ -1098,7 +1103,7 @@ function TSchuifje(elm, options) {
 	
 	// Initialise
 	
-	SELF.update(arr_options);
+	SELF.update(arr_options_settings);
 
 	// Listeners
 	

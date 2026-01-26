@@ -42,7 +42,6 @@ function MapManager(element) {
 	cur_dateint_range = {},
 	date_range_bounds = {},
 	dateint_range_bounds = {},
-	do_draw = true,
 	arr_changed = [];
 	
 	this.obj_map = {};
@@ -61,7 +60,6 @@ function MapManager(element) {
 		}
 		
 		initiated = true;		
-		do_draw = false;
 		
 		elm_map = elm.children('.map');
 		SELF.elm_controls = elm.children('.controls');	
@@ -82,7 +80,7 @@ function MapManager(element) {
 		
 		if (SELF.obj_paint.prepareData) {
 			
-			var options_extra = SELF.obj_paint.prepareData(settings.arr_data);
+			const options_extra = SELF.obj_paint.prepareData(settings.arr_data);
 			
 			if (options_extra && (options_extra.default_zoom || options_extra.default_center)) {
 				
@@ -94,15 +92,10 @@ function MapManager(element) {
 		}
 		
 		SELF.obj_paint.init();
-		
-		do_draw = true;
-		SELF.doDraw();
 	};
 	
 	var reinit = function(options) {
-		
-		do_draw = false;
-		
+				
 		if (options.arr_levels) {
 
 			SELF.obj_map.close();
@@ -116,7 +109,7 @@ function MapManager(element) {
 			drawTimeline();
 		}
 		
-		var new_paint = (options.call_class_paint || options.arr_class_paint_settings || options.arr_levels || options.call_class_data || options.arr_data);
+		const new_paint = (options.call_class_paint || options.arr_class_paint_settings || options.arr_levels || options.call_class_data || options.arr_data);
 					
 		if (new_paint) {
 			elm_paint.off().empty();
@@ -160,9 +153,6 @@ function MapManager(element) {
 		if (new_paint) {
 			SELF.obj_paint.init();
 		}
-		
-		do_draw = true;
-		SELF.doDraw();
 	};
 	
 	this.close = function() {
@@ -322,7 +312,7 @@ function MapManager(element) {
 	
 	this.doDraw = function() {
 		
-		if (!do_draw || !SELF.obj_paint.drawData) {
+		if (!SELF.obj_paint.drawData) {
 			return;
 		}
 			
