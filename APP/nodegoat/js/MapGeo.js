@@ -6262,6 +6262,7 @@ function MapGeo(elm_draw, PARENT, options) {
 						elm_plot.appendChild(elms_icon);
 					}
 					
+					elm_plot.dataset.visible = 1;
 					elm_plot.setAttribute('transform', 'translate('+Math.floor(x_origin - pos_offset_x)+' '+Math.floor(y_origin - pos_offset_y)+')');
 					elm_plot.setAttribute('class', str_svg_classes);
 					
