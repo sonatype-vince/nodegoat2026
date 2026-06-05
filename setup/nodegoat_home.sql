@@ -335,6 +335,23 @@ CREATE TABLE `def_nodegoat_custom_project_visual_settings` (
   `time_cumulative_graph` tinyint(1) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `def_nodegoat_details` (
+  `unique_row` tinyint(1) NOT NULL DEFAULT '1',
+  `processing_memory` int NOT NULL,
+  `processing_time` int NOT NULL,
+  `limit_view` int NOT NULL,
+  `limit_import` int NOT NULL,
+  `limit_file_size` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `def_nodegoat_import_files` (
+  `id` int NOT NULL,
+  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `filename` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `total_objects` int NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `def_nodegoat_import_templates` (
   `id` int NOT NULL,
   `type_id` int NOT NULL,
