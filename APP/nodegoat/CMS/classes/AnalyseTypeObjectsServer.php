@@ -39,13 +39,12 @@ class AnalyseTypeObjectsServer extends AnalyseTypeObjects {
 		$str_options = '';
 		
 		foreach ($arr_options as $key => $value) {
-			
 			$str_options .= '/'.$key.'/'.$value;
 		}
 		
-		$command = 'curl --no-buffer --silent --show-error -X POST "'.$this->str_host.$do.($str_options ?: '/').'" -H  "accept: application/json" -H  "Content-Type: application/json" -H  "Authorization: bearer '.Settings::get('graph_database', 'token').'" --data-binary @-';
+		$arr_command = ['curl', '--no-buffer', '--silent', '--show-error', '-X', 'POST', $this->str_host.$do.($str_options ?: '/'), '-H', 'Accept: application/json', '-H', 'Content-Type: application/json', '-H', 'Authorization: bearer '.Settings::get('graph_database', 'token'), '--data-binary', '@-'];
 		
-		$process = new ProcessProgram($command);
+		$process = new ProcessProgram($arr_command);
 		
 		return $process;
 	}

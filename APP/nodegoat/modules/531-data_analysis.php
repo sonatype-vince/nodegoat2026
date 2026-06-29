@@ -398,7 +398,7 @@ class data_analysis extends base_module {
 		
 			if ($str_host == 'service') {
 				
-				$arr_job = self::checkService();
+				$arr_job = cms_nodegoat_definitions::checkGraphAnalysisService();
 				
 				if (!$arr_job) {
 					error(getLabel('msg_analysis_no_service'));
@@ -595,7 +595,7 @@ class data_analysis extends base_module {
 				
 				if ($is_server && Settings::get('graph_analysis_service', 'host') == 'service') {
 					
-					$arr_job = self::checkService();
+					$arr_job = cms_nodegoat_definitions::checkGraphAnalysisService();
 					
 					if (!$arr_job) {
 						$str_message = getLabel('msg_analysis_no_service');
@@ -1024,19 +1024,5 @@ class data_analysis extends base_module {
 	public static function parseTypeAnalysis($type_id, $arr) {
 		
 		return ParseTypeFeatures::parseTypeAnalysis($type_id, $arr, $_SESSION['USER_ID'], $_SESSION['custom_projects']['project_id'], ($_SESSION['NODEGOAT_CLEARANCE'] ?? 0));
-	}
-		
-	public static function checkService() {
-		
-		$arr_job = cms_jobs::getJob('cms_nodegoat_definitions', 'runGraphAnalysisService');
-		
-		if ($arr_job && $arr_job['process_id']) {
-			
-			$arr_job['host'] = 'http://127.0.0.1:'.$arr_job['port'].'/graph/';
-			
-			return $arr_job;
-		} else {
-			return false;
-		}	
 	}
 }

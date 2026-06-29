@@ -46,6 +46,8 @@ class data_view extends base_module {
 		);*/
 	}
 	
+	protected static $num_referenced_definition_limit = 100;
+	
 	public function contents() {
 		
 	}
@@ -156,8 +158,17 @@ class data_view extends base_module {
 						
 						$arr_object_definition = $arr_object['object_definitions'][$object_description_id];
 						
-						if ((($arr_object_definition['object_definition_value'] === null || $arr_object_definition['object_definition_value'] === '' || $arr_object_definition['object_definition_value'] === []) && !$arr_object_definition['object_definition_ref_object_id']) || !data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, $object_description_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, $object_description_id) || $arr_object_definition['object_definition_style'] == 'hide') {
+						if ((($arr_object_definition['object_definition_value'] === null || $arr_object_definition['object_definition_value'] === '' || $arr_object_definition['object_definition_value'] === []) && !$arr_object_definition['object_definition_ref_object_id']) || !data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, $object_description_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, $object_description_id) || $arr_object_definition['object_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 							continue;
+						}
+						
+						$is_referenced = $arr_object_description['object_description_is_referenced'];
+						$num_limited = null;
+						
+						if ($is_referenced && count($arr_object_definition['object_definition_ref_object_id']) > static::$num_referenced_definition_limit) {
+
+							$num_limited = count($arr_object_definition['object_definition_ref_object_id']);
+							$arr_object_definition['object_definition_ref_object_id'] = array_slice($arr_object_definition['object_definition_ref_object_id'], 0, static::$num_referenced_definition_limit);
 						}
 	
 						$use_value = $arr_object_definition['object_definition_value'];
@@ -166,13 +177,20 @@ class data_view extends base_module {
 						}
 						
 						$arr_extra = ['has_multi' => $arr_object_description['object_description_has_multi'], 'ref_type_id' => $arr_object_description['object_description_ref_type_id'], 'style' => $arr_object_definition['object_definition_style']];
-
+						
 						$str_html_value = FormatTypeObjects::formatToHTMLValue($arr_object_description['object_description_value_type'], $use_value, $arr_object_definition['object_definition_ref_object_id'], $arr_object_description['object_description_value_type_settings'], $arr_extra);
+						
+						if ($num_limited) {
+							
+							Labels::setVariable('total', $num_limited);
+							Labels::setVariable('limit', static::$num_referenced_definition_limit);
+							$str_html_value .= '<span class="limited">'.getLabel('lbl_object_definition_limited', 'L', true).'</span>';
+						}
 						
 						$str_name = strEscapeHTML(Labels::parseTextVariables($arr_object_description['object_description_name']));
 						
 						$return .= '<div data-object_description_id="'.$object_description_id.'">
-							<dt>'.($arr_object_description['object_description_is_referenced'] ? '<span class="icon" data-category="direction" title="'.getLabel('lbl_referenced').'">'.getIcon('leftright-right').'</span><span>'.Labels::parseTextVariables($arr_types[$arr_object_description['object_description_ref_type_id']]['name']).' - '.$str_name.'</span>' : $str_name).'</dt>
+							<dt>'.($is_referenced ? '<span class="icon" data-category="direction" title="'.getLabel('lbl_referenced').'">'.getIcon('leftright-right').'</span><span>'.strEscapeHTML(Labels::parseTextVariables($arr_types[$arr_object_description['object_description_ref_type_id']]['name'])).' - '.$str_name.'</span>' : $str_name).'</dt>
 							<dd>'.$str_html_value.'</dd>
 						</div>';
 					}
@@ -191,7 +209,7 @@ class data_view extends base_module {
 						
 						$arr_html_object_sub_tabs['links'][] = '<li><a href="#"><span>'.($arr_object_sub_details['object_sub_details']['object_sub_details_type_id'] ?
 								'<span class="icon" data-category="direction" title="'.getLabel('lbl_referenced').'">'.getIcon('leftright-right').'</span>'
-								.'<span>'.Labels::parseTextVariables($arr_types[$arr_object_sub_details['object_sub_details']['object_sub_details_type_id']]['name']).'</span> '
+								.'<span>'.strEscapeHTML(Labels::parseTextVariables($arr_types[$arr_object_sub_details['object_sub_details']['object_sub_details_type_id']]['name'])).'</span> '
 							: '').
 							'<span class="sub-name">'.strEscapeHTML(Labels::parseTextVariables($arr_object_sub_details['object_sub_details']['object_sub_details_name'])).'</span>'
 						.'</span></a></li>';
@@ -365,7 +383,7 @@ class data_view extends base_module {
 			
 		$return = '<div class="view_type_object object-sub data_viewer">
 			<h1>'.$arr_type_object_name[$object_id].'</h1>
-			<h2>'.($arr_object_sub_details['object_sub_details']['object_sub_details_type_id'] ? '<span class="icon" data-category="direction" title="'.getLabel('lbl_referenced').'"></span><span>'.Labels::parseTextVariables($arr_types[$arr_object_sub_details['object_sub_details']['object_sub_details_type_id']]['name']).'</span> ' : '').'<span class="sub-name">'.Labels::parseTextVariables($arr_object_sub_details['object_sub_details']['object_sub_details_name']).'</span></h2>
+			<h2>'.($arr_object_sub_details['object_sub_details']['object_sub_details_type_id'] ? '<span class="icon" data-category="direction" title="'.getLabel('lbl_referenced').'"></span><span>'.strEscapeHTML(Labels::parseTextVariables($arr_types[$arr_object_sub_details['object_sub_details']['object_sub_details_type_id']]['name'])).'</span> ' : '').'<span class="sub-name">'.strEscapeHTML(Labels::parseTextVariables($arr_object_sub_details['object_sub_details']['object_sub_details_name'])).'</span></h2>
 			<div class="record"><dl>';
 				
 				if ($arr_object_sub_details['object_sub_details']['object_sub_details_has_date']) {
@@ -442,7 +460,7 @@ class data_view extends base_module {
 						$object_sub_description_id = $arr_object_sub_description['object_sub_description_id'];
 						$arr_object_sub_definition = $arr_object_sub['object_sub_definitions'][$object_sub_description_id];
 
-						if ((($arr_object_sub_definition['object_sub_definition_value'] === null || $arr_object_sub_definition['object_sub_definition_value'] === '') && !$arr_object_sub_definition['object_sub_definition_ref_object_id']) || !data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, false, $object_sub_details_id, $object_sub_description_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, false, $object_sub_details_id, $object_sub_description_id) || $arr_object_sub_definition['object_sub_definition_style'] == 'hide') {
+						if ((($arr_object_sub_definition['object_sub_definition_value'] === null || $arr_object_sub_definition['object_sub_definition_value'] === '') && !$arr_object_sub_definition['object_sub_definition_ref_object_id']) || !data_model::checkClearanceTypeConfiguration(StoreType::CLEARANCE_PURPOSE_VIEW, $arr_type_set, false, $object_sub_details_id, $object_sub_description_id) || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, false, $object_sub_details_id, $object_sub_description_id) || $arr_object_sub_definition['object_sub_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 							continue;
 						}
 						
@@ -460,7 +478,7 @@ class data_view extends base_module {
 						$return .= '<div data-object_sub_description_id="'.$object_sub_description_id.'">
 							<dt>'.($arr_object_sub_description['object_sub_description_is_referenced'] ?
 								'<span class="icon" data-category="direction" title="'.getLabel('lbl_referenced').'">'.getIcon('leftright-right').'</span>'
-								.'<span>'.Labels::parseTextVariables($arr_types[$arr_object_sub_description['object_sub_description_ref_type_id']]['name']).' - '.$str_name.'</span>'
+								.'<span>'.strEscapeHTML(Labels::parseTextVariables($arr_types[$arr_object_sub_description['object_sub_description_ref_type_id']]['name'])).' - '.$str_name.'</span>'
 							: $str_name).'</dt>
 							<dd>'.$str_html_value.'</dd>
 						</div>';
@@ -673,7 +691,7 @@ class data_view extends base_module {
 				if ($arr_object_sub_value['object_sub_location_ref_type_id']) {
 					
 					$arr_type_object_subs = StoreType::getTypeObjectSubsDetails($arr_object_sub_value['object_sub_location_ref_type_id']);
-					$arr['object_sub_location_reference_label'] = '<span>'.Labels::parseTextVariables($arr_types[$arr_object_sub_value['object_sub_location_ref_type_id']]['name']).'</span>'.($arr_object_sub_value['object_sub_location_ref_object_sub_details_id'] ? ' <span class="sub-name">'.Labels::parseTextVariables($arr_type_object_subs[$arr_object_sub_value['object_sub_location_ref_object_sub_details_id']]['object_sub_details_name']).'</span>' : '');
+					$arr['object_sub_location_reference_label'] = '<span>'.strEscapeHTML(Labels::parseTextVariables($arr_types[$arr_object_sub_value['object_sub_location_ref_type_id']]['name'])).'</span>'.($arr_object_sub_value['object_sub_location_ref_object_sub_details_id'] ? ' <span class="sub-name">'.strEscapeHTML(Labels::parseTextVariables($arr_type_object_subs[$arr_object_sub_value['object_sub_location_ref_object_sub_details_id']]['object_sub_details_name'])).'</span>' : '');
 				
 					if ($arr_object_sub_value['object_sub_location_ref_object_id']) {
 						$arr['object_sub_location_reference_value'] = data_view::createTypeObjectLink($arr_object_sub_value['object_sub_location_ref_type_id'], $arr_object_sub_value['object_sub_location_ref_object_id'], $arr_object_sub_value['object_sub_location_ref_object_name']);
@@ -700,7 +718,7 @@ class data_view extends base_module {
 			
 			$arr_object_sub_definition = $arr_object_sub['object_sub_definitions'][$object_sub_description_id];
 			
-			if ($arr_object_sub_definition['object_sub_definition_style'] == 'hide') {
+			if ($arr_object_sub_definition['object_sub_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 		
 				$arr['object_sub_definition_'.$object_sub_description_id] = '';
 				continue;
@@ -793,7 +811,7 @@ class data_view extends base_module {
 				
 				$arr_reference_type_set = StoreType::getTypeSet($reference_type_id);
 				
-				$return_statistics .= '<h1>'.Labels::parseTextVariables($arr_reference_type_set['type']['name']).'</h1>';
+				$return_statistics .= '<h1>'.strEscapeHTML(Labels::parseTextVariables($arr_reference_type_set['type']['name'])).'</h1>';
 				
 				if ($arr_object_reference['object_definitions'] || isset($arr_object_reference['object']['object_sources'])) {
 					
@@ -815,7 +833,7 @@ class data_view extends base_module {
 							continue;
 						}
 						
-						$html_name = '<span'.($arr_object_description['object_description_is_dynamic'] ? ' class="dynamic-references-name"' : '').'>'.Labels::parseTextVariables($arr_object_description['object_description_name']).'</span>';
+						$html_name = '<span'.($arr_object_description['object_description_is_dynamic'] ? ' class="dynamic-references-name"' : '').'>'.strEscapeHTML(Labels::parseTextVariables($arr_object_description['object_description_name'])).'</span>';
 						
 						if (!empty($arr_reference['count'])) {
 							$return_statistics .= '<div><dt>'.$html_name.'</dt><dd>'.$arr_reference['count'].'</dd></div>';
@@ -848,7 +866,7 @@ class data_view extends base_module {
 						}
 						
 						$return_statistics .= '<li>
-							<h2><span class="sub-name">'.Labels::parseTextVariables($arr_object_sub_details['object_sub_details']['object_sub_details_name']).'</span></h2>
+							<h2><span class="sub-name">'.strEscapeHTML(Labels::parseTextVariables($arr_object_sub_details['object_sub_details']['object_sub_details_name'])).'</span></h2>
 							<div class="record"><dl>';
 							
 							if (!empty($arr_object_sub['object_sub']['object_sub_sources']['count'])) {
@@ -870,7 +888,7 @@ class data_view extends base_module {
 									continue;
 								}
 						
-								$html_name = '<span'.($arr_object_sub_description['object_sub_description_is_dynamic'] ? ' class="dynamic-references-name"' : '').'>'.Labels::parseTextVariables($arr_object_sub_description['object_sub_description_name']).'</span>';
+								$html_name = '<span'.($arr_object_sub_description['object_sub_description_is_dynamic'] ? ' class="dynamic-references-name"' : '').'>'.strEscapeHTML(Labels::parseTextVariables($arr_object_sub_description['object_sub_description_name'])).'</span>';
 							
 								if (!empty($arr_reference['count'])) {
 									$return_statistics .= '<div><dt>'.$html_name.'</dt><dd>'.$arr_reference['count'].'</dd></div>';
@@ -886,7 +904,7 @@ class data_view extends base_module {
 					$return_statistics .= '</ul>';
 				}
 
-				$arr_html_tabs['links'][$reference_type_id] = '<li><a'.(!$arr_html_tabs['links'] ? ' class="open"' : '').' href="#">'.Labels::parseTextVariables($arr_reference_type_set['type']['name']).'</a></li>';
+				$arr_html_tabs['links'][$reference_type_id] = '<li><a'.(!$arr_html_tabs['links'] ? ' class="open"' : '').' href="#">'.strEscapeHTML(Labels::parseTextVariables($arr_reference_type_set['type']['name'])).'</a></li>';
 				
 				$return_tab = '<div id="tab-reference-'.$reference_type_id.'">
 					<form class="options fieldsets"><div>';
@@ -1039,7 +1057,7 @@ class data_view extends base_module {
 					
 					$arr_reference_type_set = StoreType::getTypeSet($reference_type_id);
 					
-					$arr_html_dynamic_tabs['links'][$reference_type_id] = '<li><a'.(!$arr_html_tabs['links'] ? ' class="open"' : '').' href="#">'.Labels::parseTextVariables($arr_reference_type_set['type']['name']).'</a></li>';
+					$arr_html_dynamic_tabs['links'][$reference_type_id] = '<li><a'.(!$arr_html_tabs['links'] ? ' class="open"' : '').' href="#">'.strEscapeHTML(Labels::parseTextVariables($arr_reference_type_set['type']['name'])).'</a></li>';
 					$arr_html_dynamic_tabs['content'][$reference_type_id] = '<div>'.self::createViewTypeObjects($reference_type_id, ['referenced_type_id' => (int)$type_id, 'referenced_object_id' => (int)$object_id, 'dynamic_object_descriptions' => $arr_object_descriptions, 'filter' => $_SESSION['USER_ID']], true).'</div>';				
 				}
 				
@@ -1136,7 +1154,7 @@ class data_view extends base_module {
 							continue;
 						}
 						
-						$return .= '<th class="limit'.(!$arr_type_set['type']['object_name_in_overview'] ? ' max' : '').'"><span>'.Labels::parseTextVariables($arr_type_set['object_descriptions'][$object_description_id]['object_description_name']).'</span></th>';
+						$return .= '<th class="limit'.(!$arr_type_set['type']['object_name_in_overview'] ? ' max' : '').'"><span>'.strEscapeHTML(Labels::parseTextVariables($arr_type_set['object_descriptions'][$object_description_id]['object_description_name'])).'</span></th>';
 						$num_column++;
 					}
 				} else {
@@ -1147,7 +1165,7 @@ class data_view extends base_module {
 							continue;
 						}
 						
-						$return .= '<th class="limit'.(!$arr_type_set['type']['object_name_in_overview'] && $num_column == 0 ? ' max' : '').'"><span>'.Labels::parseTextVariables($arr_object_description['object_description_name']).'</span></th>';
+						$return .= '<th class="limit'.(!$arr_type_set['type']['object_name_in_overview'] && $num_column == 0 ? ' max' : '').'"><span>'.strEscapeHTML(Labels::parseTextVariables($arr_object_description['object_description_name'])).'</span></th>';
 						$num_column++;
 					}
 				}
@@ -1271,8 +1289,7 @@ class data_view extends base_module {
 				<th class="max limit"><span>URI</span></th>';
 				
 				foreach ($arr_values as $name => $arr_value) {
-
-					$return .= '<th class="limit"><span>'.Labels::parseTextVariables($name).'</span></th>';
+					$return .= '<th class="limit"><span>'.strEscapeHTML(Labels::parseTextVariables($name)).'</span></th>';
 				}
 
 			$return .= '</tr></thead>
@@ -1364,6 +1381,10 @@ class data_view extends base_module {
 					COMMANDS.setData(elm_target, value);
 					COMMANDS.dataTableRefresh(elm_target);
 				});
+				
+				runElementSelectorFunction(elm_scripter, '.value-type-module.enucleate', function(elm_found) {
+					SCRIPTER.runDynamic(elm_found);
+				});
 			});
 			
 			SCRIPTER.dynamic('.view_type_object', 'view_type_object');
@@ -1418,7 +1439,7 @@ class data_view extends base_module {
 					
 					$arr_type_set = StoreType::getTypeSet($type_id);
 					
-					$arr_html_tabs['links'][$type_id] = '<li><a href="#tab-review-'.$type_id.'">'.Labels::parseTextVariables($arr_type_set['type']['name']).'</a></li>';
+					$arr_html_tabs['links'][$type_id] = '<li><a href="#tab-review-'.$type_id.'">'.strEscapeHTML(Labels::parseTextVariables($arr_type_set['type']['name'])).'</a></li>';
 					
 					$return_tab = '<div id="tab-review-'.$type_id.'">';
 					
@@ -1737,7 +1758,6 @@ class data_view extends base_module {
 				$arr_filter['referenced_object'] = ['object_id' => $option_referenced_object, 'type_id' => $option_referenced_type, 'options' => ['sources' => true]];
 				
 				if ($arr_option_dynamic_object_descriptions) {
-					
 					$arr_filter['referenced_object']['filter'] = ['object_descriptions' => $arr_option_dynamic_object_descriptions];
 				}
 			}
@@ -1882,7 +1902,7 @@ class data_view extends base_module {
 						
 						if ($arr_object_definition['object_definition_style']) {
 						
-							if ($arr_object_definition['object_definition_style'] == 'hide') {
+							if ($arr_object_definition['object_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 								
 								$arr_data[] = '';
 								$count++;
@@ -2122,8 +2142,8 @@ class data_view extends base_module {
 					$arr_object_sub_details = $arr_type_set['object_sub_details'][$cur_object_sub_details_id]['object_sub_details'];
 
 					$arr_data[] = ($arr_object_sub_details['object_sub_details_type_id'] ?
-							'<span class="icon" data-category="direction" title="'.getLabel('lbl_referenced').'">'.getIcon('leftright-right').'</span><span>'.Labels::parseTextVariables($arr_types[$arr_object_sub_details['object_sub_details_type_id']]['name']).'</span> '
-						: '').'<span class="sub-name">'.Labels::parseTextVariables($arr_object_sub_details['object_sub_details_name']).'</span>';
+							'<span class="icon" data-category="direction" title="'.getLabel('lbl_referenced').'">'.getIcon('leftright-right').'</span><span>'.strEscapeHTML(Labels::parseTextVariables($arr_types[$arr_object_sub_details['object_sub_details_type_id']]['name'])).'</span> '
+						: '').'<span class="sub-name">'.strEscapeHTML(Labels::parseTextVariables($arr_object_sub_details['object_sub_details_name'])).'</span>';
 						
 					$count++;
 					
@@ -2150,7 +2170,7 @@ class data_view extends base_module {
 						continue;
 					}
 					
-					if ($arr_object_sub_definition['object_sub_definition_style'] && $arr_object_sub_definition['object_sub_definition_style'] != 'hide') {
+					if ($arr_object_sub_definition['object_sub_definition_style'] && $arr_object_sub_definition['object_sub_definition_style'] !== GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 						
 						$arr_data['cell'][$count]['attr']['style'] = $arr_object_sub_definition['object_sub_definition_style'];
 					}
@@ -2214,7 +2234,18 @@ class data_view extends base_module {
 			}
 			
 			$external->setFilter($arr_filter);
-			$external->request();
+			
+			try {
+			
+				$external->request();
+			} catch (RealTroubleThrown $e) {
+			
+				if ($e->getTroubleSuppress() == LOG_SYSTEM) {
+					throw($e);
+				}
+				
+				message($e->getTroubleMessage(), 'ATTENTION', LOG_CLIENT, null, null, 10000, $e);
+			}
 			
 			try {
 				
@@ -2224,7 +2255,6 @@ class data_view extends base_module {
 				if ($e->getTroubleSuppress() != LOG_SYSTEM) {
 					
 					Labels::setVariable('resource_name', $arr_resource['name']);
-
 					error(getLabel('msg_external_resource_error_parse').' '.$e->getTroubleMessage(), TROUBLE_ERROR, LOG_CLIENT, null, $e); // Make notice
 				}
 				

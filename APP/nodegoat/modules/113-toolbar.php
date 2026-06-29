@@ -744,8 +744,9 @@ class toolbar extends base_module {
 					$arr_visual_settings = cms_nodegoat_custom_projects::getProjectVisualSettings($_SESSION['custom_projects']['project_id'], false, $arr_scenario['visual_settings_id'], $arr_use_project_ids);
 					$arr_visual_settings = $arr_visual_settings['settings'];
 					$arr_visual_settings = ParseTypeFeatures::parseVisualSettings($arr_visual_settings);
+					$arr_visual_settings_user = data_visualise::getVisualSettings(false);
 					
-					if (data_visualise::getVisualSettings(false) == $arr_visual_settings) {
+					if (ParseTypeFeatures::compareVisualSettings($arr_visual_settings, $arr_visual_settings_user)) {
 						$arr_visual_settings = [];
 					}
 				}
@@ -901,10 +902,8 @@ class toolbar extends base_module {
 		$arr_set_cache = ['result' => null];
 		
 		if ($has_scenario_cache) {
-		
 			$arr_set_cache['result'] = $cache_scenario->getCache();
 		} else {
-			
 			status(getLabel('msg_building_cache_scenario_filter'), false, getLabel('msg_wait'), ['identifier' => SiteStartEnvironment::getSessionID(true).'cache_scenario_filter', 'duration' => 1000, 'persist' => true]);
 		}
 		
@@ -1152,7 +1151,7 @@ class toolbar extends base_module {
 			$arr_visual_settings = ParseTypeFeatures::parseVisualSettings($arr_visual_settings);
 			$arr_visual_settings_default = ParseTypeFeatures::parseVisualSettings();
 			
-			if ($arr_visual_settings == $arr_visual_settings_default) {
+			if (ParseTypeFeatures::compareVisualSettings($arr_visual_settings, $arr_visual_settings_default)) {
 				$arr_visual_settings = false;
 			}
 		}
@@ -1382,7 +1381,7 @@ class toolbar extends base_module {
 			$arr_type_set = StoreType::getTypeSet($cur_type_id);
 			
 			if ($arr_project['types'][$cur_type_id]['type_filter_id']) {
-								
+				
 				$arr_filters = cms_nodegoat_custom_projects::getProjectTypeFilters($_SESSION['custom_projects']['project_id'], false, false, $arr_project['types'][$cur_type_id]['type_filter_id'], true, $arr_use_project_ids);
 				$collect->addLimitTypeFilters($cur_type_id, FilterTypeObjects::convertFilterInput($arr_filters['object']), $arr_project['types'][$cur_type_id]['type_filter_object_subs']);
 			}

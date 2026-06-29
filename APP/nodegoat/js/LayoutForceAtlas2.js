@@ -22,7 +22,7 @@
  *   Sigma (https://github.com/jacomyal/sigma.js/blob/master/plugins/sigma.layout.forceAtlas2/worker.js)
  *   Graphology (https://github.com/graphology/graphology-layout-forceatlas2/blob/master/iterate.js)
  */
-	
+
 function LayoutForceAtlas2() {
 	
 	const SELF = this;
@@ -35,14 +35,22 @@ function LayoutForceAtlas2() {
 		scalingRatio: 1,
 		strongGravityMode: false,
 		gravity: 1,
-		slowDown: 1,
+		jitterTolerance: 1,
 		barnesHutOptimize: false,
 		barnesHutTheta: 0.5
 	};
-	
+
+	// Global adaptive speed, persisted across pass() calls (see section 5)
+	var speed = 1,
+		speedEfficiency = 1;
+
 	this.setConfiguration = function(arr_settings) {
 		
-		for (key in arr_settings) {
+		for (const key in arr_settings) {
+			
+			if (arr_settings[key] == null) {
+				continue;
+			}
 			
 			options[key] = arr_settings[key];
 		}
@@ -57,6 +65,10 @@ function LayoutForceAtlas2() {
 		SELF.setEdges(arr_edges)
 
 		SELF.setConfiguration(arr_settings || {});
+
+		// Reset the global adaptive speed
+		speed = 1;
+		speedEfficiency = 1;
 	};
 	
 	this.setNodes = function(arr_nodes) {
@@ -74,22 +86,21 @@ function LayoutForceAtlas2() {
 		EdgeMatrix = arr_edges;
 	};
 
-	var NODE_X = 0,
+	const NODE_X = 0,
 		NODE_Y = 1,
 		NODE_DX = 2,
 		NODE_DY = 3,
 		NODE_OLD_DX = 4,
 		NODE_OLD_DY = 5,
 		NODE_MASS = 6,
-		NODE_CONVERGENCE = 7,
-		NODE_SIZE = 8,
-		NODE_FIXED = 9;
+		NODE_SIZE = 7,
+		NODE_FIXED = 8;
 
-	var EDGE_SOURCE = 0,
+	const EDGE_SOURCE = 0,
 		EDGE_TARGET = 1,
 		EDGE_WEIGHT = 2;
 
-	var REGION_NODE = 0,
+	const REGION_NODE = 0,
 		REGION_CENTER_X = 1,
 		REGION_CENTER_Y = 2,
 		REGION_SIZE = 3,
@@ -99,13 +110,13 @@ function LayoutForceAtlas2() {
 		REGION_MASS_CENTER_X = 7,
 		REGION_MASS_CENTER_Y = 8;
 
-	var SUBDIVISION_ATTEMPTS = 3;
+	const SUBDIVISION_ATTEMPTS = 3;
 
-	var PPN = 10,
+	const PPN = 9,
 		PPE = 3,
 		PPR = 9;
 
-	var MAX_FORCE = 10;
+	const MAX_FORCE = 10;
 	
 	this.pass = function() {
 
@@ -419,7 +430,7 @@ function LayoutForceAtlas2() {
 
 		// 2) Repulsion
 		//--------------
-		// NOTES: adjustSizes = antiCollision & scalingRatio = coefficient
+		// NOTE: adjustSizes = antiCollision & scalingRatio = coefficient
 
 		if (options.barnesHutOptimize) {
 			coefficient = options.scalingRatio;
@@ -504,13 +515,15 @@ function LayoutForceAtlas2() {
 							if (adjustSizes === true) {
 
 								//-- Linear Anti-collision Repulsion
+								distance = Math.sqrt(distance) - NodeMatrix[n + NODE_SIZE] - NodeMatrix[rn + NODE_SIZE];
+
 								if (distance > 0) {
-									factor = (coefficient * NodeMatrix[n + NODE_MASS] * NodeMatrix[rn + NODE_MASS]) / distance;
+									factor = (coefficient * NodeMatrix[n + NODE_MASS] * NodeMatrix[rn + NODE_MASS]) / distance / distance;
 
 									NodeMatrix[n + NODE_DX] += xDist * factor;
 									NodeMatrix[n + NODE_DY] += yDist * factor;
 								} else if (distance < 0) {
-									factor = (-coefficient * NodeMatrix[n + NODE_MASS] * NodeMatrix[rn + NODE_MASS]) / Math.sqrt(distance);
+									factor = 100 * coefficient * NodeMatrix[n + NODE_MASS] * NodeMatrix[rn + NODE_MASS];
 
 									NodeMatrix[n + NODE_DX] += xDist * factor;
 									NodeMatrix[n + NODE_DY] += yDist * factor;
@@ -549,11 +562,13 @@ function LayoutForceAtlas2() {
 					// Common to both methods
 					xDist = NodeMatrix[n1 + NODE_X] - NodeMatrix[n2 + NODE_X];
 					yDist = NodeMatrix[n1 + NODE_Y] - NodeMatrix[n2 + NODE_Y];
-
+					
+					distance = Math.sqrt(xDist * xDist + yDist * yDist);
+					
 					if (adjustSizes === true) {
 
 						//-- Anticollision Linear Repulsion
-						distance = Math.sqrt(xDist * xDist + yDist * yDist) - NodeMatrix[n1 + NODE_SIZE] - NodeMatrix[n2 + NODE_SIZE];
+						distance = distance - NodeMatrix[n1 + NODE_SIZE] - NodeMatrix[n2 + NODE_SIZE];
 
 						if (distance > 0) {
 							factor = (coefficient * NodeMatrix[n1 + NODE_MASS] * NodeMatrix[n2 + NODE_MASS]) / distance / distance;
@@ -577,8 +592,6 @@ function LayoutForceAtlas2() {
 					} else {
 
 						//-- Linear Repulsion
-						distance = Math.sqrt(xDist * xDist + yDist * yDist);
-
 						if (distance > 0) {
 							factor = (coefficient * NodeMatrix[n1 + NODE_MASS] * NodeMatrix[n2 + NODE_MASS]) / distance / distance;
 
@@ -733,50 +746,101 @@ function LayoutForceAtlas2() {
 
 		// 5) Apply Forces
 		//-----------------
-		var force,
-			swinging,
-			traction,
-			nodespeed,
+		var swinging,
+			df,
 			newX,
 			newY;
 
-		// MATH: sqrt and square distances
+		// Auto adjust speed: one global step from total swinging vs. traction,
+		// so nodes share a governed step instead of each jumping on its own
+		var nodesCount = order / PPN;
+
+		var totalSwinging = 0, // How much irregular movement
+			totalEffectiveTraction = 0; // How much useful movement
+
+		for (n = 0; n < order; n += PPN) {
+			if (NodeMatrix[n + NODE_FIXED] !== 1) {
+
+				swinging = Math.sqrt(
+					(NodeMatrix[n + NODE_OLD_DX] - NodeMatrix[n + NODE_DX]) *
+					(NodeMatrix[n + NODE_OLD_DX] - NodeMatrix[n + NODE_DX]) +
+					(NodeMatrix[n + NODE_OLD_DY] - NodeMatrix[n + NODE_DY]) *
+					(NodeMatrix[n + NODE_OLD_DY] - NodeMatrix[n + NODE_DY])
+				);
+
+				// If the node has a burst change of direction, it's not converging
+				totalSwinging += NodeMatrix[n + NODE_MASS] * swinging;
+
+				totalEffectiveTraction += NodeMatrix[n + NODE_MASS] * 0.5 * Math.sqrt(
+					(NodeMatrix[n + NODE_OLD_DX] + NodeMatrix[n + NODE_DX]) *
+					(NodeMatrix[n + NODE_OLD_DX] + NodeMatrix[n + NODE_DX]) +
+					(NodeMatrix[n + NODE_OLD_DY] + NodeMatrix[n + NODE_DY]) *
+					(NodeMatrix[n + NODE_OLD_DY] + NodeMatrix[n + NODE_DY])
+				);
+			}
+		}
+
+		// Optimize jitter tolerance: bigger nets need more, denser need less (empiric)
+		var estimatedOptimalJitterTolerance = 0.05 * Math.sqrt(nodesCount),
+			minJT = Math.sqrt(estimatedOptimalJitterTolerance),
+			maxJT = 10,
+			jt = options.jitterTolerance * Math.max(minJT, Math.min(maxJT,
+				(estimatedOptimalJitterTolerance * totalEffectiveTraction) / (nodesCount * nodesCount)));
+
+		var minSpeedEfficiency = 0.05;
+
+		// Protection against erratic behavior
+		if (totalSwinging / totalEffectiveTraction > 2.0) {
+			if (speedEfficiency > minSpeedEfficiency) {
+				speedEfficiency *= 0.5;
+			}
+			jt = Math.max(jt, options.jitterTolerance);
+		}
+
+		var targetSpeed = (jt * speedEfficiency * totalEffectiveTraction) / totalSwinging;
+
+		// Speed efficiency tracks the swinging vs. convergence tradeoff, adjust it slowly
+		if (totalSwinging > jt * totalEffectiveTraction) {
+			if (speedEfficiency > minSpeedEfficiency) {
+				speedEfficiency *= 0.7;
+			}
+		} else if (speed < 1000) {
+			speedEfficiency *= 1.3;
+		}
+
+		// But the speed shouldn't rise too fast, or convergence drops dramatically
+		var maxRise = 0.5; // Max rise: 50%
+		speed = speed + Math.min(targetSpeed - speed, maxRise * speed);
+
+		// Apply forces
 		if (adjustSizes === true) {
 
 			for (n = 0; n < order; n += PPN) {
 				if (NodeMatrix[n + NODE_FIXED] !== 1) {
-					force = Math.sqrt(
-						Math.pow(NodeMatrix[n + NODE_DX], 2) +
-						Math.pow(NodeMatrix[n + NODE_DY], 2)
+
+					// Adaptive auto-speed: a node's step is lowered when it swings
+					swinging = NodeMatrix[n + NODE_MASS] * Math.sqrt(
+						(NodeMatrix[n + NODE_OLD_DX] - NodeMatrix[n + NODE_DX]) *
+						(NodeMatrix[n + NODE_OLD_DX] - NodeMatrix[n + NODE_DX]) +
+						(NodeMatrix[n + NODE_OLD_DY] - NodeMatrix[n + NODE_DY]) *
+						(NodeMatrix[n + NODE_OLD_DY] - NodeMatrix[n + NODE_DY])
 					);
 
-					if (force > MAX_FORCE) {
-						NodeMatrix[n + NODE_DX] = (NodeMatrix[n + NODE_DX] * MAX_FORCE) / force;
-						NodeMatrix[n + NODE_DY] = (NodeMatrix[n + NODE_DY] * MAX_FORCE) / force;
-					}
+					factor = (0.1 * speed) / (1 + Math.sqrt(speed * swinging));
 
-					swinging = NodeMatrix[n + NODE_MASS] *
-						Math.sqrt(
-							(NodeMatrix[n + NODE_OLD_DX] - NodeMatrix[n + NODE_DX]) *
-							(NodeMatrix[n + NODE_OLD_DX] - NodeMatrix[n + NODE_DX]) +
-							(NodeMatrix[n + NODE_OLD_DY] - NodeMatrix[n + NODE_DY]) *
-							(NodeMatrix[n + NODE_OLD_DY] - NodeMatrix[n + NODE_DY])
-						);
+					// With overlap prevention, cap the step so nodes don't jump over each other
+					df = Math.sqrt(
+						NodeMatrix[n + NODE_DX] * NodeMatrix[n + NODE_DX] +
+						NodeMatrix[n + NODE_DY] * NodeMatrix[n + NODE_DY]
+					);
 
-					traction = Math.sqrt(
-						(NodeMatrix[n + NODE_OLD_DX] + NodeMatrix[n + NODE_DX]) *
-						(NodeMatrix[n + NODE_OLD_DX] + NodeMatrix[n + NODE_DX]) +
-						(NodeMatrix[n + NODE_OLD_DY] + NodeMatrix[n + NODE_DY]) *
-						(NodeMatrix[n + NODE_OLD_DY] + NodeMatrix[n + NODE_DY])
-					) / 2;
+					factor = Math.min(factor * df, MAX_FORCE) / df;
 
-					nodespeed = (0.1 * Math.log(1 + traction)) / (1 + Math.sqrt(swinging));
-
-					// Updating node's positon
-					newX = NodeMatrix[n + NODE_X] + NodeMatrix[n + NODE_DX] * (nodespeed / options.slowDown);
+					// Updating node's position
+					newX = NodeMatrix[n + NODE_X] + NodeMatrix[n + NODE_DX] * factor;
 					NodeMatrix[n + NODE_X] = newX;
 
-					newY = NodeMatrix[n + NODE_Y] + NodeMatrix[n + NODE_DY] * (nodespeed / options.slowDown);
+					newY = NodeMatrix[n + NODE_Y] + NodeMatrix[n + NODE_DY] * factor;
 					NodeMatrix[n + NODE_Y] = newY;
 				}
 			}
@@ -785,6 +849,7 @@ function LayoutForceAtlas2() {
 			for (n = 0; n < order; n += PPN) {
 				if (NodeMatrix[n + NODE_FIXED] !== 1) {
 
+					// Adaptive auto-speed: a node's step is lowered when it swings
 					swinging = NodeMatrix[n + NODE_MASS] * Math.sqrt(
 						(NodeMatrix[n + NODE_OLD_DX] - NodeMatrix[n + NODE_DX]) *
 						(NodeMatrix[n + NODE_OLD_DX] - NodeMatrix[n + NODE_DX]) +
@@ -792,31 +857,81 @@ function LayoutForceAtlas2() {
 						(NodeMatrix[n + NODE_OLD_DY] - NodeMatrix[n + NODE_DY])
 					);
 
-					traction = Math.sqrt(
-						(NodeMatrix[n + NODE_OLD_DX] + NodeMatrix[n + NODE_DX]) *
-						(NodeMatrix[n + NODE_OLD_DX] + NodeMatrix[n + NODE_DX]) +
-						(NodeMatrix[n + NODE_OLD_DY] + NodeMatrix[n + NODE_DY]) *
-						(NodeMatrix[n + NODE_OLD_DY] + NodeMatrix[n + NODE_DY])
-					) / 2;
+					factor = speed / (1 + Math.sqrt(speed * swinging));
 
-					nodespeed = (NodeMatrix[n + NODE_CONVERGENCE] * Math.log(1 + traction)) / (1 + Math.sqrt(swinging));
-
-					// Updating node convergence
-					NodeMatrix[n + NODE_CONVERGENCE] = Math.min(1, Math.sqrt(
-						(nodespeed * (
-							Math.pow(NodeMatrix[n + NODE_DX], 2) +
-							Math.pow(NodeMatrix[n + NODE_DY], 2)
-						)) / (1 + Math.sqrt(swinging))
-					));
-
-					// Updating node's positon
-					newX = NodeMatrix[n + NODE_X] + NodeMatrix[n + NODE_DX] * (nodespeed / options.slowDown);
+					// Updating node's position
+					newX = NodeMatrix[n + NODE_X] + NodeMatrix[n + NODE_DX] * factor;
 					NodeMatrix[n + NODE_X] = newX;
 
-					newY = NodeMatrix[n + NODE_Y] + NodeMatrix[n + NODE_DY] * (nodespeed / options.slowDown);
+					newY = NodeMatrix[n + NODE_Y] + NodeMatrix[n + NODE_DY] * factor;
 					NodeMatrix[n + NODE_Y] = newY;
 				}
 			}
 		}
+	};
+
+	this.getMetrics = function() {
+
+		var nodeCount = NodeMatrix.length / PPN,
+			edgeCount = EdgeMatrix.length / PPE;
+
+		// Degree from the edge list (node base offset -> degree)
+		var degrees = {},
+			e, src, tgt, maxDegree = 0;
+
+		for (e = 0; e < EdgeMatrix.length; e += PPE) {
+			src = EdgeMatrix[e + EDGE_SOURCE];
+			tgt = EdgeMatrix[e + EDGE_TARGET];
+			degrees[src] = (degrees[src] || 0) + 1;
+			degrees[tgt] = (degrees[tgt] || 0) + 1;
+			if (degrees[src] > maxDegree) maxDegree = degrees[src];
+			if (degrees[tgt] > maxDegree) maxDegree = degrees[tgt];
+		}
+
+		var avgDegree = nodeCount > 0 ? (2 * edgeCount) / nodeCount : 0,
+			density = nodeCount > 1 ? edgeCount / (nodeCount * (nodeCount - 1) / 2) : 0;
+
+		return {
+			nodes: nodeCount,
+			edges: edgeCount,
+			avgDegree: avgDegree,
+			maxDegree: maxDegree,
+			density: density,
+			speed: speed,
+			speedEfficiency: speedEfficiency
+		};
+	};
+
+	this.autoConfigure = function(arr_override) {
+
+		const arr_metrics = SELF.getMetrics();
+		const num_nodes = arr_metrics.nodes;
+
+		const arr_settings = {
+			scalingRatio: (num_nodes >= 100 ? 2.0 : 10.0), // Default: 10 small graphs, 2 big graphs (repulsion strength)
+			gravity: (num_nodes >= 50000 ? 2.0 : 1.0), // Heavier gravity keeps very large graphs from drifting apart
+			outboundAttractionDistribution: (arr_metrics.avgDegree > 0 && arr_metrics.maxDegree > 5 * arr_metrics.avgDegree), // "Dissuade hubs": helps when the degree distribution is hub-heavy
+			barnesHutOptimize: (num_nodes >= 1000), // Default: OG enables BH at >=1000 nodes
+			barnesHutTheta: 1.2, // Default
+			jitterTolerance: 1 // The speed governor already scales jitter tolerance by sqrt(n)
+		};
+
+		if (arr_override) {
+			
+			for (const key in arr_override) {
+				
+				if (arr_override[key] == null) {
+					continue;
+				}
+				
+				arr_settings[key] = arr_override[key];
+			}
+		}
+
+		SELF.setConfiguration(arr_settings);
+
+		arr_settings.recommendedIterations = Math.min(2000, Math.round(100 + 20 * Math.sqrt(num_nodes))); // Indication of needed iterations scaled to graph size
+
+		return arr_settings;
 	};
 }

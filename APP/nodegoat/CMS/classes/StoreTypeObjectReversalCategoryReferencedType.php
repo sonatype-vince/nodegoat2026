@@ -828,7 +828,7 @@ class StoreTypeObjectReversalCategoryReferencedType {
 		
 		if ($do_encode == static::RESOURCE_PATH_PARSE_JSON) {
 			
-			return value2JSON($arr_path, JSON_PRETTY_PRINT);
+			return value2JSON($arr_path, JSON_DEFAULT_ENCODE | JSON_PRETTY_PRINT);
 		} else if ($do_encode == static::RESOURCE_PATH_PARSE_YAML) {
 			
 			$str_path = value2YAML($arr_path);

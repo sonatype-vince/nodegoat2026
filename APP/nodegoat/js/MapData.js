@@ -331,9 +331,9 @@ function MapData(element, PARENT, arr_settings_options) {
 				}
 			}
 			
-			var arr_loop = [];
-			for (var date in arr_data.date) {
-				arr_loop.push(date);
+			const arr_loop = [];
+			for (const num_date in arr_data.date) {
+				arr_loop.push(num_date);
 			}
 			arr_data.date.arr_loop = arr_loop;
 			
@@ -357,6 +357,56 @@ function MapData(element, PARENT, arr_settings_options) {
 	this.getData = function() {
 	
 		return arr_data;
+	};
+	
+	this.getDataMedia = function() {
+		
+		const map_media = new Map;
+		const arr_conditions_icon = [];
+		
+		for (const str_identifier_condition in arr_data.legend.conditions) {
+			
+			const arr_condition = arr_data.legend.conditions[str_identifier_condition];
+			
+			if (arr_condition.icon) {
+				
+				map_media.set(arr_condition.icon, arr_condition.icon);
+				arr_conditions_icon.push(str_identifier_condition);
+			}
+		}
+		
+		if (arr_conditions_icon.length) {
+			
+			for (const object_id in arr_data.objects) {
+				
+				const arr_object = arr_data.objects[object_id];
+				
+				for (let i = 0, len = arr_conditions_icon.length; i < len; i++) {
+					
+					if (arr_object.style.conditions !== undefined && arr_object.style.conditions[arr_conditions_icon[i]] != null && arr_object.style.conditions[arr_conditions_icon[i]].icon != null) {
+						
+						const str_icon = arr_object.style.conditions[arr_conditions_icon[i]].icon;
+						map_media.set(str_icon, str_icon);
+					}
+				}
+			}
+			
+			for (object_sub_id in arr_data.object_subs) {
+			
+				const arr_object_sub = arr_data.object_subs[object_sub_id];
+				
+				for (let i = 0, len = arr_conditions_icon.length; i < len; i++) {
+				
+					if (arr_object_sub.style.conditions !== undefined && arr_object_sub.style.conditions[arr_conditions_icon[i]] != null && arr_object_sub.style.conditions[arr_conditions_icon[i]].icon != null) {
+						
+						const str_icon = arr_object_sub.style.conditions[arr_conditions_icon[i]].icon;
+						map_media.set(str_icon, str_icon);
+					}
+				}
+			}
+		}
+		
+		return Array.from(map_media.values());
 	};
 	
 	this.setDataState = function(str_target, str_identifier, state) {

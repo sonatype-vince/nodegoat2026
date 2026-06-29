@@ -217,7 +217,7 @@ class data_reconcile extends base_module {
 						<div>'.FilterTypeObjects::getModuleObjectTypeCount($system_object_description_id, $system_object_id, $system_type_id).'</div>
 					</li>
 					<li>
-						<label>'.getLabel('lbl_reconcile_batch_amount').'</label>
+						<label>'.getLabel('lbl_reconcile_batch_size').'</label>
 						<div><input type="range" step="1" min="1" max="20" /><input type="number" name="reconcile[settings][batch]" step="1" min="1" max="20" value="'.static::$num_limit.'"/></div>
 					</li>
 					<li>
@@ -281,7 +281,7 @@ class data_reconcile extends base_module {
 		return $return;
 	}
 		
-	public function createProcessTemplate($arr_template, $arr_reconcile, $arr_feedback) {
+	public function createProcessTemplate($arr_template, $resource /*not used*/, $arr_feedback) {
 		
 		$system_object_id = $arr_template['identifier'];
 		
@@ -299,9 +299,9 @@ class data_reconcile extends base_module {
 			
 			if ($this->is_done_template_process || $this->has_feedback_template_process) {
 				break;
-			} else {
-				$arr_template = static::getTemplate($system_object_id);
 			}
+			
+			$arr_template = static::getTemplate($system_object_id);
 		}
 		
 		$html = '<div class="reconcile template-process">
@@ -521,7 +521,6 @@ class data_reconcile extends base_module {
 									$arr_remove_objects = [];
 									
 									foreach ($arr_option_objects as $result_object_id => $arr_pattern) {
-										
 										$arr_remove_objects[$result_object_id] = false;
 									}
 
@@ -811,10 +810,8 @@ class data_reconcile extends base_module {
 					// Do not auto-store (discard) a result that contains any matches
 					
 					if ($arr_result['objects']) {
-						
 						$do_store = false;
 					} else {
-						
 						$do_discard = true;
 					}
 				} else {
@@ -963,7 +960,6 @@ class data_reconcile extends base_module {
 							$arr_objects_value_name[$test_object_id] = ['name' => $arr_test_objects_name[$test_object_id].' ('.$str_score.')', 'input' => $html_input];
 							
 							if ($arr_template['target_self']) {
-								
 								$arr_option_objects[$test_object_id] = ($arr_template['target_self'] == static::TARGET_SELF_MODE_ALL ? $arr_pattern : true);
 							}
 						}
@@ -1101,7 +1097,7 @@ class data_reconcile extends base_module {
 			.$html
 			.'<div class="options">
 				<menu>'
-					.'<label><input type="number" name="reconcile[settings][batch]" step="1" min="1" max="20" value="'.(int)$arr_reconcile['settings']['batch'].'"/><span>'.getLabel('lbl_reconcile_batch_amount').'</span></label>'
+					.'<label><input type="number" name="reconcile[settings][batch]" step="1" min="1" max="20" value="'.(int)$arr_reconcile['settings']['batch'].'"/><span>'.getLabel('lbl_reconcile_batch_size').'</span></label>'
 				.'</menu><menu>'
 					.cms_general::createSelectorRadio(static::getProcessTemplateOptionsAuto(), 'reconcile[settings][auto]', $arr_reconcile['settings']['auto'])
 				.'</menu><menu>'
@@ -1216,17 +1212,20 @@ class data_reconcile extends base_module {
 							
 			elm_scripter.on('change', 'input[type=checkbox][value=none]', function() {
 			
-				var elm = $(this);
-				var elms_target = elm.closest('li').find('input[type=checkbox]').not(this);
+				const elm = $(this);
+				const elms_target = elm.closest('li').find('input[type=checkbox]').not(this);
 
 				elms_target.prop('disabled', this.checked);
 			}).on('click', '[id=y\\\:data_reconcile\\\:edit-0]', function() {
 				
-				var elm = $(this);
-				var elms_source = elm.closest('li').find('input[name*=\"[values]\"]');
-				var arr_values = [];
+				const elm = $(this);
+				const elm_container = elm.closest('li');
 				
-				for (var i = 0, len = elms_source.length; i < len; i++) {
+				const elms_source = elm_container.find('input[name*=\"[values]\"]'); // Overwrite but copy text names
+				const elms_options = elm_container.find('input[name*=\"[options]\"]'); // Keep the context/found matches
+				const arr_values = [];
+				
+				for (let i = 0, len = elms_source.length; i < len; i++) {
 					arr_values.push(elms_source[i].value);
 				}
 				
@@ -1234,17 +1233,21 @@ class data_reconcile extends base_module {
 				
 				COMMANDS.quickCommand(this, function(html) {
 					
-					var elm_target = elm.closest('li').children('h3');
-					var elm_text = html;
+					const elm_target = elm_container.children('h3');
+					const elm_text = html;
 					
 					elm_target.nextAll().remove();
 					elm_text.insertAfter(elm_target);
 					
-					var elms_target = elm_text.find('[name=\"\"]');
+					const elms_target = elm_text.find('[name=\"\"]');
 					
-					for (var i = 0, len = elms_source.length; i < len; i++) {
-						elms_target[i].setAttribute('name', elms_source[i].getAttribute('name'));
-					}	
+					for (let i = 0, len = elms_source.length; i < len; i++) {
+						
+						const elm_textarea = elms_target[i];
+						
+						elm_textarea.setAttribute('name', elms_source[i].getAttribute('name'));
+						elm_textarea.closest('fieldset').append(elms_options[i]);
+					}
 				});
 			});
 		});
@@ -1523,7 +1526,7 @@ class data_reconcile extends base_module {
 							$arr_object_ids = JSON2Value($arr_object_ids);
 						}
 						unset($arr_object_ids);
-							
+						
 						if ($arr_input['store'] === 'yes') { // Accepted editor mode
 							
 							$arr_objects_results[$arr_input['object_id']]['self'] = ['values' => $arr_input['values'], 'options' => $arr_input['options'], 'store' => true];

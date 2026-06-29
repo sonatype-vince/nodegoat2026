@@ -115,7 +115,10 @@ class CreateVisualisationPackage {
 			
 			foreach ($arr_objects as $object_id => $arr_object) {
 								
-				$collect->getWalkedObject($object_id, [], function &($cur_target_object_id, $cur_arr, $source_path, $cur_path, $cur_target_type_id, $arr_info, $collect) use ($object_id, &$arr_check, &$num_sort) {
+				$collect->getWalkedObject($object_id, [], function &($cur_target_object_id, $arr_collect, $source_path, $cur_path, $cur_target_type_id, $arr_info, $collect) use ($object_id, &$arr_check, &$num_sort) {
+					
+					// The applied Scope and this walk are selection-focussed (vs connection-focussed).
+					// Meaning: the selected Objects and their values make the network, the connections allow to pass information along its lineage.
 					
 					$arr_object_descriptions = $this->arr_type_sets[$cur_target_type_id]['object_descriptions'];
 					$arr_object_subs_details = $this->arr_type_sets[$cur_target_type_id]['object_sub_details'];
@@ -154,7 +157,7 @@ class CreateVisualisationPackage {
 								
 								$arr_object_description = $arr_object_descriptions[$object_description_id];
 								
-								if (!$arr_object_definition['object_definition_value'] && !$arr_object_definition['object_definition_ref_object_id']) {
+								if ((!$arr_object_definition['object_definition_value'] && !$arr_object_definition['object_definition_ref_object_id']) || $arr_object_definition['object_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 									continue;
 								}
 
@@ -296,8 +299,16 @@ class CreateVisualisationPackage {
 						}
 							
 						$s_arr_object =& $this->arr_pack_data['objects'][$arr_collapsing_source['object_id']];
-						
+
 						$this->parseStyle($s_arr_object['style'], $arr_object['object']['object_style'], $num_depth); // Add to the object style on every encounter, and collapse
+						
+						// Track collapsed edge weight
+						
+						$num_weight = ($arr_object['object']['object_style']['weight'] ?? null);
+						
+						if ($num_weight !== null) {
+							$arr_collect['weight'] += (is_array($num_weight) ? array_sum($num_weight) : $num_weight);
+						}
 					}
 					
 					$arr_connect_object_sub_ids = [];
@@ -375,7 +386,7 @@ class CreateVisualisationPackage {
 									
 									$arr_object_sub_description = $arr_object_sub_details['object_sub_descriptions'][$object_sub_description_id];
 									
-									if (!$arr_object_sub_definition['object_sub_definition_value'] && !$arr_object_sub_definition['object_sub_definition_ref_object_id']) {
+									if ((!$arr_object_sub_definition['object_sub_definition_value'] && !$arr_object_sub_definition['object_sub_definition_ref_object_id']) || $arr_object_sub_definition['object_sub_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 										continue;
 									}
 									
@@ -505,7 +516,10 @@ class CreateVisualisationPackage {
 									
 									$arr_object_description = $arr_object_descriptions[$object_description_id];
 									
-									if ((!empty($this->arr_collect_info['collapse'][$cur_path]['object_descriptions'][$object_description_id]) && empty($this->arr_collect_info['connections'][$cur_path]['end'])) || !$arr_object_definition['object_definition_ref_object_id'] || (!$arr_object_description['object_description_ref_type_id'] && !$arr_object_description['object_description_is_dynamic'])) {
+									if (
+										(!empty($this->arr_collect_info['collapse'][$cur_path]['object_descriptions'][$object_description_id]) && empty($this->arr_collect_info['connections'][$cur_path]['end']))
+										|| !$arr_object_definition['object_definition_ref_object_id'] || (!$arr_object_description['object_description_ref_type_id'] && !$arr_object_description['object_description_is_dynamic']) || $arr_object_definition['object_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE
+									) {
 										continue;
 									}
 									
@@ -533,7 +547,7 @@ class CreateVisualisationPackage {
 										
 										foreach ($arr_types_ref_object_ids as $ref_type_id => $arr_ref_object_ids) {
 											
-											$this->collapseObjectDescription($object_description_id.'_'.$ref_type_id, false, $arr_collapsing_source, $ref_type_id, $arr_types_values[$ref_type_id], $arr_ref_object_ids, $arr_object_definition['object_definition_style'], $num_depth);
+											$this->collapseObjectDescription($object_description_id.'_'.$ref_type_id, false, $arr_collapsing_source, $ref_type_id, $arr_types_values[$ref_type_id], $arr_ref_object_ids, $arr_object_definition['object_definition_style'], $arr_collect, $num_depth);
 										}
 									} else if (is_array($arr_object_description['object_description_ref_type_id'])) {
 										
@@ -553,11 +567,11 @@ class CreateVisualisationPackage {
 										
 										foreach ($arr_types_ref_object_ids as $ref_type_id => $arr_ref_object_ids) {
 											
-											$this->collapseObjectDescription($object_description_id.'_'.$ref_type_id, false, $arr_collapsing_source, $ref_type_id, $arr_types_values[$ref_type_id], $arr_ref_object_ids, $arr_object_definition['object_definition_style'], $num_depth);
+											$this->collapseObjectDescription($object_description_id.'_'.$ref_type_id, false, $arr_collapsing_source, $ref_type_id, $arr_types_values[$ref_type_id], $arr_ref_object_ids, $arr_object_definition['object_definition_style'], $arr_collect, $num_depth);
 										}
 									} else {
 										
-										$this->collapseObjectDescription($object_description_id, false, $arr_collapsing_source, $arr_object_description['object_description_ref_type_id'], (array)$arr_object_definition['object_definition_value'], (array)$arr_object_definition['object_definition_ref_object_id'], $arr_object_definition['object_definition_style'], $num_depth);
+										$this->collapseObjectDescription($object_description_id, false, $arr_collapsing_source, $arr_object_description['object_description_ref_type_id'], (array)$arr_object_definition['object_definition_value'], (array)$arr_object_definition['object_definition_ref_object_id'], $arr_object_definition['object_definition_style'], $arr_collect, $num_depth);
 									}
 								}
 							}
@@ -571,7 +585,7 @@ class CreateVisualisationPackage {
 									
 									// Relocate sub-objects to the collapse source object
 									
-									if ($s_arr_object_sub['object_id'] != $source_object_id || $source_object_sub_id) { // Always duplicate when source of collapse is a sub-object
+									if ($s_arr_object_sub['object_id'] != $source_object_id || ($source_object_sub_id && $object_sub_id != $source_object_sub_id)) { // Always duplicate when source of collapse is a sub-object
 										
 										unset($arr_connect_object_sub_ids['_'.$object_sub_id]);
 										
@@ -579,6 +593,14 @@ class CreateVisualisationPackage {
 
 										$s_arr_object_sub =& $this->arr_pack_data['object_subs'][$use_object_sub_id];
 										$arr_connect_object_sub_ids['_+'.$use_object_sub_id] = $use_object_sub_id;
+									}
+									
+									// Track collapsed edge weight. Any selected and weighted Sub-Object will count towards the total
+							
+									$num_weight = ($arr_object_sub['object_sub']['object_sub_style']['weight'] ?? null);
+									
+									if ($num_weight !== null) {
+										$arr_collect['weight'] += (is_array($num_weight) ? array_sum($num_weight) : $num_weight);
 									}
 									
 									if (!$arr_object_sub['object_sub_definitions']) {
@@ -592,7 +614,10 @@ class CreateVisualisationPackage {
 										
 										$arr_object_sub_description = $arr_object_sub_details['object_sub_descriptions'][$object_sub_description_id];
 										
-										if ((!empty($this->arr_collect_info['collapse'][$cur_path]['object_sub_details'][$object_sub_details_id]['object_sub_descriptions'][$object_sub_description_id]) && empty($this->arr_collect_info['connections'][$cur_path]['end'])) || !$arr_object_sub_definition['object_sub_definition_ref_object_id'] || (!$arr_object_sub_description['object_sub_description_ref_type_id'] && !$arr_object_sub_description['object_sub_description_is_dynamic'])) {
+										if (
+											(!empty($this->arr_collect_info['collapse'][$cur_path]['object_sub_details'][$object_sub_details_id]['object_sub_descriptions'][$object_sub_description_id]) && empty($this->arr_collect_info['connections'][$cur_path]['end']))
+											|| !$arr_object_sub_definition['object_sub_definition_ref_object_id'] || (!$arr_object_sub_description['object_sub_description_ref_type_id'] && !$arr_object_sub_description['object_sub_description_is_dynamic']) || $arr_object_sub_definition['object_sub_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE
+										) {
 											continue;
 										}
 										
@@ -609,16 +634,16 @@ class CreateVisualisationPackage {
 													$arr_ref_object_ids[] = $arr_ref_object['object_sub_definition_ref_object_id'];
 												}
 												
-												$this->collapseObjectDescription($object_sub_description_id.'_'.$ref_type_id, $use_object_sub_id, $arr_collapsing_source, $ref_type_id, $arr_values, $arr_ref_object_ids, $arr_object_sub_definition['object_sub_definition_style'], $num_depth);
+												$this->collapseObjectDescription($object_sub_description_id.'_'.$ref_type_id, $use_object_sub_id, $arr_collapsing_source, $ref_type_id, $arr_values, $arr_ref_object_ids, $arr_object_sub_definition['object_sub_definition_style'], $arr_collect, $num_depth);
 											}
 										} else if (is_array($arr_object_sub_description['object_sub_description_ref_type_id'])) {
 										
 											list($ref_type_id, $ref_object_id) = explode('_', $arr_object_sub_definition['object_sub_definition_ref_object_id']);
 																						
-											$this->collapseObjectDescription($object_sub_description_id.'_'.$ref_type_id, $use_object_sub_id, $arr_collapsing_source, $ref_type_id, (array)$arr_object_sub_definition['object_sub_definition_value'], (array)$ref_object_id, $arr_object_sub_definition['object_sub_definition_style'], $num_depth);
+											$this->collapseObjectDescription($object_sub_description_id.'_'.$ref_type_id, $use_object_sub_id, $arr_collapsing_source, $ref_type_id, (array)$arr_object_sub_definition['object_sub_definition_value'], (array)$ref_object_id, $arr_object_sub_definition['object_sub_definition_style'], $arr_collect, $num_depth);
 										} else {
 											
-											$this->collapseObjectDescription($object_sub_description_id, $use_object_sub_id, $arr_collapsing_source, $arr_object_sub_description['object_sub_description_ref_type_id'], (array)$arr_object_sub_definition['object_sub_definition_value'], (array)$arr_object_sub_definition['object_sub_definition_ref_object_id'], $arr_object_sub_definition['object_sub_definition_style'], $num_depth);
+											$this->collapseObjectDescription($object_sub_description_id, $use_object_sub_id, $arr_collapsing_source, $arr_object_sub_description['object_sub_description_ref_type_id'], (array)$arr_object_sub_definition['object_sub_definition_value'], (array)$arr_object_sub_definition['object_sub_definition_ref_object_id'], $arr_object_sub_definition['object_sub_definition_style'], $arr_collect, $num_depth);
 										}
 									}
 								}
@@ -698,6 +723,8 @@ class CreateVisualisationPackage {
 					}
 					
 					$s_arr_object_connect_object_sub_ids += $arr_connect_object_sub_ids;
+					
+					return $arr_collect;
 				});
 			}
 			
@@ -817,7 +844,7 @@ class CreateVisualisationPackage {
 		return $use_object_sub_id;
 	}
 	
-	protected function &collapseObjectDescription($use_object_description_id, $object_sub_id, $arr_collapse_to, $ref_type_id, $arr_value, $arr_ref_object_id, $arr_style = null, $num_depth = null) {
+	protected function &collapseObjectDescription($use_object_description_id, $object_sub_id, $arr_collapse_to, $ref_type_id, $arr_value, $arr_ref_object_id, $arr_style = null, $arr_collect = null, $num_depth = null) {
 		
 		if ($arr_collapse_to['object_description_id']) {
 			
@@ -833,12 +860,26 @@ class CreateVisualisationPackage {
 			$use_object_description_id = 'osl'.$use_object_description_id;
 		}
 		
+		$object_definition_id = $use_object_description_id;
+		
+		if (isset($arr_collect['weight'])) {
+			
+			if ($arr_style === null) {
+				$arr_style = [];
+			}
+			$arr_style['link'] = ['weight' => $arr_collect['weight']];
+		}
+		
+		if ($arr_style !== null) { // We need to add more grouping as the collapsed condition could be specifically relevant for a relation
+			$object_definition_id .= '/'.(isset($arr_ref_object_id[1]) ? implode('/', $arr_ref_object_id) : $arr_ref_object_id[0]);
+		}
+		
 		$use_object_sub_id = ($object_sub_id ?: $arr_collapse_to['object_sub_id'] ?: false); // Keep description at its own sub-object, otherwise the collapsing sub-object, or there is no sub-object applicable
 		
 		if ($use_object_sub_id) {
 			
 			$s_arr_parent =& $this->arr_pack_data['object_subs'][$use_object_sub_id];
-			$s_arr_new =& $s_arr_parent['object_sub_definitions'][$use_object_description_id];
+			$s_arr_new =& $s_arr_parent['object_sub_definitions'][$object_definition_id];
 			
 			if (!isset($this->arr_pack_data['info']['post_process'][$use_object_description_id])) {
 				$this->arr_pack_data['info']['post_process'][$use_object_description_id] = ['ref_type_id' => $ref_type_id, 'name' => $arr_description_name, 'object_sub' => true]; // Post-process name
@@ -846,7 +887,7 @@ class CreateVisualisationPackage {
 		} else {
 			
 			$s_arr_parent =& $this->arr_pack_data['objects'][$arr_collapse_to['object_id']];
-			$s_arr_new =& $s_arr_parent['object_definitions'][$use_object_description_id];
+			$s_arr_new =& $s_arr_parent['object_definitions'][$object_definition_id];
 			
 			if (!isset($this->arr_pack_data['info']['post_process'][$use_object_description_id])) {
 				$this->arr_pack_data['info']['post_process'][$use_object_description_id] = ['ref_type_id' => $ref_type_id, 'name' => $arr_description_name]; // Post-process name
@@ -860,13 +901,13 @@ class CreateVisualisationPackage {
 			$s_arr_new['ref_object_id'] = $arr_ref_object_id;
 			$s_arr_new['style'] = [];
 			
-		} else if ($s_arr_new['ref_object_id'] !== $arr_ref_object_id) {
+		} else { // Stack all (duplicate) references when collapsing
 		
-			$s_arr_new['value'] = arrMerge($s_arr_new['value'], $arr_value); // Stack all (duplicate) references when collapsing
+			$s_arr_new['value'] = arrMerge($s_arr_new['value'], $arr_value);
 			$s_arr_new['ref_object_id'] = arrMerge($s_arr_new['ref_object_id'], $arr_ref_object_id);
 		}
 		
-		if ($arr_style !== null) {	
+		if ($arr_style !== null) {
 			$this->parseStyle($s_arr_new['style'], $arr_style, $num_depth, $s_arr_parent['style']);
 		}
 		
@@ -897,6 +938,9 @@ class CreateVisualisationPackage {
 					
 					if (isset($arr_condition_value['color'])) {
 						$arr_style_target['conditions'][$str_identifier]['color'] = $arr_condition_value['color'];
+					}
+					if (isset($arr_condition_value['icon'])) {
+						$arr_style_target['conditions'][$str_identifier]['icon'] = $arr_condition_value['icon'];
 					}
 					
 					if ($arr_style_parent !== null) {

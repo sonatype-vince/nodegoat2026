@@ -278,6 +278,9 @@ class public_interfaces extends base_module {
 											<li><label>'.getLabel('lbl_url').' '.getLabel('lbl_server_host').'</label><div><input name="settings[short_url_host]" type="text" value="'.$arr_public_interface['interface']['settings']['short_url_host'].'" /></div></li>
 											<li><label>'.getLabel('lbl_use').' '.getLabel('lbl_nodegoat_id').' for URI</label><div><input name="settings[uri_nodegoat_id]" type="checkbox" value="1" '.($arr_public_interface['interface']['settings']['uri_nodegoat_id'] ? 'checked="checked"' : '').' /></div></li>
 											<li><label>'.getLabel('lbl_open_site').' '.getLabel('lbl_url').'</label><div><input name="settings[return_url]" type="text" value="'.$arr_public_interface['interface']['settings']['return_url'].'" /></div></li>
+											<li><label>'.getLabel('lbl_new').' '.getLabel('lbl_version').'</label><div><input name="settings[beta]" type="checkbox" value="1" '.($arr_public_interface['interface']['settings']['beta'] ? 'checked="checked"' : '').' /></div></li>
+											<li><label>'.getLabel('lbl_public_interface_display_list_view_next_to_visualisation').'</label><div><input name="settings[visualisation_list_view]" type="checkbox" value="1" '.($arr_public_interface['interface']['settings']['visualisation_list_view'] ? 'checked="checked"' : '').' /></div></li>
+											<li><label>'.getLabel('lbl_public_interface_draggable_objects').'</label><div><input name="settings[objects_draggable]" type="checkbox" value="1" '.($arr_public_interface['interface']['settings']['objects_draggable'] ? 'checked="checked"' : '').' /></div></li>
 										</ul></fieldset>';
 																				
 								$return .= '</div></div>
@@ -372,9 +375,20 @@ class public_interfaces extends base_module {
 				$arr_project_scenarios[$scenario_id] = ['id' => $scenario_id, 'name' => $arr_scenario['name']];
 			}
 		}	
-	
+		
 		$filter_mode = ($arr_settings['projects'][$project_id]['filter_mode'] ?: 'search');
-		$arr_display = ($arr_public_interface['project_types'][$project_id] ? $arr_public_interface['project_types'][$project_id][key($arr_public_interface['project_types'][$project_id])] : []);
+		$arr_display = [];
+		
+		if ($arr_public_interface['project_types'][$project_id]) {
+			
+			foreach ((array)$arr_public_interface['project_types'][$project_id] as $type_id => $arr_project_type) {
+				
+				if (!$arr_project_type['type_is_filter']) {
+					$arr_display = $arr_project_type;
+					continue;
+				}
+			}
+		}
 		
 		$return = '<div class="options">
 					<fieldset><ul>
@@ -758,21 +772,29 @@ class public_interfaces extends base_module {
 		
 		$arr_type_set_flat = StoreType::getTypeSetFlat($type_id);
 		$arr_type_set = StoreType::getTypeSet($type_id);
-		$arr_descriptions = [];
+		$arr_meta_descriptions = [];
+		$arr_sort_descriptions = [];
 		
 		// Use textual values for meta descriptions
 		foreach ((array)$arr_type_set['object_descriptions'] as $object_description_id => $arr_object_description) {
 			
 			$str_id = 'object_description_'.$object_description_id;
 		
+			$arr_sort_descriptions[$str_id] = $arr_type_set_flat[$str_id];
+			
 			if ($arr_object_description['object_description_value_type_base'] == '' || strpos($arr_object_description['object_description_value_type_base'], 'text') !== false) {
-				$arr_descriptions[$str_id] = $arr_type_set_flat[$str_id];
+				$arr_meta_descriptions[$str_id] = $arr_type_set_flat[$str_id];
 			}
 		}
 		
-		$elm_meta_description .= '<select name="settings[types]['.$type_id.'][meta_description]" title="'.getLabel('inf_public_interface_meta_description').'">'.
-					Labels::parseTextVariables(cms_general::createDropdown($arr_descriptions, $arr['meta_description'], true)).
+		$elm_sort_description .= '<select name="settings[types]['.$type_id.'][sort_description]" title="'.getLabel('inf_public_interface_sort_description').'">'.
+					Labels::parseTextVariables(cms_general::createDropdown($arr_sort_descriptions, $arr['sort_description'], true)).
 				'</select>';
+		
+		$elm_meta_description .= '<select name="settings[types]['.$type_id.'][meta_description]" title="'.getLabel('inf_public_interface_meta_description').'">'.
+					Labels::parseTextVariables(cms_general::createDropdown($arr_meta_descriptions, $arr['meta_description'], true)).
+				'</select>';
+		
 		
 		$arr_filters = [];
 		foreach ((array)$arr_projects as $project_id => $arr_project) {
@@ -811,7 +833,7 @@ class public_interfaces extends base_module {
 		}
 
 		$return = '<li><div>'.$elm_checkboxes.'</div></li>
-					<li><div>'.$elm_meta_description.$elm_override_filter.'</div></li>';
+					<li><div>'.$elm_sort_description.$elm_meta_description.$elm_override_filter.'</div></li>';
 		
 		return $return;
 	}
@@ -927,7 +949,8 @@ class public_interfaces extends base_module {
 				'</select>'.
 				'<input type="text" class="date '.($arr_value['form_element'] == 'date' ? '' : 'hide').'" name="project_filter_form['.$project_id.']['.$unique_form.'][date_min]" value="'.($arr_value['date_min'] ?: '1800').'" placeholder="d-m-y">'.
 				'<input type="text" class="date '.($arr_value['form_element'] == 'date' ? '' : 'hide').'" name="project_filter_form['.$project_id.']['.$unique_form.'][date_max]" value="'.($arr_value['date_max'] ?: '1900').'" placeholder="d-m-y">'.
-				'<input type="text" name="project_filter_form['.$project_id.']['.$unique_form.'][placeholder]" value="'.$arr_value['placeholder'].'" placeholder="Placeholder Text">'
+				'<input type="text" name="project_filter_form['.$project_id.']['.$unique_form.'][placeholder]" value="'.$arr_value['placeholder'].'" placeholder="Placeholder Text">'.
+				'<input type="checkbox" name="project_filter_form['.$project_id.']['.$unique_form.'][list]" class="description '.(!$arr_value['form_element'] || $arr_value['form_element'] == 'description' ? '' : 'hide').'" value="1" '.($arr_value['list'] ? 'checked="checked"' : '').' title="'.getLabel('lbl_show').' '.getLabel('lbl_list').'" />'
 			]];
 		}
 		
@@ -1032,7 +1055,7 @@ class public_interfaces extends base_module {
 				cur.siblings().addClass('hide');
 				
 				if (value == 'description') {
-					cur.nextAll('[name*=description], [name*=placeholder]').removeClass('hide').trigger('change');
+					cur.nextAll('[name*=description], [name*=placeholder], [name*=list]').removeClass('hide').trigger('change');
 				} else if (value == 'object' || value == 'search') {
 					cur.nextAll('[name*=placeholder]').removeClass('hide');
 				} else if (value == 'date') {

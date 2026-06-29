@@ -389,6 +389,7 @@ class AnalyseTypeObjects {
 		$this->num_edges = 0;
 		
 		$this->collect->setInitLimit(static::$num_objects_stream);
+		$this->collect->setWalkMode(false, false, true);
 
 		while ($this->collect->init()) {
 			
@@ -401,6 +402,9 @@ class AnalyseTypeObjects {
 				$this->num_nodes++;
 			
 				$this->collect->getWalkedObject($start_object_id, [], function &($target_object_id, $arr_collect, $source_path, $cur_path, $target_type_id, $arr_info) use ($start_object_id, $arr_start_object, $do_weighted) {
+					
+					// The applied Scope and this walk are connection-focussed (vs selection-focussed).
+					// Meaning: the connections hold both lineage and information.
 					
 					$arr_collect[$cur_path] = [$target_type_id.'-'.$target_object_id, null, null];
 					
@@ -428,9 +432,15 @@ class AnalyseTypeObjects {
 							} else {
 								
 								if ($source_path === CollectTypesObjects::PATH_START) {
-									$arr_object_source = $this->collect->getPathObject(CollectTypesObjects::PATH_START, 'start', $arr_info['object_id'], $target_object_id, true);
+									
+									$arr_object_source = $this->collect->getPathObject(CollectTypesObjects::PATH_START, TraceTypesNetwork::PATH_START, $arr_info['object_id'], $target_object_id, true);
 								} else {
-									$arr_object_source = $this->collect->getPathObject($source_path, 'in', $arr_info['object_id'], $target_object_id, true);
+									
+									// PATH_OUT: The followed references are sourced from previous incoming and outgoing objects, potentially both.
+									// source_in_out states the source availablity IN/OUT/BOTH, but here there is no path-sensitivity which source Object supplies the value:
+									// 1. We've already filtered (source_in_out states the relational result). 2. Conditions are not supplied path-sensitive.
+
+									$arr_object_source = $this->collect->getPathObject($source_path, (isset($arr_info['source_in_out'][TraceTypesNetwork::PATH_IN]) ? TraceTypesNetwork::PATH_IN : TraceTypesNetwork::PATH_OUT), $arr_info['object_id'], $target_object_id, true);
 								}
 							}
 							

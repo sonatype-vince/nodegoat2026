@@ -31,6 +31,10 @@ class StoreTypeObjects {
 	/*const MODULE_MODE_X = 2;
 	const MODULE_MODE_XX = 4;*/
 	
+	const OBJECT_STATUS_NONE = 0;
+	const OBJECT_STATUS_TOUCHED = 1;
+	const OBJECT_STATUS_CLAIMED = 2;
+	
 	const TAGCODE_TEST_SERIAL_VARCHAR = '\[\[#(?:=[\d]*)?\]\]';
 	const TAGCODE_PARSE_SERIAL_VARCHAR = '\[\[#(?:=([\d]*))?\]\]';
 	
@@ -297,7 +301,7 @@ class StoreTypeObjects {
 					}
 					
 					$str_value_type = $arr_object_description['object_description_value_type'];
-					$arr_value_find = FormatTypeObjects::formatToSQLValue($str_value_type, $arr_object_definition['object_definition_value']);
+					$arr_value_find = FormatTypeObjects::formatToSQLValue($str_value_type, $arr_object_definition['object_definition_value'], $arr_object_description['object_description_value_type_settings']);
 					$str_sql_match = false;
 					
 					if ($arr_object_description['object_description_has_multi']) {
@@ -536,7 +540,7 @@ class StoreTypeObjects {
 
 				if ($is_defined) {
 					
-					$this->parseObjectDefinition($object_description_id, $arr_object_description['object_description_value_type'], $arr_object_definition['object_definition_value'], $arr_object_definition['object_definition_ref_object_id']);
+					$this->parseObjectDefinition($object_description_id, $arr_object_description['object_description_value_type'], $arr_object_description['object_description_value_type_settings'], $arr_object_definition['object_definition_value'], $arr_object_definition['object_definition_ref_object_id']);
 					
 					if ($arr_object_definition['object_definition_value'] === false || $arr_object_definition['object_definition_value'] === '') {
 						$arr_object_definition['object_definition_value'] = null;
@@ -594,7 +598,7 @@ class StoreTypeObjects {
 								$arr_compare_object_definition = $arr_object_definition['object_definition_ref_object_id'];
 								
 								$arr_current_object_definition = $this->arr_object_set['object_definitions'][$object_description_id]['object_definition_ref_object_id'];
-								$this->parseObjectDefinition($object_description_id, $arr_object_description['object_description_value_type'], $foo, $arr_current_object_definition);
+								$this->parseObjectDefinition($object_description_id, $arr_object_description['object_description_value_type'], $arr_object_description['object_description_value_type_settings'], $foo, $arr_current_object_definition);
 								
 								if ($arr_object_description['object_description_has_multi']) {
 									
@@ -802,8 +806,7 @@ class StoreTypeObjects {
 								
 								$this->addTypeObjectDescriptionVersion($object_description_id, static::VERSION_OFFSET_ALTERNATE_ACTIVE, $arr_object_definition_text['text']);
 								
-								foreach($arr_object_definition_text['tags'] as $value) {
-									
+								foreach ($arr_object_definition_text['tags'] as $value) {
 									$arr_sql_insert[] = "(".$object_description_id.", ".$this->object_id.", ".$value['object_id'].", ".$value['type_id'].", '".DBFunctions::strEscape($value['text'])."', ".$value['group_id'].", 1)";
 								}
 
@@ -1146,7 +1149,7 @@ class StoreTypeObjects {
 
 					if ($is_defined) {
 
-						$this->parseObjectSubDefinition($object_sub_details_id, $object_sub_description_id, $arr_object_sub_description['object_sub_description_value_type'], $arr_object_sub_definition['object_sub_definition_value'], $arr_object_sub_definition['object_sub_definition_ref_object_id']);
+						$this->parseObjectSubDefinition($object_sub_details_id, $object_sub_description_id, $arr_object_sub_description['object_sub_description_value_type'], $arr_object_sub_description['object_sub_description_value_type_settings'], $arr_object_sub_definition['object_sub_definition_value'], $arr_object_sub_definition['object_sub_definition_ref_object_id']);
 						
 						if ($arr_object_sub_definition['object_sub_definition_value'] === false || $arr_object_sub_definition['object_sub_definition_value'] === '') {
 							$arr_object_sub_definition['object_sub_definition_value'] = null;
@@ -1190,7 +1193,7 @@ class StoreTypeObjects {
 									$arr_compare_object_sub_definition = $arr_object_sub_definition['object_sub_definition_ref_object_id'];
 									
 									$arr_current_object_sub_definition = $arr_current_object_sub['object_sub_definitions'][$object_sub_description_id]['object_sub_definition_ref_object_id'];
-									$this->parseObjectSubDefinition($object_sub_details_id, $object_sub_description_id, $arr_object_sub_description['object_sub_description_value_type'], $foo, $arr_current_object_sub_definition);
+									$this->parseObjectSubDefinition($object_sub_details_id, $object_sub_description_id, $arr_object_sub_description['object_sub_description_value_type'], $arr_object_sub_description['object_sub_description_value_type_settings'], $foo, $arr_current_object_sub_definition);
 
 									if ($is_appendable) {
 																																										
@@ -1262,7 +1265,7 @@ class StoreTypeObjects {
 											$arr_object_sub_definition['object_sub_definition_value'] = static::appendToValue($arr_object_sub_description['object_sub_description_value_type'], $arr_current_object_sub_definition, $arr_object_sub_definition['object_sub_definition_value']);
 											$arr_compare_object_sub_definition = $arr_object_sub_definition['object_sub_definition_value'];
 										}
-									}	
+									}
 									
 									if (!static::compareSQLValue($arr_object_sub_description['object_sub_description_value_type'], $arr_compare_object_sub_definition, $arr_current_object_sub_definition) || ((isset($arr_object_sub_definition['object_sub_definition_value']) && $arr_object_sub_definition['object_sub_definition_value'] !== '') && ($arr_current_object_sub_definition === '' || $arr_current_object_sub_definition === null))) {
 
@@ -1392,7 +1395,7 @@ class StoreTypeObjects {
 			if ($this->is_insert) {
 				$this->addTypeObjectUpdate();
 			} else {
-				$this->arr_sql_insert['object_dating'][] = "(".$this->object_id.", ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow().")"; // Update object dating with latest date
+				$this->arr_sql_insert['object_dating'][] = "(".$this->object_id.", ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow().", ".static::OBJECT_STATUS_TOUCHED.")"; // Update object dating with latest date
 			}
 		}
 				
@@ -1744,7 +1747,9 @@ class StoreTypeObjects {
 								
 								foreach ($arr_cur_object_sub['object_sub_definitions'] as $cur_object_sub_description_id => $arr_cur_object_sub_definition) {
 									
-									if ($arr_object_sub_details['object_sub_descriptions'][$cur_object_sub_description_id]['object_sub_description_ref_type_id']) {
+									$arr_object_sub_description = $arr_object_sub_details['object_sub_descriptions'][$cur_object_sub_description_id];
+									
+									if ($arr_object_sub_description['object_sub_description_ref_type_id']) {
 										
 										if ($arr_cur_object_sub_definition['object_sub_definition_ref_object_id'] != $arr_object_sub['object_sub_definitions'][$cur_object_sub_description_id]['object_sub_definition_ref_object_id']) {
 											
@@ -1752,8 +1757,8 @@ class StoreTypeObjects {
 											break;
 										} 
 									} else {
-										
-										$object_sub_definition_value = FormatTypeObjects::formatToSQLValue($arr_object_sub_details['object_sub_descriptions'][$cur_object_sub_description_id]['object_sub_description_value_type'], $arr_object_sub['object_sub_definitions'][$cur_object_sub_description_id]['object_sub_definition_value']);
+																				
+										$object_sub_definition_value = FormatTypeObjects::formatToSQLValue($arr_object_sub_description['object_sub_description_value_type'], $arr_object_sub['object_sub_definitions'][$cur_object_sub_description_id]['object_sub_definition_value'], $arr_object_sub_description['object_sub_description_value_type_settings']);
 										
 										if ($arr_cur_object_sub_definition['object_sub_definition_value'] != $object_sub_definition_value) {
 											
@@ -1783,20 +1788,20 @@ class StoreTypeObjects {
 		return $arr_object_sub;
 	}
 	
-	public function parseObjectDefinition($object_description_id, $type, &$value, &$reference) {
+	public function parseObjectDefinition($object_description_id, $type, $type_settings, &$value, &$reference) {
 		
 		// Reference
 		
 		if ($type == 'reference_mutable') {
 			
-			$reference = FormatTypeObjects::formatToSQLValue($type, $reference);
+			$reference = FormatTypeObjects::formatToSQLValue($type, $reference, $type_settings);
 			return;
 		}
 		
 		// Value
 		
 		if (isset($value)) {
-			$value = FormatTypeObjects::formatToSQLValue($type, $value, $this->arr_secondary_values);
+			$value = FormatTypeObjects::formatToSQLValue($type, $value, $type_settings, $this->arr_secondary_values);
 		}
 	
 		if ($type == 'serial_string') {
@@ -1862,20 +1867,20 @@ class StoreTypeObjects {
 		}
 	}
 	
-	public function parseObjectSubDefinition($object_sub_details_id, $object_sub_description_id, $type, &$value, &$reference) {
+	public function parseObjectSubDefinition($object_sub_details_id, $object_sub_description_id, $type, $type_settings, &$value, &$reference) {
 		
 		// Reference
 		
 		if ($type == 'reference_mutable') {
 			
-			$reference = FormatTypeObjects::formatToSQLValue($type, $reference);
+			$reference = FormatTypeObjects::formatToSQLValue($type, $reference, $type_settings);
 			return;
 		}
 		
 		// Value
 		
 		if (isset($value)) {
-			$value = FormatTypeObjects::formatToSQLValue($type, $value, $this->arr_secondary_values);
+			$value = FormatTypeObjects::formatToSQLValue($type, $value, $type_settings, $this->arr_secondary_values);
 		}
 		
 		if ($type == 'serial_string') {
@@ -2133,7 +2138,7 @@ class StoreTypeObjects {
 			$this->object_id = DB::lastInsertID();
 			self::$last_object_id = $this->object_id;
 			
-			$this->arr_sql_insert['object_dating'][] = "(".$this->object_id.", ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow().")"; // Ensure object has a dating record, even when making an object exist only (e.g. through merge)
+			$this->arr_sql_insert['object_dating'][] = "(".$this->object_id.", ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow().", ".static::OBJECT_STATUS_TOUCHED.")"; // Ensure object has a dating record, even when making an object exist only (e.g. through merge)
 		} else {
 			
 			$this->arr_sql_insert['object_version'][] = $sql_value;
@@ -2548,10 +2553,10 @@ class StoreTypeObjects {
 				case 'object_dating':
 				
 					$arr_sql_query[] = "INSERT INTO ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')."
-						(object_id, date, date_object)
+						(object_id, date, date_object, status)
 							VALUES
 						".implode(',', $arr_sql_insert)."
-						".DBFunctions::onConflict('object_id', ['date', 'date_object'])."
+						".DBFunctions::onConflict('object_id', ['date', 'date_object', 'status'])."
 					";
 					break;
 			}
@@ -4380,12 +4385,12 @@ class StoreTypeObjects {
 		
 		$res = DB::query("
 			INSERT INTO ".DB::getTable('DATA_NODEGOAT_TYPE_OBJECT_STATUS')."
-				(object_id, date, date_object)
+				(object_id, date, date_object, status)
 				(SELECT
-					id, ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow()."
+					id, ".DBFunctions::dateTimeNow().", ".DBFunctions::dateTimeNow().", ".static::OBJECT_STATUS_TOUCHED."
 						FROM ".$sql_table."
 				)
-				".DBFunctions::onConflict('object_id', ['date'])."
+				".DBFunctions::onConflict('object_id', ['date', 'status'])."
 		");
 	}
 	
@@ -4587,15 +4592,37 @@ class StoreTypeObjects {
 	
 	public static function compareSQLValue($type, $value_1, $value_2) { // Compare raw database values
 		
-		if ($value_1 == $value_2) { // Default loose comparison
+		if ($value_1 === $value_2) { // Default strict comparison
 			return true;
 		}
-				
+		
 		switch ($type) {
+			case '':
+			case 'text':
+			case 'text_layout':
+			case 'text_tags':
+			case 'serial_string':
+			
+				if (is_array($value_2)) { // If array (using the stored value), the strict comparison is enough (matching order and type).
+					return false;
+				}
+
+				return ((string)$value_1 === (string)$value_2); // Make sure we're comparing strings
+			case 'boolean':
+			
+				if ($value_1 === null || $value_2 === null) { // Already did strict, if now any is null, they cannot be equal
+					return false;
+				}
+			
+				return ($value_1 == $value_2);
 			case 'module':
 			case 'external_module':
 			case 'reconcile_module':
 			case 'reversal_module':
+			
+				if ($value_1 === null || $value_2 === null) { // No new or current value
+					return false;
+				}
 
 				$value_1 = json_decode($value_1, true);
 				$value_2 = json_decode($value_2, true);
@@ -4603,10 +4630,16 @@ class StoreTypeObjects {
 				return arrIsEqual($value_1, $value_2);
 			case 'vector':
 			
+				if ($value_1 === null || $value_2 === null) { // No new or current value
+					return false;
+				}
+			
 				return (FormatTypeObjects::formatToVector($value_1) === FormatTypeObjects::formatToVector($value_2));
 			default:
+				
+				// In cases like type, classification, reference_mutable, numeric: compare '1' and 1 or ['1'] and [1];
 			
-				return false;
+				return ($value_1 == $value_2); // Also do loose comparison
 		}
 	}
 }

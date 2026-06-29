@@ -14,6 +14,7 @@ abstract class EnucleateValueTypeModuleBase extends EnucleateValueTypeModule {
 	protected static $str_type;
 	
 	protected $arr_value = [];
+	protected $str_context = null;
 	protected $arr_settings = [];
 	
 	protected $str_template_name = '';
@@ -28,9 +29,10 @@ abstract class EnucleateValueTypeModuleBase extends EnucleateValueTypeModule {
 		$this->setConfiguration($arr_settings);
 	}
 	
-	public function setValue($arr_value) {
+	public function setValue($arr_value, $str_context = null) {
 		
 		$this->arr_value = $arr_value;
+		$this->str_context = $str_context;
 	}
 	public function setConfiguration($arr_settings) {
 		
@@ -62,7 +64,7 @@ abstract class EnucleateValueTypeModuleBase extends EnucleateValueTypeModule {
 	}
 	
 	public function parseTemplate() {
-				
+		
 		$arr_value = $this->parseModuleTemplate();
 		
 		return $arr_value;
@@ -70,27 +72,67 @@ abstract class EnucleateValueTypeModuleBase extends EnucleateValueTypeModule {
 	
 	abstract protected function parseModuleTemplate();
 	
-	public function enucleate($mode = parent::VIEW_HTML) {
+	public function enucleate($mode = parent::VIEW_HTML, $str_field = null) {
 		
-		$return = $this->enucleateModule($mode);
+		$return = $this->enucleateModule($mode, $str_field);
+		
+		if ($mode == parent::VIEW_HTML && $return) {
+			$return = '<div class="value-type-module '.static::$str_type.' enucleate">'.$return.'</div>';
+		}
 		
 		return $return;
 	}
 	
-	abstract protected function enucleateModule($mode);
+	abstract protected function enucleateModule($mode, $str_field);
 	
-	public static function getValueFields() {
+	public static function getValueFields($mode = null) {
 		
 		$arr = [
-			'any' => ['name' => getLabel('lbl_any'), 'path' => '$', 'type' => '']
+			'any' => ['name' => getLabel('lbl_any'), 'path' => '$', 'type' => '', 'mode' => parent::FIELD_MODE_FILTER]
 		];
 		
 		$arr += static::getModuleValueFields();
+		
+		if ($mode !== null) {
+			
+			foreach ($arr as $key => $value) {
+				
+				if (!bitHasMode($value['mode'], $mode)) {
+					unset($arr[$key]);
+				}
+			}
+		}
 		
 		return $arr;
 	}
 	
 	abstract protected static function getModuleValueFields();
+	
+	public static function updateValueTypeSettings(&$arr_value_type_settings, $arr_description): void {
+		
+		// Process/extend the Object Description's value type settings
+		
+		if ($arr_description === null) { // Parse when storing the Object Description
+
+			$arr_value = [];
+			
+			$arr_value_type_settings = $arr_value;
+		} else { // Update the Object Description
+			
+		}
+	}
+	
+	public static function createValueTypeOptions($arr_value_type_settings, $str_name_settings, $arr_type_set) {
+		
+		// Extend the Object Description's value type options with an array of label => html
+		
+		return;
+	}
+	
+	public static function checkJSON(&$str_json): void {
+		
+		// Parse/process the JSON to be stored
+	}
 	
 	public static function getName() {
 		

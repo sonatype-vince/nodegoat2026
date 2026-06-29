@@ -170,16 +170,16 @@ class PublishInstanceProject {
 					foreach ($arr_connections as $arr_connect) {
 
 						if (!$arr_connect['type_id']) {
-							$str_html_connect .= '<span class="connect">'.$arr_connect['name'].'</span>';
+							$str_html_connect .= '<span class="connect">'.strEscapeHTML($arr_connect['name']).'</span>';
 						} else {
-							$str_html_connect .= '<a class="connect" href="#model-type-'.$arr_connect['type_id'].'">'.$arr_connect['name'].'</a>';
+							$str_html_connect .= '<a class="connect" href="#model-type-'.$arr_connect['type_id'].'">'.strEscapeHTML($arr_connect['name']).'</a>';
 						}
 					}
 				}
 
 				if ($arr_element['class'] == 'object-sub-details') {
 					
-					$str_html_header = '<h4><span class="sub-name">'.$arr_element['name'].'</span>'.($arr_element['multi'] ? '<span class="value-multi">'.getLabel('lbl_multiple_abbr').'</span>' : '').'</h4>';
+					$str_html_header = '<h4><span class="sub-name">'.strEscapeHTML($arr_element['name']).'</span>'.($arr_element['multi'] ? '<span class="value-multi">'.getLabel('lbl_multiple_abbr').'</span>' : '').'</h4>';
 					
 					if ($arr_element['information']) {
 						$str_html_header .= '<aside>'.parseBody($arr_element['information']).'</aside>';
@@ -208,7 +208,7 @@ class PublishInstanceProject {
 					$arr_html_descriptions['subs'][$str_identifier]['details'] = $str_html_sub;
 				} else {
 					
-					$str_html_description = '<tr class="'.$arr_element['class'].'"><td>'.$arr_element['name'].'</td>';
+					$str_html_description = '<tr class="'.$arr_element['class'].'"><td>'.strEscapeHTML($arr_element['name']).'</td>';
 					$str_html_value_type = '<span>'.$arr_element['value_type'].'</span>'.($arr_element['multi'] ? '<span class="value-multi">'.getLabel('lbl_multiple_abbr').'</span>' : '');
 
 					if ($str_html_connect) {
@@ -236,7 +236,7 @@ class PublishInstanceProject {
 				}
 			}
 			
-			$str_html_type = '<h3>'.$arr_box['header']['name'].'</h3>';
+			$str_html_type = '<h3>'.strEscapeHTML($arr_box['header']['name']).'</h3>';
 			
 			if ($arr_box['header']['information']) {
 				$str_html_type .= '<aside>'.parseBody($arr_box['header']['information']).'</aside>';
@@ -304,6 +304,9 @@ class PublishInstanceProject {
 		$this->getTypeObjectsJSON($type_id, $str_path_base);
 				
 		$this->getTypeObjectsCSV($type_id, $str_path_base);
+		
+		// Cleanup
+		GenerateTypeObjects::cleanResults();
 		
 		return $str_path_base;
 	}
@@ -583,7 +586,7 @@ class PublishInstanceProject {
 		$filter->setInitLimit(static::$num_objects_stream);
 		
 		while ($arr_objects = $filter->init()) {
-						
+			
 			$arr_objects = $output_objects->init($type_id, $arr_objects);
 
 			$stream->stream($arr_objects);
@@ -729,7 +732,7 @@ class PublishInstanceProject {
 		$arr_settings = ExportTypesObjectsNetworkCSV::getCollectorSettings();
 		
 		$func_get_collector = function($arr_selection, $arr_filter) use ($type_id, $arr_project_type, $arr_project_filters, $arr_conditions, $arr_settings) {
-						
+			
 			$arr_type_network_paths = ['start' => [$type_id => ['path' => [0]]]];
 
 			$collect = new CollectTypesObjects($arr_type_network_paths);

@@ -821,3 +821,23 @@ UPDATE data_type_object_definitions_modules SET object = REPLACE(object, '"objec
 
 GRANT SELECT, INSERT, UPDATE, DELETE, DROP, INDEX, ALTER ON nodegoat_content.* TO 1100CC_cms@localhost;
 ```
+
+## VERSION 8.6
+
+Update 1100CC to 10.10 ([1100CC UPDATE](https://github.com/LAB1100/1100CC/blob/master/UPDATE.md)).
+
+Update nodegoat [nodegoat_cms.cms_labels.sql](/setup/nodegoat_cms.cms_labels.sql).
+
+---
+
+Update `./APP/SETTINGS/nodegoat/settings.php` with a default Visual Settings map layer, and configure your own tile server URL.
+
+```php
+Settings::set('visual_settings_map_layers', [[
+	//'url' => '//maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png',
+	//'attribution' => 'Map data ©'.date('Y').' OpenStreetMap',
+	'url' => 'YOUR_URL',
+	'attribution' => 'YOUR_ATTRIBUTION',
+	'opacity' => 1,
+]]);
+```

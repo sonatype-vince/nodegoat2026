@@ -23,15 +23,12 @@ class custom_projects extends base_module {
 	public static function modulePreload() {
 		
 		if (SiteStartEnvironment::getPage('name') == 'viewer') {
-
+			
 			$arr_request_vars = SiteStartEnvironment::getModuleVariables(0);
 
 			if ($arr_request_vars[0]) {
-				
 				$public_user_interface_id = $arr_request_vars[0];
-				
 			} else {
-				
 				$public_user_interface_id = cms_nodegoat_public_interfaces::getDefaultPublicInterfaceID();
 			}
 			
@@ -757,7 +754,7 @@ class custom_projects extends base_module {
 												$arr_referenced_type_set = StoreType::getTypeSet($ref_type_id);
 												$arr_project_include_referenced_types = $arr_project_type['include_referenced_types'][$ref_type_id];
 												
-												$arr_html_type_referenced_tabs['links'][] = '<li><a href="#">'.Labels::parseTextVariables($arr_referenced_type_set['type']['name']).'</a></li>';
+												$arr_html_type_referenced_tabs['links'][] = '<li><a href="#">'.strEscapeHTML(Labels::parseTextVariables($arr_referenced_type_set['type']['name'])).'</a></li>';
 												
 												$str_html_type_referenced_tab = '<div>
 													<div class="options fieldsets"><div>';
@@ -969,7 +966,7 @@ class custom_projects extends base_module {
 			<fieldset>
 				<ul>
 					<li><label>'.getLabel('lbl_name').'</label><input type="text" name="name" value="'.strEscapeHTML($arr_filter['name']).'" /></li>
-					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.$arr_filter['description'].'</textarea></li>
+					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.strEscapeHTML($arr_filter['description']).'</textarea></li>
 					<li><label>'.getLabel('lbl_scope').'</label><span>'.cms_general::createSelectorRadio($arr_level, 'usage', ($arr_filter['parent_user_id'] ? 'admin' : ($arr_filter['user_id'] ? 'personal' : 'project'))).'</span></li>
 				</ul>
 			</fieldset>
@@ -994,7 +991,7 @@ class custom_projects extends base_module {
 			<fieldset>
 				<ul>
 					<li><label>'.getLabel('lbl_name').'</label><input type="text" name="name" value="'.strEscapeHTML($arr_scope['name']).'" /></li>
-					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.$arr_scope['description'].'</textarea></li>
+					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.strEscapeHTML($arr_scope['description']).'</textarea></li>
 					<li><label>'.getLabel('lbl_scope').'</label><span>'.cms_general::createSelectorRadio($arr_level, 'usage', ($arr_scope['user_id'] ? 'personal' : 'project')).'</span></li>
 				</ul>
 			</fieldset>
@@ -1019,7 +1016,7 @@ class custom_projects extends base_module {
 			<fieldset>
 				<ul>
 					<li><label>'.getLabel('lbl_name').'</label><input type="text" name="name" value="'.strEscapeHTML($arr_context['name']).'" /></li>
-					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.$arr_context['description'].'</textarea></li>
+					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.strEscapeHTML($arr_context['description']).'</textarea></li>
 					<li><label>'.getLabel('lbl_scope').'</label><span>'.cms_general::createSelectorRadio($arr_level, 'usage', ($arr_context['user_id'] ? 'personal' : 'project')).'</span></li>
 				</ul>
 			</fieldset>
@@ -1044,7 +1041,7 @@ class custom_projects extends base_module {
 			<fieldset>
 				<ul>
 					<li><label>'.getLabel('lbl_name').'</label><input type="text" name="name" value="'.strEscapeHTML($arr_frame['name']).'" /></li>
-					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.$arr_frame['description'].'</textarea></li>
+					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.strEscapeHTML($arr_frame['description']).'</textarea></li>
 					<li><label>'.getLabel('lbl_scope').'</label><span>'.cms_general::createSelectorRadio($arr_level, 'usage', ($arr_frame['user_id'] ? 'personal' : 'project')).'</span></li>
 				</ul>
 			</fieldset>
@@ -1069,7 +1066,7 @@ class custom_projects extends base_module {
 			<fieldset>
 				<ul>
 					<li><label>'.getLabel('lbl_name').'</label><input type="text" name="name" value="'.strEscapeHTML($arr_visual_settings['name']).'" /></li>
-					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.$arr_visual_settings['description'].'</textarea></li>
+					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.strEscapeHTML($arr_visual_settings['description']).'</textarea></li>
 					<li><label>'.getLabel('lbl_scope').'</label><span>'.cms_general::createSelectorRadio($arr_level, 'usage', ($arr_visual_settings['user_id'] ? 'personal' : 'project')).'</span></li>
 				</ul>
 			</fieldset>
@@ -1117,7 +1114,7 @@ class custom_projects extends base_module {
 			<fieldset><legend>'.getLabel('lbl_scenario').'</legend>
 				<ul>
 					<li><label>'.getLabel('lbl_name').'</label><input type="text" name="name" value="'.strEscapeHTML($arr_scenario['name']).'" /></li>
-					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.$arr_scenario['description'].'</textarea></li>
+					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.strEscapeHTML($arr_scenario['description']).'</textarea></li>
 					<li><label>'.getLabel('lbl_attribution').'</label><input type="text" name="attribution" value="'.strEscapeHTML($arr_scenario['attribution']).'" /></li>
 					<li><label>'.getLabel('lbl_scope').'</label><span>'.cms_general::createSelectorRadio($arr_level, 'usage', ($arr_scenario['user_id'] ? 'personal' : 'project')).'</span></li>
 					<li><label>'.getLabel('lbl_cache_retain').'</label>'
@@ -1197,7 +1194,7 @@ class custom_projects extends base_module {
 			<fieldset>
 				<ul>
 					<li><label>'.getLabel('lbl_name').'</label><input type="text" name="name" value="'.strEscapeHTML($arr_condition['name']).'" /></li>
-					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.$arr_condition['description'].'</textarea></li>
+					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.strEscapeHTML($arr_condition['description']).'</textarea></li>
 					<li><label>'.getLabel('lbl_scope').'</label><span>'.cms_general::createSelectorRadio($arr_level, 'usage', ($arr_condition['parent_user_id'] ? 'admin' : ($arr_condition['user_id'] ? 'personal' : 'project'))).'</span></li>
 				</ul>
 			</fieldset>
@@ -1222,7 +1219,7 @@ class custom_projects extends base_module {
 			<fieldset>
 				<ul>
 					<li><label>'.getLabel('lbl_name').'</label><input type="text" name="name" value="'.strEscapeHTML($arr_analysis['name']).'" /></li>
-					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.$arr_analysis['description'].'</textarea></li>
+					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.strEscapeHTML($arr_analysis['description']).'</textarea></li>
 					<li><label>'.getLabel('lbl_scope').'</label><span>'.cms_general::createSelectorRadio($arr_level, 'usage', ($arr_analysis['user_id'] ? 'personal' : 'project')).'</span></li>
 				</ul>
 			</fieldset>
@@ -1247,7 +1244,7 @@ class custom_projects extends base_module {
 			<fieldset>
 				<ul>
 					<li><label>'.getLabel('lbl_name').'</label><input type="text" name="name" value="'.strEscapeHTML($arr_analysis_context['name']).'" /></li>
-					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.$arr_analysis_context['description'].'</textarea></li>
+					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.strEscapeHTML($arr_analysis_context['description']).'</textarea></li>
 					<li><label>'.getLabel('lbl_scope').'</label><span>'.cms_general::createSelectorRadio($arr_level, 'usage', ($arr_analysis_context['user_id'] ? 'personal' : 'project')).'</span></li>
 				</ul>
 			</fieldset>
@@ -1272,7 +1269,7 @@ class custom_projects extends base_module {
 			<fieldset>
 				<ul>
 					<li><label>'.getLabel('lbl_name').'</label><input type="text" name="name" value="'.strEscapeHTML($arr_export_settings['name']).'" /></li>
-					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.$arr_export_settings['description'].'</textarea></li>
+					<li><label>'.getLabel('lbl_description').'</label><textarea name="description">'.strEscapeHTML($arr_export_settings['description']).'</textarea></li>
 					<li><label>'.getLabel('lbl_scope').'</label><span>'.cms_general::createSelectorRadio($arr_level, 'usage', ($arr_export_settings['user_id'] ? 'personal' : 'project')).'</span></li>
 				</ul>
 			</fieldset>
@@ -1800,9 +1797,10 @@ class custom_projects extends base_module {
 		if ($method == 'handle_visual_settings_storage') {
 			
 			$arr_visual_settings = $_POST['visual_settings'];
-
+			
 			$arr_visual_settings['settings']['geo_advanced'] = ParseTypeFeatures::parseSettingAdvancedInput($arr_visual_settings['settings']['geo_advanced']);
 			$arr_visual_settings['social']['settings']['social_advanced'] = ParseTypeFeatures::parseSettingAdvancedInput($arr_visual_settings['social']['settings']['social_advanced']);
+			$arr_visual_settings = ParseTypeFeatures::parseVisualSettings($arr_visual_settings);
 						
 			$visual_settings_id = cms_nodegoat_custom_projects::handleProjectVisualSettings($_SESSION['custom_projects']['project_id'], ($_POST['usage'] == 'personal' ? $_SESSION['USER_ID'] : false), $_POST['visual_settings_id'], $_POST, $arr_visual_settings);
 		}

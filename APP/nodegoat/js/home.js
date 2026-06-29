@@ -623,33 +623,35 @@ function TSchuifje(elm, arr_options_settings) {
 			if (typeof arr_update.move != 'object') {
 				arr_update.move = {percent: arr_update.move};
 			}
-				
+			
+			let calc_difference = null;
+			
 			if (arr_update.move.percent) {
 				
-				var calc_difference = calc_one_perc * arr_update.move.percent;
+				calc_difference = calc_one_perc * arr_update.move.percent;
 			} else {
 			
-				var date_new = new Date(arr_settings.max);
+				const date_new = new Date(arr_settings.max);
 				
 				if (arr_update.move.day) {
-					var value = arr_settings.max.getDate();
+					const value = arr_settings.max.getDate();
 					date_new.setDate(value + arr_update.move.day);
 				}
 				if (arr_update.move.week) {
-					var value = arr_settings.max.getDate();
+					const value = arr_settings.max.getDate();
 					date_new.setDate(value + (arr_update.move.week * 7));
 				}
 				if (arr_update.move.month) {
-					var value = arr_settings.max.getMonth();
+					const value = arr_settings.max.getMonth();
 					date_new.setMonth(value + arr_update.move.month);
 				}
 				if (arr_update.move.year) {
-					var value = arr_settings.max.getFullYear();
+					const value = arr_settings.max.getFullYear();
 					date_new.setFullYear(value + arr_update.move.year);
 				}
 				
-				var calc_new = DATEPARSER.date2Calculate(date_new);
-				var calc_difference = calc_new - calc_max;
+				const calc_new = DATEPARSER.date2Calculate(date_new);
+				calc_difference = calc_new - calc_max;
 			}
 			
 			func_move('move', calc_difference);
@@ -660,39 +662,41 @@ function TSchuifje(elm, arr_options_settings) {
 			if (typeof arr_update.size != 'object') {
 				arr_update.size = {percent: arr_update.size};
 			}
-			var mode = (!arr_update.size.mode ? 'add' : arr_update.size.mode);
+			const mode = (!arr_update.size.mode ? 'add' : arr_update.size.mode);
+			let calc_new = null;
+			let num_amount = 0;
 			
 			if (arr_update.size.percent) {
 				
-				var calc_new = (arr_update.size.percent < 0 || mode == 'set' ? calc_min : calc_max) + (calc_one_perc * arr_update.size.percent);
+				calc_new = (arr_update.size.percent < 0 || mode == 'set' ? calc_min : calc_max) + (calc_one_perc * arr_update.size.percent);
 			} else {
 				
-				var amount = (arr_update.size.day ? arr_update.size.day : (arr_update.size.week ? arr_update.size.week : (arr_update.size.month ? arr_update.size.month : (arr_update.size.year ? arr_update.size.year : 0))));
+				num_amount = (arr_update.size.day ? arr_update.size.day : (arr_update.size.week ? arr_update.size.week : (arr_update.size.month ? arr_update.size.month : (arr_update.size.year ? arr_update.size.year : 0))));
 				
-				var date_source = (amount < 0 || mode == 'set' ? arr_settings.min : arr_settings.max);
-				var date_new = new Date(date_source);
+				const date_source = (num_amount < 0 || mode == 'set' ? arr_settings.min : arr_settings.max);
+				const date_new = new Date(date_source);
 				
 				if (arr_update.size.day) {
-					var value = date_source.getDate();
+					const value = date_source.getDate();
 					date_new.setDate(value + arr_update.size.day);
 				}
 				if (arr_update.size.week) {
-					var value = date_source.getDate();
+					const value = date_source.getDate();
 					date_new.setDate(value + (arr_update.size.week * 7));
 				}
 				if (arr_update.size.month) {
-					var value = date_source.getMonth();
+					const value = date_source.getMonth();
 					date_new.setMonth(value + arr_update.size.month);
 				}
 				if (arr_update.size.year) {
-					var value = date_source.getFullYear();
+					const value = date_source.getFullYear();
 					date_new.setFullYear(value + arr_update.size.year);
 				}
 				
-				var calc_new = DATEPARSER.date2Calculate(date_new);
+				calc_new = DATEPARSER.date2Calculate(date_new);
 			}
 	
-			if (amount > 0 || mode == 'set') {
+			if (num_amount > 0 || mode == 'set') {
 				
 				calc_max = calc_new;
 				
@@ -790,7 +794,7 @@ function TSchuifje(elm, arr_options_settings) {
 			}
 			if (arr_update.player.action) {
 				
-				var action = arr_update.player.action;
+				const action = arr_update.player.action;
 				
 				if (action == 'play') {
 					if (play_mode == 'size') {
@@ -813,7 +817,7 @@ function TSchuifje(elm, arr_options_settings) {
 				}
 				if (action == 'stop') {
 					if (play_mode == 'size') {
-						arr_size_change.func_stop(true);
+						arr_size_change.func_stop((arr_update.player.reset === false ? false : true));
 					} else {
 						calc_time = calc_min;
 						is_changed = true;
@@ -1006,11 +1010,11 @@ function TSchuifje(elm, arr_options_settings) {
 	};
 	
 	var arr_size_change = {poller: new PollingBuffer(40), arr_update: {move : null, size: null, target: null}, mode: 'extend', reverse: false, speed_sec: false, min: false, max: false, target: {min: false, max: false},
-		func_run: function(reset) {
+		func_run: function(do_reset) {
 		
 			arr_size_change.func_stop();
 			
-			if (!arr_size_change.min || reset) {
+			if (!arr_size_change.min || do_reset) {
 								
 				arr_size_change.arr_update.move = null;
 				arr_size_change.arr_update.size = null;
@@ -1076,11 +1080,11 @@ function TSchuifje(elm, arr_options_settings) {
 				}
 			}, true);
 		},
-		func_stop: function(reset) {
+		func_stop: function(do_reset) {
 			if (arr_size_change.poller.running) {
 				arr_size_change.poller.stop();
 			}
-			if (arr_size_change.min && reset) {
+			if (arr_size_change.min && do_reset) {
 				SELF.update({min: arr_size_change.min, max: arr_size_change.max});
 			}
 		}
@@ -1230,10 +1234,10 @@ function TSchuifje(elm, arr_options_settings) {
 			e.preventDefault(); // Prevent document drag-select
 		}
 
-		var dating_amount = (hasElement(elm_button_right[0], e.target, true) ? Math.abs(arr_settings.dating.amount) : -Math.abs(arr_settings.dating.amount));
+		const num_dating_amount = (hasElement(elm_button_right[0], e.target, true) ? Math.abs(arr_settings.dating.amount) : -Math.abs(arr_settings.dating.amount));
 		
-		var arr_update = {move: {}};
-		arr_update.move[arr_settings.dating.unit] = dating_amount;
+		const arr_update = {move: {}};
+		arr_update.move[arr_settings.dating.unit] = num_dating_amount;
 		SELF.update(arr_update);
 		
 		var timeout = false;
@@ -1287,12 +1291,16 @@ function TSchuifje(elm, arr_options_settings) {
 	});
 	
 	elm_speed_amount.on('change update', function(e) {
-		var amount = elm_speed_amount.val();
-		if (amount < 1) {
-			amount = 1;
-			elm_speed_amount.val(amount);
+		
+		let num_amount = elm_speed_amount.val();
+		
+		if (num_amount < 1) {
+			
+			num_amount = 1;
+			elm_speed_amount.val(num_amount);
 		}
-		SELF.update({dating: {amount: amount}});
+		
+		SELF.update({dating: {amount: num_amount}});
 	});
 	elm_speed_unit.on('change update', function(e) {
 		SELF.update({dating: {unit: elm_speed_unit.val()}});

@@ -18,28 +18,31 @@ class ui_filter extends base_module {
 	
 	protected $arr_access = [
 		'ui' => [],
+		'ui_view_objects' => [],
+		'ui_view_object' => [],
 		'ui_data' => []
 	];
 		
-	public static function createFilter($project_id, $arr_public_user_interface) {
+	public static function createFilter($project_id, $arr_public_user_interface, $elm = 'li') {
 
 		$arr_settings = $arr_public_user_interface['interface']['settings']['projects'][$project_id];
+		$beta_class = ($arr_public_user_interface['interface']['settings']['beta'] ? 'beta' : '');
 		
 		if (!$arr_settings['filter_mode']) {
 			$arr_settings['filter_mode'] = 'search';
 		}
-		
+	
 		if ($arr_settings['filter_mode'] ==  'search') {
 			$elm_filter = self::createFilterSearchBar($project_id, $arr_public_user_interface);
 		} else if ($arr_settings['filter_mode'] ==  'form') {
 			$elm_filter = self::createFilterForm($project_id, $arr_public_user_interface);
 		} 
 
-		$return = '<li class="project-filters '.$arr_settings['filter_mode'].'">
-					<div id="y:ui_filter:filter-0" '.($arr_settings['filter_mode'] ==  'form' && $arr_public_user_interface['interface']['settings']['filter_form_apply_button'] ? 'data-apply_button="1"' : '').'>'.
+		$return = '<'.$elm.' class="project-filters '.$arr_settings['filter_mode'].'">
+					<div id="y:ui_filter:filter-0" '.($arr_settings['filter_mode'] ==  'form' && $arr_public_user_interface['interface']['settings']['filter_form_apply_button'] ? 'data-apply_button="1"' : '').' class="'.$beta_class.'">'.
 						$elm_filter.
 					'</div>
-				</li>';
+				</'.$elm.'>';
 		
 		return $return;
 	}
@@ -77,7 +80,7 @@ class ui_filter extends base_module {
 				$elm_select_types .= '<li>
 										<input id="type-'.$type_id.'-toggle" type="checkbox" data-type_id="'.$type_id.'"/>
 										<label for="type-'.$type_id.'-toggle">
-											<span class="type-name">'.$arr_types[$type_id]['name'].'</span><span class="icon">'.getIcon('close').'</span>
+											<span class="type-name">'.Labels::parseLanguage($arr_types[$type_id]['name']).'</span><span class="icon">'.getIcon('close').'</span>
 										</label>
 									</li>';
 			}
@@ -86,7 +89,7 @@ class ui_filter extends base_module {
 									<input id="types-toggle" type="checkbox" />
 									<label for="types-toggle">
 										<div>
-											<span>Types</span>
+											<span>'.getLabel('lbl_nodegoat_types').'</span>
 											<span class="types-amount"></span>
 										</div><div>
 											<span class="icon">'.getIcon('down').'</span>
@@ -150,6 +153,7 @@ class ui_filter extends base_module {
 													'operator' => 'OR', 
 													'active_elements' => 0, 
 													'placeholder_text' => Labels::parseTextVariables($placeholder_text), 
+													'is_list' => $arr_filter_from['list'], 
 													'url_filter' => ''
 												];
 						
@@ -177,6 +181,7 @@ class ui_filter extends base_module {
 														'operator' => 'OR', 
 														'active_elements' => 0, 
 														'placeholder_text' => Labels::parseTextVariables($placeholder_text), 
+														'is_list' => $arr_filter_from['list'], 
 														'url_filter' => ''
 													];
 							
@@ -277,12 +282,13 @@ class ui_filter extends base_module {
 				
 			} else {
 
-				$elm_form_elements .= '<div class="form-element" data-value-type="'.$arr_filter['value_type'].'" data-filter_id="'.$arr_filter['filter_id'].'">
+				$elm_form_elements .= '<div class="form-element '.($arr_filter['is_list'] ? 'list' : '').'" data-value-type="'.$arr_filter['value_type'].'" data-filter_id="'.$arr_filter['filter_id'].'">
 					<div class="input">
 						<div class="active-input">'
 							.$arr_filter['url_filter'].
 						'</div>
-						<label>'.strEscapeHTML($arr_filter['placeholder_text']).'</label>
+						<input id="list-toggle-'.$unique.'" type="checkbox" class="list '.($arr_filter['is_list'] ? '' : 'hide').'" />
+						<label for="list-toggle-'.$unique.'">'.strEscapeHTML($arr_filter['placeholder_text']).'</label>
 						<input id="operator-toggle-'.$unique.'" type="checkbox" class="operator" '.($arr_filter['operator'] == 'AND' ? 'checked="checked"' : '').' />
 						<label for="operator-toggle-'.$unique.'" '.($arr_filter['active_elements'] > 1 ? '' : 'class="hide"').'>
 							<span title="'.getLabel('lbl_public_interface_or_and_statement').'">OR</span>'.
@@ -401,163 +407,167 @@ class ui_filter extends base_module {
 	
 	public static function css() {
 		
-		$return = '
+		$return = '			
 					.ui li[class*="type-"] {  background-color: rgba(255, 255, 255, 0.75); } /* set default colour for elements expecting a type colour */ 
-					.ui nav li.project-dynamic-nav ul li.project-filters[data-active="true"] ~ li,
-					.ui nav li.project-dynamic-nav ul li.project-filters[data-object_active="true"] ~ li { display: none; }	
+					.ui nav .project-dynamic-nav ul .project-filters[data-active="true"] ~ li,
+					.ui nav .project-dynamic-nav ul .project-filters[data-object_active="true"] ~ li { display: none; }	
 					
-					.ui nav li.project-filters { position: relative; background-color: #a3ce6c; width: 100%; z-index: 2; }
+					.ui nav .project-filters { position: relative; background-color: #a3ce6c; width: 100%; z-index: 2; }
 	
-					.ui nav li.project-filters.search { height: 100px; }
-					.ui nav li.project-filters.search > div { position: absolute; top: 25px; left: 0px; width: 100%; display: flex; justify-content: center; padding: 0 5px; box-sizing: border-box; }
+					.ui nav .project-filters.search { height: 100px; }
+					.ui nav .project-filters.search > div { position: absolute; top: 25px; left: 0px; width: 100%; display: flex; justify-content: center; padding: 0 5px; box-sizing: border-box; }
 	
-					.ui nav li.project-filters.search > div .select-types {  }
-					.ui nav li.project-filters.search > div .select-types input { display: none; }
-					.ui nav li.project-filters.search > div .select-types > input:not(:checked) + label + ul { display: none; }
-					.ui nav li.project-filters.search > div .select-types > input:checked + label + ul { display: block; }
-					.ui nav li.project-filters.search > div .select-types > label { cursor: pointer; width: 150px; height: 50px; background-color: #0096e4; box-sizing: border-box; margin: 0; vertical-align: top; line-height: 50px;}
-					.ui nav li.project-filters.search > div .select-types > label > div:nth-of-type(1) { display: inline-block; width: calc(100% - 50px); height: 100%; box-sizing: border-box; }
-					.ui nav li.project-filters.search > div .select-types > label > div:nth-of-type(1) > span { display: inline; color: #fff; font-size: 14px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
-					.ui nav li.project-filters.search > div .select-types > label > div:nth-of-type(1) > span:nth-of-type(1) { padding-left: 10px; }
-					.ui nav li.project-filters.search > div .select-types > label > div:nth-of-type(2) { display: inline-block; width: 50px; height: 100%; box-sizing: border-box; }
-					.ui nav li.project-filters.search > div .select-types > label > div:nth-of-type(2) > span { display: none; color: #fff; width: 50px; height: 50px; box-sizing: border-box; text-align: center; }
-					.ui nav li.project-filters.search > div .select-types > label > div:nth-of-type(2) > span > svg { height: 15%; }
-					.ui nav li.project-filters.search > div .select-types > input:not(:checked) + label > div:nth-of-type(2) > span:nth-of-type(1) { display: inline-block;  }
-					.ui nav li.project-filters.search > div .select-types > input:checked + label > div:nth-of-type(2) > span:nth-of-type(2) { display: inline-block;  }
-					.ui nav li.project-filters.search > div .select-types > ul { position: relative; width: 150px; margin-top: 5px; display: block; overflow-x: hidden; overflow-y: auto; background-color: rgba(238, 238, 238, 0.9); padding: 10px 10px 0 10px; box-sizing: border-box; }
-					.ui nav li.project-filters.search > div .select-types > ul > li { margin-bottom: 10px; box-sizing: border-box; height: 20px; }
-					.ui nav li.project-filters.search > div .select-types > ul > li > label { cursor: pointer; display: inline-block; width: 100%; line-height: 20px; margin: 0; box-sizing: border-box;} 
-					.ui nav li.project-filters.search > div .select-types > ul > li > label > span.type-name { display: inline-block; width: calc(100% - 20px); font-weight: normal; } 
-					.ui nav li.project-filters.search > div .select-types > ul > li > label > span.icon { display: none; color: #333; width: 20px; height: 20px; text-align: center; box-sizing: border-box; border: 1px solid #333; border-radius: 20px;  } 
-					.ui nav li.project-filters.search > div .select-types > ul > li > label > span.icon > svg { height: 35%; }
-					.ui nav li.project-filters.search > div .select-types > ul > li > input:checked + label > span.type-name { font-weight: bold; } 
-					.ui nav li.project-filters.search > div .select-types > ul > li > input:checked + label > span.icon { display: inline-block; } 
-					.ui nav li.project-filters.search > div .select-types > ul > li > input:not(:checked) + label > span.icon { display: none; } 
+					.ui nav .project-filters.search > div .select-types {  }
+					.ui nav .project-filters.search > div .select-types input { display: none; }
+					.ui nav .project-filters.search > div .select-types > input:not(:checked) + label + ul { display: none; }
+					.ui nav .project-filters.search > div .select-types > input:checked + label + ul { display: block; }
+					.ui nav .project-filters.search > div .select-types > label { cursor: pointer; width: 190px; height: 50px; background-color: #0096e4; box-sizing: border-box; margin: 0; vertical-align: top; line-height: 50px;}
+					.ui nav .project-filters.search > div .select-types > label > div:nth-of-type(1) { display: inline-block; width: calc(100% - 50px); height: 100%; box-sizing: border-box; }
+					.ui nav .project-filters.search > div .select-types > label > div:nth-of-type(1) > span { display: inline; color: #fff; font-size: 14px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
+					.ui nav .project-filters.search > div .select-types > label > div:nth-of-type(1) > span:nth-of-type(1) { padding-left: 10px; }
+					.ui nav .project-filters.search > div .select-types > label > div:nth-of-type(2) { display: inline-block; width: 50px; height: 100%; box-sizing: border-box; }
+					.ui nav .project-filters.search > div .select-types > label > div:nth-of-type(2) > span { display: none; color: #fff; width: 50px; height: 50px; box-sizing: border-box; text-align: center; }
+					.ui nav .project-filters.search > div .select-types > label > div:nth-of-type(2) > span > svg { height: 15%; }
+					.ui nav .project-filters.search > div .select-types > input:not(:checked) + label > div:nth-of-type(2) > span:nth-of-type(1) { display: inline-block;  }
+					.ui nav .project-filters.search > div .select-types > input:checked + label > div:nth-of-type(2) > span:nth-of-type(2) { display: inline-block;  }
+					.ui nav .project-filters.search > div .select-types > ul { position: relative; width: 150px; margin-top: 5px; display: block; overflow-x: hidden; overflow-y: auto; background-color: rgba(238, 238, 238, 0.9); padding: 10px 10px 0 10px; box-sizing: border-box; }
+					.ui nav .project-filters.search > div .select-types > ul > li { margin-bottom: 10px; box-sizing: border-box; height: 20px; }
+					.ui nav .project-filters.search > div .select-types > ul > li > label { cursor: pointer; display: inline-block; width: 100%; line-height: 20px; margin: 0; box-sizing: border-box;} 
+					.ui nav .project-filters.search > div .select-types > ul > li > label > span.type-name { display: inline-block; width: calc(100% - 20px); font-weight: normal; } 
+					.ui nav .project-filters.search > div .select-types > ul > li > label > span.icon { display: none; color: #333; width: 20px; height: 20px; text-align: center; box-sizing: border-box; border: 1px solid #333; border-radius: 20px;  } 
+					.ui nav .project-filters.search > div .select-types > ul > li > label > span.icon > svg { height: 35%; }
+					.ui nav .project-filters.search > div .select-types > ul > li > input:checked + label > span.type-name { font-weight: bold; } 
+					.ui nav .project-filters.search > div .select-types > ul > li > input:checked + label > span.icon { display: inline-block; } 
+					.ui nav .project-filters.search > div .select-types > ul > li > input:not(:checked) + label > span.icon { display: none; } 
 	
-					.ui nav li.project-filters.search > div .form-element { flex: 1 1 10px; min-width: 10px; max-width: 80vw; margin: 0 5px;  }
-					.ui nav li.project-filters.search > div .form-element .input { box-sizing: border-box; display: inline-block; width: 100%; min-width: 200px; vertical-align: top; height: 50px; padding: 0 0 0 50px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 20px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
-					.ui nav li.project-filters.search > div .form-element .input .active-input { display: flex; overflow: hidden; max-width: 70%; box-sizing: border-box; margin: 0px; padding: 0px; height: 50px; float: left; }
-					.ui nav li.project-filters.search > div .form-element .input .active-input > div { display: inline-block; min-width: 30px; box-sizing: border-box; white-space: nowrap; margin: 10px 3px; padding: 0px 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
-					.ui nav li.project-filters.search > div .form-element .input .active-input > div.string { background-color: #ccc; }
-					.ui nav li.project-filters.search > div .form-element .input .active-input > div > span { display: inline-block; }
-					.ui nav li.project-filters.search > div .form-element .input .active-input > div > span:first-child { width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
-					.ui nav li.project-filters.search > div .form-element .input .active-input > div > span.icon { cursor: pointer; border-left: 1px solid #444; margin-left: 5px; padding: 0 3px 0 6px; vertical-align: top; }
-					.ui nav li.project-filters.search > div .form-element .input .active-input > div > span.icon svg { height: 11px;  }
-					.ui nav li.project-filters.search > div .form-element .input .set-input { overflow: auto; margin-right: 50px; height: 50px; min-width: 30%;}
-					.ui nav li.project-filters.search > div .form-element .input .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 16px; height: 50px; border: 0px; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; }
-					.ui nav li.project-filters.search > div button { width: 50px; height: 50px; background-color: #0096e4; border: 0; text-align: center; vertical-align: middle;  }					
-					.ui nav li.project-filters.search > div button span { color: #fff; }					
-					.ui nav li.project-filters.search > div button span svg { height: 50%; }					
+					.ui nav .project-filters.search > div .form-element { flex: 1 1 10px; min-width: 10px; max-width: 80vw; margin: 0 5px;  }
+					.ui nav .project-filters.search > div .form-element .input { box-sizing: border-box; display: inline-block; width: 100%; min-width: 200px; vertical-align: top; height: 50px; padding: 0 0 0 50px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 20px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
+					.ui nav .project-filters.search > div .form-element .input .active-input { display: flex; overflow: hidden; max-width: 70%; box-sizing: border-box; margin: 0px; padding: 0px; height: 50px; float: left; }
+					.ui nav .project-filters.search > div .form-element .input .active-input > div { display: inline-block; min-width: 30px; box-sizing: border-box; white-space: nowrap; margin: 10px 3px; padding: 0px 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
+					.ui nav .project-filters.search > div .form-element .input .active-input > div.string { background-color: #ccc; }
+					.ui nav .project-filters.search > div .form-element .input .active-input > div > span { display: inline-block; }
+					.ui nav .project-filters.search > div .form-element .input .active-input > div > span:first-child { width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
+					.ui nav .project-filters.search > div .form-element .input .active-input > div > span.icon { cursor: pointer; border-left: 1px solid #444; margin-left: 5px; padding: 0 3px 0 6px; vertical-align: top; }
+					.ui nav .project-filters.search > div .form-element .input .active-input > div > span.icon svg { height: 11px;  }
+					.ui nav .project-filters.search > div .form-element .input .set-input { overflow: auto; margin-right: 50px; height: 50px; min-width: 30%;}
+					.ui nav .project-filters.search > div .form-element .input .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 16px; height: 50px; border: 0px; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; }
+					.ui nav .project-filters.search > div button { width: 50px; height: 50px; background-color: #0096e4; border: 0; text-align: center; vertical-align: middle;  }					
+					.ui nav .project-filters.search > div button span { color: #fff; }					
+					.ui nav .project-filters.search > div button span svg { height: 50%; }					
 	
-					.ui nav li.project-filters .results { position: relative; width: 100%; min-width: 200px; margin-top: 5px; display: block; overflow-x: hidden; overflow-y: auto; background-color: rgba(238, 238, 238, 0.75);  }
-					.ui nav li.project-filters .results:empty { display: none; }
-					.ui nav li.project-filters .results .object-thumbnail { position: relative; width: 100%; background-color: rgba(238, 238, 238, 0.5); margin: 3px 0 2px 10px; height: 50px; white-space: nowrap; overflow: hidden;}
-					.ui nav li.project-filters .results .object-thumbnail > div { position: relative; width: 100%; vertical-align: middle; height: 50px; }
-					.ui nav li.project-filters .results .object-thumbnail > div > div { position: relative; box-sizing: border-box; display: inline-block; vertical-align: middle; height: 50px; }
-					.ui nav li.project-filters .results .object-thumbnail > div > div.image { width: 50px; background-color: #ddd; background-repeat: no-repeat; background-position: center 10%; background-size: cover; }
-					.ui nav li.project-filters .results .object-thumbnail > div > div.image span { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3em; font-family: serif; }
-					.ui nav li.project-filters .results .object-thumbnail > div > div.name { max-width: calc(100% - 80px); margin-left: 5px; line-height: 50px; font-size: 18px; overflow: hidden; text-overflow: ellipsis;}
-					.ui nav li.project-filters .results .object-thumbnail > div > div.object-definitions { display: none; }
-					.ui nav li.project-filters .results ul.keywords { display: flex; }
-					.ui nav li.project-filters .results ul.keywords > li { overflow: hidden; }
-					.ui nav li.project-filters .results ul.keywords > li > ul { display: flex; flex-flow: wrap; white-space: normal; vertical-align: top; padding: 5px; }
-					.ui nav li.project-filters .results ul.keywords > li > ul > li { cursor: pointer; display: inline-block; padding: 4px 8px; margin: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-					.ui nav li.project-filters .results ul.keywords > li > ul > li:not(.separator):not(.info) { max-width: 40%; }
-					.ui nav li.project-filters .results ul.keywords li.info {  cursor: default; display: flex; justify-content: space-between; width: 100%; }
-					.ui nav li.project-filters .results ul.keywords li.info span { padding: 4px 0px; }
-					.ui nav li.project-filters .results ul.keywords li.info span.hide-options { cursor: pointer; padding: 4px 8px; background-color: rgba(255,255,255,0.5); }
-					.ui nav li.project-filters .results ul.keywords .separator { display: none; cursor: default; font-variant: small-caps; }
-					.ui nav li.project-filters .results > p { padding: 10px; cursor: pointer; }
+					.ui nav .project-filters .results { position: relative; width: 100%; min-width: 200px; margin-top: 5px; display: block; overflow-x: hidden; overflow-y: auto; background-color: rgba(238, 238, 238, 0.75);  }
+					.ui nav .project-filters .results:empty { display: none; }
+					.ui nav .project-filters .results .object-thumbnail { position: relative; width: 100%; background-color: rgba(238, 238, 238, 0.5); margin: 3px 0 2px 10px; height: 50px; white-space: nowrap; overflow: hidden;}
+					.ui nav .project-filters .results .object-thumbnail > div { position: relative; width: 100%; vertical-align: middle; height: 50px; }
+					.ui nav .project-filters .results .object-thumbnail > div > div { position: relative; box-sizing: border-box; display: inline-block; vertical-align: middle; height: 50px; }
+					.ui nav .project-filters .results .object-thumbnail > div > div.image { width: 50px; background-color: #ddd; background-repeat: no-repeat; background-position: center 10%; background-size: cover; }
+					.ui nav .project-filters .results .object-thumbnail > div > div.image span { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3em; font-family: serif; }
+					.ui nav .project-filters .results .object-thumbnail > div > div.name { max-width: calc(100% - 80px); margin-left: 5px; line-height: 50px; font-size: 18px; overflow: hidden; text-overflow: ellipsis;}
+					.ui nav .project-filters .results .object-thumbnail > div > div.object-definitions { display: none; }
+					.ui nav .project-filters .results ul.keywords { display: flex; }
+					.ui nav .project-filters .results ul.keywords > li { overflow: hidden; }
+					.ui nav .project-filters .results ul.keywords > li > ul { display: flex; flex-flow: wrap; white-space: normal; vertical-align: top; padding: 5px; }
+					.ui nav .project-filters .results ul.keywords > li > ul > li { cursor: pointer; display: inline-block; padding: 4px 8px; margin: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+					.ui nav .project-filters .results ul.keywords > li > ul > li:not(.separator):not(.info) { max-width: 40%; }
+					.ui nav .project-filters .results ul.keywords li.info {  cursor: default; display: flex; justify-content: space-between; width: 100%; }
+					.ui nav .project-filters .results ul.keywords li.info span { padding: 4px 0px; }
+					.ui nav .project-filters .results ul.keywords li.info span.hide-options { cursor: pointer; padding: 4px 8px; background-color: rgba(255,255,255,0.5); }
+					.ui nav .project-filters .results ul.keywords .separator { display: none; cursor: default; font-variant: small-caps; }
+					.ui nav .project-filters .results > p { padding: 10px; cursor: pointer; }
 								
 					@media all and (max-width : 1120px) {
 					
-						.ui.responsive-layout-enabled > nav li.project-filters.search > div { position: relative; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > input,
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > label { display: none; }
+						.ui.responsive-layout-enabled > nav .project-filters.search > div { position: relative; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > input,
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > label { display: none; }
 						
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div { position: relative; width: 100%; box-sizing: border-box; flex-direction: column; background-color: #a3ce6c;}
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element { flex: 0; background-color: rgba(255, 255, 255, 0.1); padding: 5px; height: auto; margin: 0 5px 10px 5px; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element:first-child { margin-top: 10px; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input { display: block; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > .active-input + label { display: none; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > .set-input { height: 40px; margin: 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > .active-input { background: none; padding: 0; margin: 0; display: inline; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; max-width: 100%; overflow: hidden; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > .active-input > div span:first-child { display: inline-block; width: auto; max-width: calc(100% - 30px); color: #333; font-size: 14px; padding: 0 4px; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #444; padding: 0 6px; border: 0;  }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > .active-input > div span.icon svg { height: 11px; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > input { display: none; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; cursor: pointer; white-space: nowrap; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > input + label > span { display: inline-block; font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > input:not(:checked) + label > span:first-child {  background-color: #0096e4; color: #fff;  }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div { position: relative; width: 100%; box-sizing: border-box; flex-direction: column; background-color: #a3ce6c;}
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element { flex: 0; background-color: rgba(255, 255, 255, 0.1); padding: 5px; height: auto; margin: 0 5px 10px 5px; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element:first-child { margin-top: 10px; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input { display: block; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > .active-input + label { display: none; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > .set-input { height: 40px; margin: 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > .active-input { background: none; padding: 0; margin: 0; display: inline; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; max-width: 100%; overflow: hidden; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > .active-input > div span:first-child { display: inline-block; width: auto; max-width: calc(100% - 30px); color: #333; font-size: 14px; padding: 0 4px; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #444; padding: 0 6px; border: 0;  }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > .active-input > div span.icon svg { height: 11px; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > input { display: none; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; cursor: pointer; white-space: nowrap; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > input + label > span { display: inline-block; font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > input:not(:checked) + label > span:first-child {  background-color: #0096e4; color: #fff;  }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
+						
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element.list .input > .active-input + label { display: inline-block; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element.list .input > .set-input input { display: none; }
 
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
 
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="integer"] .input { display: flex; height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
 
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div .results > p { display: none; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element[data-value-type="integer"] .input { display: flex; height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
 
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div > .form-element > .date { display: flex; white-space: normal; flex-wrap: wrap; align-content: flex-start; }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div > .form-element > .date > input { display: inline-block; box-shadow: none; display: inline-block; font-size: 14px; height: 40px; width: calc(100% - 75px); margin: 0 0 5px 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) { order: 2;  }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) { order: 4;  }
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label { order: 1; } 
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label,
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { margin-left: 0px; width: 75px; height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
-						.ui.responsive-layout-enabled > nav li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { order: 3;  }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div .results > p { display: none; }
 
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form { height: 100px; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div { position: absolute; width: 100%; box-sizing: border-box; display: flex; flex-direction: row; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div { width: 100%; box-sizing: border-box; display: flex; flex-direction: row; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element { flex: 1; padding: 10px; height: auto; margin: 0 10px 0 0; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element:first-child { margin-top: 0px; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input { display: flex; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > .active-input + label { display: none; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input.button { justify-content: right; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input.button > button { cursor: pointer; height: 40px; margin: 0 10px 0 0; padding: 0 40px; background-color: rgba(255, 255, 255, 0.6); white-space: nowrap; border: 0; font-size: 14px; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > .set-input { order: 2; height: 40px; margin: 0 10px 0 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > .active-input { order: 3; background: none; padding: 0; margin: 0; display: inline-block; height: auto; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > .active-input > div span:first-child { width: auto; color: #333; font-size: 14px; padding: 0 4px; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #444; padding: 0 6px; border: 0;  }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > .active-input > div span.icon svg { height: 11px; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > input { display: none; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; height: 23px; cursor: pointer; white-space: nowrap; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > input + label > span { display: inline-block; font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > input:not(:checked) + label > span:first-child {  background-color: #0096e4; color: #fff;  }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div > .form-element > .date { display: flex; white-space: normal; flex-wrap: wrap; align-content: flex-start; }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div > .form-element > .date > input { display: inline-block; box-shadow: none; display: inline-block; font-size: 14px; height: 40px; width: calc(100% - 75px); margin: 0 0 5px 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) { order: 2;  }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) { order: 4;  }
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label { order: 1; } 
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label,
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { margin-left: 0px; width: 75px; height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
+						.ui.responsive-layout-enabled > nav .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { order: 3;  }
 
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form { height: 100px; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div { position: absolute; width: 100%; box-sizing: border-box; display: flex; flex-direction: row; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div { width: 100%; box-sizing: border-box; display: flex; flex-direction: row; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element { flex: 1; padding: 10px; height: auto; margin: 0 10px 0 0; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element:first-child { margin-top: 0px; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input { display: flex; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > .active-input + label { display: none; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input.button { justify-content: right; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input.button > button { cursor: pointer; height: 40px; margin: 0 10px 0 0; padding: 0 40px; background-color: rgba(255, 255, 255, 0.6); white-space: nowrap; border: 0; font-size: 14px; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > .set-input { order: 2; height: 40px; margin: 0 10px 0 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > .active-input { order: 3; background: none; padding: 0; margin: 0; display: inline-block; height: auto; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > .active-input > div span:first-child { width: auto; color: #333; font-size: 14px; padding: 0 4px; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #444; padding: 0 6px; border: 0;  }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > .active-input > div span.icon svg { height: 11px; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > input { display: none; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; height: 23px; cursor: pointer; white-space: nowrap; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > input + label > span { display: inline-block; font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > input:not(:checked) + label > span:first-child {  background-color: #0096e4; color: #fff;  }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
 
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="integer"] .input { height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
 
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div .results > p { display: none; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element[data-value-type="integer"] .input { height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
 
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div > .form-element > .date { display: flex; white-space: normal; flex-wrap: nowrap; align-content: flex-start; }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div > .form-element > .date > input { display: inline-block; box-shadow: none; font-size: 14px; height: 40px; max-width: 200px; margin: 0 0 5px 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) { order: 2;  }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) { order: 4;  }
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label { order: 1; } 
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label,
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { margin-left: 5px; width: 75px; height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
-						.ui:not(.responsive-layout-enabled) nav.top li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { order: 3;  } 
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div .results > p { display: none; }
+
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div > .form-element > .date { display: flex; white-space: normal; flex-wrap: nowrap; align-content: flex-start; }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div > .form-element > .date > input { display: inline-block; box-shadow: none; font-size: 14px; height: 40px; max-width: 200px; margin: 0 0 5px 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) { order: 2;  }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) { order: 4;  }
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label { order: 1; } 
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label,
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { margin-left: 5px; width: 75px; height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
+						.ui:not(.responsive-layout-enabled) nav.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { order: 3;  } 
 					}
 					
 					@media all and (min-width : 1120px) {
@@ -568,187 +578,524 @@ class ui_filter extends base_module {
 						.ui > nav.left > ul li.projects-nav ul { padding-left: 5px; height: auto; white-space: normal; }
 						.ui > nav.left > ul li.projects-nav ul li { height: auto; }
 					
-						.ui nav > nav > ul > li.project-dynamic-nav ul li.project-filters[data-active="true"] ~ li { display: none; }
+						.ui nav > nav > ul > li.project-dynamic-nav ul .project-filters[data-active="true"] ~ li { display: none; }
 					
-						.ui nav li.project-filters.form > div { display: flex; justify-content: flex-start; height: auto; min-height: 46px; font-family: var(--font-mono); }
-															
-						.ui nav li.project-filters.form > div > input { display: none; }
-						.ui nav li.project-filters.form > div > label:first-child { cursor: pointer; margin: 5px 0 0 5px; height: 36px; line-height: 36px; padding: 0 15px; font-weight: bold; letter-spacing: 2px; color: #333; text-transform: uppercase;  background-color: #fff;  }
-						.ui nav li.project-filters.form > div > input + label { margin: 5px 0 0 0; cursor: pointer; background-color: #fff; height: 36px; }
-						.ui nav li.project-filters.form > div > input + label > span { display: none; background-color: #0096e4; color: #fff; width: 36px; height: 36px; box-sizing: border-box; text-align: center; padding-top: 10px; }
-						.ui nav li.project-filters.form > div > input + label > span > svg { width: 50%; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label > span:first-child { display: inline-block; }
-						.ui nav li.project-filters.form > div > input:checked + label > span:last-child { display: inline-block; }
+						.ui nav .project-filters.form > div { display: flex; justify-content: flex-start; height: auto; min-height: 46px; font-family: var(--font-mono); }
+													
+						.ui nav .project-filters.form > div > input { display: none; }
+						.ui nav .project-filters.form > div > label:first-child { cursor: pointer; margin: 5px 0 0 5px; height: 36px; line-height: 36px; padding: 0 15px; font-weight: bold; letter-spacing: 2px; color: #333; text-transform: uppercase;  background-color: #fff;  }
+						.ui nav .project-filters.form > div > input + label { margin: 5px 0 0 0; cursor: pointer; background-color: #fff; height: 36px; }
+						.ui nav .project-filters.form > div > input + label > span { display: none; background-color: #0096e4; color: #fff; width: 36px; height: 36px; box-sizing: border-box; text-align: center; padding-top: 10px; }
+						.ui nav .project-filters.form > div > input + label > span > svg { width: 50%; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label > span:first-child { display: inline-block; }
+						.ui nav .project-filters.form > div > input:checked + label > span:last-child { display: inline-block; }
+								
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div { display: flex; margin: 0 0 0 5px; padding: 0; width: auto; position: relative; top: 0; white-space: normal; flex-wrap: wrap; align-content: flex-start; min-height: 36px; } 
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element { flex: 0 1 auto; margin: 5px 0 0 0; min-width: 0px; }  
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element .input { display: flex; background: none; min-width: 0px; padding: 0px; width: auto; height: auto; white-space: normal; }  
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element .input > button { display: none; }  
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input { order: 2; display: inline-block; height: 36px; max-width: 100%; overflow: visible; white-space: normal; } 
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input:not(:empty) { background-color: rgba(255, 255, 255, 0.6); padding: 5px; margin-right: 5px; box-sizing: border-box; } 
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input > div { width: auto; display: inline-block; margin: 3px 3px 0 0; padding: 0; height: auto; line-height: 1; background-color: #fff; vertical-align: middle; } 
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input > div span:first-child { width: auto; height: 100%; vertical-align: middle; font-size: 12px; line-height: 18px; background-color: #fff; padding: 0 4px;  } 
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input > div span.icon { display: none; } 
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element .input > .set-input { display: none; } 
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element .input > input { display: none; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element .input > label { order: 1;  display: inline-block; height: 36px; line-height: 36px; padding: 0 15px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; background-color: #0096e4; color: #fff;}
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element .input > input.operator + label { display: none; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input:empty + input + label { display: none; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="integer"],
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] { margin-right: 5px; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] .input > label { display: none; margin: 0px; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] .input > input:checked + label { pointer-events: none; order: 2; display: inline-block; background-color: rgba(255, 255, 255, 0.6); color: #333; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] .input > input:checked + label + input + label + label,
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] .input > input:checked + label + label { display: inline-block; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="integer"] .input > label { display: none; pointer-events: none; order: 1; margin: 0px; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="integer"] .input > input { display: none; pointer-events: none; order: 2; height: 36px; width: 60px; padding: 10px; background-color: rgba(255, 255, 255, 0.6); color: #333; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .results { display: none; }
+								
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .date { display: inline-block; display: flex; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .date > input { background-color: rgba(255, 255, 255, 0.6); width: 90px; min-width: 10px; border: 0; height: 36px; padding: 0 10px; margin: 0; pointer-events: none;  text-align: center; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .date > input + label { display: inline-block; height: 36px; line-height: 36px; padding: 0 15px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; background-color: #0096e4; color: #fff; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .date > input:first-child { order: 2;  }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .date > input:nth-of-type(2) { order: 4;  }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .date > input:first-child + label { order: 1; margin-left: 0px; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .date > input:nth-of-type(2) + label { order: 3;  }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .date > input:placeholder-shown,
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .date > input:placeholder-shown + label { display: none; }
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .date > input:nth-of-type(3),
+						.ui nav .project-filters.form > div > input:not(:checked) + label + div .date > input:nth-of-type(3) + label { display: none; }
+								
+						.ui nav .project-filters.form > div > input:checked + label + div { position: absolute; width: 30%; min-width: 800px; left: 5px; top: 41px; box-sizing: border-box; flex-direction: column; background-color: #fff; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element { flex: 0; background-color: #a3ce6c; padding: 10px; height: auto; margin: 0 10px 10px 10px; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element:first-child { margin-top: 10px; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input { display: flex; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > .active-input + label { display: none; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input.button { justify-content: right; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input.button > button { white-space: nowrap; border: 0; font-size: 12px;  cursor: pointer; padding: 4px 8px; font-family: var(--font-mono); background-color: rgba(255,255,255,0.9); }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > .set-input { order: 2; height: 40px; margin: 0 10px 0 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > .set-input input { width: 100%;  box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > .set-input input::placeholder {  }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > .active-input { order: 3; background: none; padding: 0; margin: 0; display: inline-block; height: auto; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > .active-input > div span:first-child { width: auto; max-width: 150px; color: #333; font-size: 12px; padding: 0 4px; display: inline-block; overflow-x: hidden; text-overflow: ellipsis;}
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #666; padding: 0 6px; border: 0; vertical-align: top; width: 22px; box-sizing: border-box; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > .active-input > div span.icon svg { height: 11px; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > input,
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > .active-input + input + label  { display: none; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > .active-input + input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; height: 23px; cursor: pointer; white-space: nowrap; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > input + label > span { display: inline-block; font-family: var(--font-mono); font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > input:not(:checked) + label > span:first-child,
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input,
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > label,
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > label:nth-of-type(2) { }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > label { color: rgba(0, 0, 0, 0.6);  order: 1;  }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > input { display: inline-block;  box-shadow: none; border: 0; border-radius: 0;  order: 3; height: 40px; width: 60px; background-color: rgba(255, 255, 255, 0.6); margin: 0; padding: 10px; box-sizing: border-box; font-size: 14px; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > input:hover,
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > input:focus { box-shadow: none; border: 0; border-radius: 0; }
+						.ui nav .project-filters.form > div > input:checked + label + div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
+						.ui nav .project-filters.form > div > input:checked + label + div .results > p { display: none; }
+
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element.list .input > .active-input + label { display: inline-block; }
+						.ui nav .project-filters.form > div > input:checked + label + div .form-element.list .input > .set-input input { display: none; }
+								
+						.ui nav .project-filters.form > div > input:checked + label + div .date { display: flex; white-space: normal; flex-wrap: wrap; align-content: flex-start; }
+						.ui nav .project-filters.form > div > input:checked + label + div .date > input { display: inline-block; box-shadow: none; display: inline-block; font-size: 14px; height: 40px; width: auto; margin: 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
+						.ui nav .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(1) { order: 2;  }
+						.ui nav .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(2) { order: 4;  }
+						.ui nav .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(1) + label { order: 1; margin-left: 0px; } 
+						.ui nav .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(1) + label,
+						.ui nav .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(2) + label { height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
+						.ui nav .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(2) + label { order: 3;  } 
+						.ui nav .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(3) { display: none;  } 
+						.ui nav .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(3) + label { order: 5; position: relative; height: 40px; width: 40px; background-color: #0096e4; cursor: pointer; text-align: center; } 
+						.ui nav .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(3) + label > span.icon { color: #fff; height: 20px; margin-top: 10px;} 
+						.ui nav .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(3) + label > span.icon > svg { height: 100%; } 
 	
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div { display: flex; margin: 0 0 0 5px; padding: 0; width: auto; position: relative; top: 0; white-space: normal; flex-wrap: wrap; align-content: flex-start; min-height: 36px; } 
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element { flex: 0 1 auto; margin: 5px 0 0 0; min-width: 0px; }  
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input { display: flex; background: none; min-width: 0px; padding: 0px; width: auto; height: auto; white-space: normal; }  
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > button { display: none; }  
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input { order: 2; display: inline-block; height: 36px; max-width: 100%; overflow: visible; white-space: normal; } 
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input:not(:empty) { background-color: rgba(255, 255, 255, 0.6); padding: 5px; margin-right: 5px; box-sizing: border-box; } 
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input > div { width: auto; display: inline-block; margin: 3px 3px 0 0; padding: 0; height: auto; line-height: 1; background-color: #fff; vertical-align: middle; } 
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input > div span:first-child { width: auto; height: 100%; vertical-align: middle; font-size: 12px; line-height: 18px; background-color: #fff; padding: 0 4px;  } 
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input > div span.icon { display: none; } 
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > .set-input { display: none; } 
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > input { display: none; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > label { order: 1;  display: inline-block; height: 36px; line-height: 36px; padding: 0 15px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; background-color: #0096e4; color: #fff;}
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > input + label { display: none; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element .input > .active-input:empty + label { display: none; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="integer"],
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] { margin-right: 5px; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] .input > label { display: none; margin: 0px; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] .input > input:checked + label { pointer-events: none; order: 2; display: inline-block; background-color: rgba(255, 255, 255, 0.6); color: #333; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] .input > input:checked + label + input + label + label,
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="boolean"] .input > input:checked + label + label { display: inline-block; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="integer"] .input > label { display: none; pointer-events: none; order: 1; margin: 0px; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .form-element[data-value-type="integer"] .input > input { display: none; pointer-events: none; order: 2; height: 36px; width: 60px; padding: 10px; background-color: rgba(255, 255, 255, 0.6); color: #333; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .results { display: none; }
+						.ui nav.top .project-filters.form { height: 100px; }
+						.ui nav.top .project-filters.form > div { position: absolute; width: 100%; box-sizing: border-box; display: flex; flex-direction: row; }
+						.ui nav.top .project-filters.form > div > div { width: 100%; box-sizing: border-box; display: flex; flex-direction: row; }
+						.ui nav.top .project-filters.form > div > div .form-element { flex: 1; padding: 10px; height: auto; margin: 0 10px 0 0; }
+						.ui nav.top .project-filters.form > div > div .form-element:first-child { margin-top: 0px; }
+						.ui nav.top .project-filters.form > div > div .form-element .input { display: flex; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
+						.ui nav.top .project-filters.form > div > div .form-element .input > .active-input + label { display: none; }
+						.ui nav.top .project-filters.form > div > div .form-element .input.button { justify-content: right; }
+						.ui nav.top .project-filters.form > div > div .form-element .input.button > button { white-space: nowrap; border: 0; font-size: 12px;  cursor: pointer; padding: 4px 8px; font-family: var(--font-mono); background-color: rgba(255,255,255,0.9); }
+						.ui nav.top .project-filters.form > div > div .form-element .input > .set-input { order: 2; height: 40px; margin: 0 10px 0 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
+						.ui nav.top .project-filters.form > div > div .form-element .input > .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
+						.ui nav.top .project-filters.form > div > div .form-element .input > .active-input { order: 3; background: none; padding: 0; margin: 0; display: inline-block; height: auto; }
+						.ui nav.top .project-filters.form > div > div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
+						.ui nav.top .project-filters.form > div > div .form-element .input > .active-input > div span:first-child { width: auto; color: #333; font-size: 14px; padding: 0 4px; }
+						.ui nav.top .project-filters.form > div > div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #444; padding: 0 6px; border: 0;  }
+						.ui nav.top .project-filters.form > div > div .form-element .input > .active-input > div span.icon svg { height: 11px; }
+						.ui nav.top .project-filters.form > div > div .form-element .input > input,
+						.ui nav.top .project-filters.form > div > div .form-element .input > input + label { display: none; }						
+						.ui nav.top .project-filters.form > div > div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; height: 23px; cursor: pointer; white-space: nowrap; }
+						.ui nav.top .project-filters.form > div > div .form-element .input > input + label > span { display: inline-block; font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
+						.ui nav.top .project-filters.form > div > div .form-element .input > input:not(:checked) + label > span:first-child {  background-color: #0096e4; color: #fff;  }
+						.ui nav.top .project-filters.form > div > div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
 						
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .date { display: inline-block; display: flex; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .date > input { background-color: rgba(255, 255, 255, 0.6); width: 90px; min-width: 10px; border: 0; height: 36px; padding: 0 10px; margin: 0; pointer-events: none;  text-align: center; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .date > input + label { display: inline-block; height: 36px; line-height: 36px; padding: 0 15px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; background-color: #0096e4; color: #fff; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .date > input:first-child { order: 2;  }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .date > input:nth-of-type(2) { order: 4;  }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .date > input:first-child + label { order: 1; margin-left: 0px; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .date > input:nth-of-type(2) + label { order: 3;  }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .date > input:placeholder-shown,
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .date > input:placeholder-shown + label { display: none; }
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .date > input:nth-of-type(3),
-						.ui nav li.project-filters.form > div > input:not(:checked) + label + div .date > input:nth-of-type(3) + label { display: none; }
+						.ui nav.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
+						.ui nav.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
+						.ui nav.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
+						.ui nav.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
+						.ui nav.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
+						
+						.ui nav.top .project-filters.form > div > div .form-element[data-value-type="integer"] .input { height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
+						.ui nav.top .project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui nav.top .project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
+						
+						.ui nav.top .project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
+						.ui nav.top .project-filters.form > div > div .results > p { display: none; }
+						
+						.ui nav.top .project-filters.form > div > div > .form-element > .date { display: flex; white-space: normal; flex-wrap: nowrap; align-content: flex-start; }
+						.ui nav.top .project-filters.form > div > div > .form-element > .date > input { display: inline-block; box-shadow: none; font-size: 14px; height: 40px; max-width: 200px; margin: 0 0 5px 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
+						.ui nav.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) { order: 2;  }
+						.ui nav.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) { order: 4;  }
+						.ui nav.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label { order: 1; } 
+						.ui nav.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label,
+						.ui nav.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { margin-left: 5px; width: 75px; height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
+						.ui nav.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { order: 3;  } 
+						
+						.ui nav.left .project-filters.form > div > div { position: relative; width: 100%; box-sizing: border-box; flex-direction: column; background-color: #a3ce6c;}
+						.ui nav.left .project-filters.form > div > div .form-element { flex: 0; background-color: rgba(255, 255, 255, 0.1); padding: 5px; height: auto; margin: 0 5px 10px 5px; }
+						.ui nav.left .project-filters.form > div > div .form-element:first-child { margin-top: 10px; }
+						.ui nav.left .project-filters.form > div > div .form-element .input { display: block; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
+						.ui nav.left .project-filters.form > div > div .form-element .input > .active-input + label { display: none; }
+						.ui nav.left .project-filters.form > div > div .form-element .input.button { text-align: right; }
+						.ui nav.left .project-filters.form > div > div .form-element .input.button > button { white-space: nowrap; border: 0; font-size: 12px;  cursor: pointer; padding: 4px 8px; font-family: var(--font-mono); background-color: rgba(255,255,255,0.9); }
+						.ui nav.left .project-filters.form > div > div .form-element .input > .set-input { height: 40px; margin: 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
+						.ui nav.left .project-filters.form > div > div .form-element .input > .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
+						.ui nav.left .project-filters.form > div > div .form-element .input > .active-input { background: none; padding: 0; margin: 0; display: inline; }
+						.ui nav.left .project-filters.form > div > div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; max-width: 100%; overflow: hidden; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
+						.ui nav.left .project-filters.form > div > div .form-element .input > .active-input > div span:first-child { display: inline-block; width: auto; max-width: calc(100% - 30px); color: #333; font-size: 14px; padding: 0 4px; }
+						.ui nav.left .project-filters.form > div > div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #444; padding: 0 6px; border: 0;  }
+						.ui nav.left .project-filters.form > div > div .form-element .input > .active-input > div span.icon svg { height: 11px; }
+						.ui nav.left .project-filters.form > div > div .form-element .input > input,
+						.ui nav.left .project-filters.form > div > div .form-element .input > input + label { display: none; }
+						.ui nav.left .project-filters.form > div > div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; cursor: pointer; white-space: nowrap; }
+						.ui nav.left .project-filters.form > div > div .form-element .input > input + label > span { display: inline-block; font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
+						.ui nav.left .project-filters.form > div > div .form-element .input > input:not(:checked) + label > span:first-child {  background-color: #0096e4; color: #fff;  }
+						.ui nav.left .project-filters.form > div > div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
+						
+						.ui nav.left .project-filters.form > div > div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
+						.ui nav.left .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
+						.ui nav.left .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
+						.ui nav.left .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
+						.ui nav.left .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
 	
-						.ui nav li.project-filters.form > div > input:checked + label + div { position: absolute; width: 30%; min-width: 800px; left: 5px; top: 41px; box-sizing: border-box; flex-direction: column; background-color: #fff; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element { flex: 0; background-color: #a3ce6c; padding: 10px; height: auto; margin: 0 10px 10px 10px; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element:first-child { margin-top: 10px; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input { display: flex; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > .active-input + label { display: none; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input.button { justify-content: right; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input.button > button { white-space: nowrap; border: 0; font-size: 12px;  cursor: pointer; padding: 4px 8px; font-family: var(--font-mono); background-color: rgba(255,255,255,0.9); }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > .set-input { order: 2; height: 40px; margin: 0 10px 0 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > .set-input input { width: 100%;  box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > .set-input input::placeholder {  }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > .active-input { order: 3; background: none; padding: 0; margin: 0; display: inline-block; height: auto; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > .active-input > div span:first-child { width: auto; max-width: 150px; color: #333; font-size: 12px; padding: 0 4px; display: inline-block; overflow-x: hidden; text-overflow: ellipsis;}
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #666; padding: 0 6px; border: 0; vertical-align: top; width: 22px; box-sizing: border-box; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > .active-input > div span.icon svg { height: 11px; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > input { display: none; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; height: 23px; cursor: pointer; white-space: nowrap; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > input + label > span { display: inline-block; font-family: var(--font-mono); font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > input:not(:checked) + label > span:first-child,
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input,
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > label,
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > label:nth-of-type(2) { }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > label { color: rgba(0, 0, 0, 0.6);  order: 1;  }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > input { display: inline-block;  box-shadow: none; border: 0; border-radius: 0;  order: 3; height: 40px; width: 60px; background-color: rgba(255, 255, 255, 0.6); margin: 0; padding: 10px; box-sizing: border-box; font-size: 14px; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > input:hover,
-						.ui nav li.project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > input:focus { box-shadow: none; border: 0; border-radius: 0; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
-						.ui nav li.project-filters.form > div > input:checked + label + div .results > p { display: none; }
+						.ui nav.left .project-filters.form > div > div .form-element[data-value-type="integer"] .input { display: flex; height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
+						.ui nav.left .project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui nav.left .project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
 						
-						.ui nav li.project-filters.form > div > input:checked + label + div .date { display: flex; white-space: normal; flex-wrap: wrap; align-content: flex-start; }
-						.ui nav li.project-filters.form > div > input:checked + label + div .date > input { display: inline-block; box-shadow: none; display: inline-block; font-size: 14px; height: 40px; width: auto; margin: 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
-						.ui nav li.project-filters.form > div > input:checked + label + div .date > input:nth-of-type(1) { order: 2;  }
-						.ui nav li.project-filters.form > div > input:checked + label + div .date > input:nth-of-type(2) { order: 4;  }
-						.ui nav li.project-filters.form > div > input:checked + label + div .date > input:nth-of-type(1) + label { order: 1; margin-left: 0px; } 
-						.ui nav li.project-filters.form > div > input:checked + label + div .date > input:nth-of-type(1) + label,
-						.ui nav li.project-filters.form > div > input:checked + label + div .date > input:nth-of-type(2) + label { height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
-						.ui nav li.project-filters.form > div > input:checked + label + div .date > input:nth-of-type(2) + label { order: 3;  } 
-						.ui nav li.project-filters.form > div > input:checked + label + div .date > input:nth-of-type(3) { display: none;  } 
-						.ui nav li.project-filters.form > div > input:checked + label + div .date > input:nth-of-type(3) + label { order: 5; position: relative; height: 40px; width: 40px; background-color: #0096e4; cursor: pointer; text-align: center; } 
-						.ui nav li.project-filters.form > div > input:checked + label + div .date > input:nth-of-type(3) + label > span.icon { color: #fff; height: 20px; margin-top: 10px;} 
-						.ui nav li.project-filters.form > div > input:checked + label + div .date > input:nth-of-type(3) + label > span.icon > svg { height: 100%; } 
+						.ui nav.left .project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); width: 40vw; max-width: 750px; }
+						.ui nav.left .project-filters.form > div > div .results > p { display: none; }
+						
+						.ui nav.left .project-filters.form > div > div > .form-element > .date { display: flex; white-space: normal; flex-wrap: wrap; align-content: flex-start; }
+						.ui nav.left .project-filters.form > div > div > .form-element > .date > input { display: inline-block; box-shadow: none; display: inline-block; font-size: 14px; height: 40px; width: calc(100% - 75px); margin: 0 0 5px 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
+						.ui nav.left .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) { order: 2;  }
+						.ui nav.left .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) { order: 4;  }
+						.ui nav.left .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label { order: 1; } 
+						.ui nav.left .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label,
+						.ui nav.left .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { margin-left: 0px; width: 75px; height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
+						.ui nav.left .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { order: 3;  } 
+					}
+					
+					/* NEW BETA VERSION */
+					
+					.ui li[class*="type-"] {  background-color: rgba(255, 255, 255, 0.75); } /* set default colour for elements expecting a type colour */ 
+					.ui div .project-dynamic-nav ul .project-filters[data-active="true"] ~ li,
+					.ui div .project-dynamic-nav ul .project-filters[data-object_active="true"] ~ li { display: none; }	
+							
+					.ui div .project-filters { position: relative; background-color: #a3ce6c; z-index: 2; }
+							
+					.ui div .project-filters.search { height: 100px; }
+					.ui div .project-filters.search > div { position: absolute; top: 25px; left: 0px; width: 100%; display: flex; justify-content: center; padding: 0 5px; box-sizing: border-box; }
+							
+					.ui div .project-filters.search > div .select-types {  }
+					.ui div .project-filters.search > div .select-types input { display: none; }
+					.ui div .project-filters.search > div .select-types > input:not(:checked) + label + ul { display: none; }
+					.ui div .project-filters.search > div .select-types > input:checked + label + ul { display: block; }
+					.ui div .project-filters.search > div .select-types > label { cursor: pointer; width: 150px; height: 50px; background-color: #0096e4; box-sizing: border-box; margin: 0; vertical-align: top; line-height: 50px;}
+					.ui div .project-filters.search > div .select-types > label > div:nth-of-type(1) { display: inline-block; width: calc(100% - 50px); height: 100%; box-sizing: border-box; }
+					.ui div .project-filters.search > div .select-types > label > div:nth-of-type(1) > span { display: inline; color: #fff; font-size: 14px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
+					.ui div .project-filters.search > div .select-types > label > div:nth-of-type(1) > span:nth-of-type(1) { padding-left: 10px; }
+					.ui div .project-filters.search > div .select-types > label > div:nth-of-type(2) { display: inline-block; width: 50px; height: 100%; box-sizing: border-box; }
+					.ui div .project-filters.search > div .select-types > label > div:nth-of-type(2) > span { display: none; color: #fff; width: 50px; height: 50px; box-sizing: border-box; text-align: center; }
+					.ui div .project-filters.search > div .select-types > label > div:nth-of-type(2) > span > svg { height: 15%; }
+					.ui div .project-filters.search > div .select-types > input:not(:checked) + label > div:nth-of-type(2) > span:nth-of-type(1) { display: inline-block;  }
+					.ui div .project-filters.search > div .select-types > input:checked + label > div:nth-of-type(2) > span:nth-of-type(2) { display: inline-block;  }
+					.ui div .project-filters.search > div .select-types > ul { position: relative; width: 150px; margin-top: 5px; display: block; overflow-x: hidden; overflow-y: auto; background-color: rgba(238, 238, 238, 0.9); padding: 10px 10px 0 10px; box-sizing: border-box; }
+					.ui div .project-filters.search > div .select-types > ul > li { margin-bottom: 10px; box-sizing: border-box; height: 20px; }
+					.ui div .project-filters.search > div .select-types > ul > li > label { cursor: pointer; display: inline-block; width: 100%; line-height: 20px; margin: 0; box-sizing: border-box;} 
+					.ui div .project-filters.search > div .select-types > ul > li > label > span.type-name { display: inline-block; width: calc(100% - 20px); font-weight: normal; } 
+					.ui div .project-filters.search > div .select-types > ul > li > label > span.icon { display: none; color: #333; width: 20px; height: 20px; text-align: center; box-sizing: border-box; border: 1px solid #333; border-radius: 20px;  } 
+					.ui div .project-filters.search > div .select-types > ul > li > label > span.icon > svg { height: 35%; }
+					.ui div .project-filters.search > div .select-types > ul > li > input:checked + label > span.type-name { font-weight: bold; } 
+					.ui div .project-filters.search > div .select-types > ul > li > input:checked + label > span.icon { display: inline-block; } 
+					.ui div .project-filters.search > div .select-types > ul > li > input:not(:checked) + label > span.icon { display: none; } 
+							
+					.ui div .project-filters.search > div .form-element { flex: 1 1 10px; min-width: 10px; max-width: 80vw; margin: 0 5px;  }
+					.ui div .project-filters.search > div .form-element .input { box-sizing: border-box; display: inline-block; width: 100%; min-width: 200px; vertical-align: top; height: 50px; padding: 0 0 0 50px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 20px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
+					.ui div .project-filters.search > div .form-element .input .active-input { display: flex; overflow: hidden; max-width: 70%; box-sizing: border-box; margin: 0px; padding: 0px; height: 50px; float: left; }
+					.ui div .project-filters.search > div .form-element .input .active-input > div { display: inline-block; min-width: 30px; box-sizing: border-box; white-space: nowrap; margin: 10px 3px; padding: 0px 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
+					.ui div .project-filters.search > div .form-element .input .active-input > div.string { background-color: #ccc; }
+					.ui div .project-filters.search > div .form-element .input .active-input > div > span { display: inline-block; }
+					.ui div .project-filters.search > div .form-element .input .active-input > div > span:first-child { width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
+					.ui div .project-filters.search > div .form-element .input .active-input > div > span.icon { cursor: pointer; border-left: 1px solid #444; margin-left: 5px; padding: 0 3px 0 6px; vertical-align: top; }
+					.ui div .project-filters.search > div .form-element .input .active-input > div > span.icon svg { height: 11px;  }
+					.ui div .project-filters.search > div .form-element .input .set-input { overflow: auto; margin-right: 50px; height: 50px; min-width: 30%;}
+					.ui div .project-filters.search > div .form-element .input .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 16px; height: 50px; border: 0px; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; }
+					.ui div .project-filters.search > div button { width: 50px; height: 50px; background-color: #0096e4; border: 0; text-align: center; vertical-align: middle;  }					
+					.ui div .project-filters.search > div button span { color: #fff; }					
+					.ui div .project-filters.search > div button span svg { height: 50%; }					
+							
+					.ui div .project-filters .results { position: relative; width: 100%; min-width: 200px; margin-top: 5px; display: block; overflow-x: hidden; overflow-y: auto; background-color: rgba(238, 238, 238, 0.75);  }
+					.ui div .project-filters .results:empty { display: none; }
+					.ui div .project-filters .results .object-thumbnail { position: relative; width: 100%; background-color: rgba(238, 238, 238, 0.5); margin: 3px 0 2px 10px; height: 50px; white-space: nowrap; overflow: hidden;}
+					.ui div .project-filters .results .object-thumbnail > div { position: relative; width: 100%; vertical-align: middle; height: 50px; }
+					.ui div .project-filters .results .object-thumbnail > div > div { position: relative; box-sizing: border-box; display: inline-block; vertical-align: middle; height: 50px; }
+					.ui div .project-filters .results .object-thumbnail > div > div.image { width: 50px; background-color: #ddd; background-repeat: no-repeat; background-position: center 10%; background-size: cover; }
+					.ui div .project-filters .results .object-thumbnail > div > div.image span { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3em; font-family: serif; }
+					.ui div .project-filters .results .object-thumbnail > div > div.name { max-width: calc(100% - 80px); margin-left: 5px; line-height: 50px; font-size: 18px; overflow: hidden; text-overflow: ellipsis;}
+					.ui div .project-filters .results .object-thumbnail > div > div.object-definitions { display: none; }
+					.ui div .project-filters .results ul.keywords { display: flex; }
+					.ui div .project-filters .results ul.keywords > li { overflow: hidden; }
+					.ui div .project-filters .results ul.keywords > li > ul { display: flex; flex-flow: wrap; white-space: normal; vertical-align: top; padding: 5px; }
+					.ui div .project-filters .results ul.keywords > li > ul > li { cursor: pointer; display: inline-block; padding: 4px 8px; margin: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+					.ui div .project-filters .results ul.keywords > li > ul > li:not(.separator):not(.info) { max-width: 40%; }
+					.ui div .project-filters .results ul.keywords li.info {  cursor: default; display: flex; justify-content: space-between; width: 100%; }
+					.ui div .project-filters .results ul.keywords li.info span { padding: 4px 0px; }
+					.ui div .project-filters .results ul.keywords li.info span.hide-options { cursor: pointer; padding: 4px 8px; background-color: rgba(255,255,255,0.5); }
+					.ui div .project-filters .results ul.keywords .separator { display: none; cursor: default; font-variant: small-caps; }
+					.ui div .project-filters .results > p { padding: 10px; cursor: pointer; }
+								
+					@media all and (max-width : 1120px) {
+					
+						.ui.responsive-layout-enabled > div .project-filters.search > div { position: relative; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > input,
+						.ui.responsive-layout-enabled > div .project-filters.form > div > label { display: none; }
+						
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div { position: relative; width: 100%; box-sizing: border-box; flex-direction: column; background-color: #a3ce6c;}
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element { flex: 0; background-color: rgba(255, 255, 255, 0.1); padding: 5px; height: auto; margin: 0 5px 10px 5px; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element:first-child { margin-top: 10px; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input { display: block; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > .active-input + label { display: none; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > .set-input { height: 40px; margin: 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > .active-input { background: none; padding: 0; margin: 0; display: inline; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; max-width: 100%; overflow: hidden; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > .active-input > div span:first-child { display: inline-block; width: auto; max-width: calc(100% - 30px); color: #333; font-size: 14px; padding: 0 4px; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #444; padding: 0 6px; border: 0;  }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > .active-input > div span.icon svg { height: 11px; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > input { display: none; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; cursor: pointer; white-space: nowrap; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > input + label > span { display: inline-block; font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > input:not(:checked) + label > span:first-child {  background-color: #0096e4; color: #fff;  }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
+
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
+
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element[data-value-type="integer"] .input { display: flex; height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
+
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div .results > p { display: none; }
+
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div > .form-element > .date { display: flex; white-space: normal; flex-wrap: wrap; align-content: flex-start; }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div > .form-element > .date > input { display: inline-block; box-shadow: none; display: inline-block; font-size: 14px; height: 40px; width: calc(100% - 75px); margin: 0 0 5px 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) { order: 2;  }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) { order: 4;  }
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label { order: 1; } 
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label,
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { margin-left: 0px; width: 75px; height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
+						.ui.responsive-layout-enabled > div .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { order: 3;  }
+
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form { height: 100px; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div { position: absolute; width: 100%; box-sizing: border-box; display: flex; flex-direction: row; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div { width: 100%; box-sizing: border-box; display: flex; flex-direction: row; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element { flex: 1; padding: 10px; height: auto; margin: 0 10px 0 0; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element:first-child { margin-top: 0px; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input { display: flex; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > .active-input + label { display: none; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input.button { justify-content: right; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input.button > button { cursor: pointer; height: 40px; margin: 0 10px 0 0; padding: 0 40px; background-color: rgba(255, 255, 255, 0.6); white-space: nowrap; border: 0; font-size: 14px; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > .set-input { order: 2; height: 40px; margin: 0 10px 0 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > .active-input { order: 3; background: none; padding: 0; margin: 0; display: inline-block; height: auto; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > .active-input > div span:first-child { width: auto; color: #333; font-size: 14px; padding: 0 4px; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #444; padding: 0 6px; border: 0;  }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > .active-input > div span.icon svg { height: 11px; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > input { display: none; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; height: 23px; cursor: pointer; white-space: nowrap; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > input + label > span { display: inline-block; font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > input:not(:checked) + label > span:first-child {  background-color: #0096e4; color: #fff;  }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
+
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
+
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element[data-value-type="integer"] .input { height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
+
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div .results > p { display: none; }
+
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div > .form-element > .date { display: flex; white-space: normal; flex-wrap: nowrap; align-content: flex-start; }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div > .form-element > .date > input { display: inline-block; box-shadow: none; font-size: 14px; height: 40px; max-width: 200px; margin: 0 0 5px 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) { order: 2;  }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) { order: 4;  }
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label { order: 1; } 
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label,
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { margin-left: 5px; width: 75px; height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
+						.ui:not(.responsive-layout-enabled) div.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { order: 3;  } 
+					}
+					
+					@media all and (min-width : 1120px) {
+					
+						.ui > div.left { display: block; position: absolute; top: 60px; width: 20vw; overflow: visible; height: calc(100% - 60px); z-index: 2; }
+						.ui > div.left + .project-dynamic-data {  padding-left: 20vw; box-sizing: border-box; }
+						.ui > div.left + .project-dynamic-data  > .data > .objects > .tabs.list-view { max-width: 78vw; }
+						.ui > div.left > ul li.projects-nav ul { padding-left: 5px; height: auto; white-space: normal; }
+						.ui > div.left > ul li.projects-nav ul li { height: auto; }
+					
+						.ui div > div > ul > .project-dynamic-nav ul .project-filters[data-active="true"] ~ li { display: none; }
+					
+						.ui div .project-filters.form { position: relative; display: inline-block; background-color: transparent; z-index: 5; width: auto; }
+						
+						.ui div .project-filters.form > div { display: flex; justify-content: flex-start; height: auto; min-height: 46px; font-family: var(--font-mono); }
+							
+						.ui div .project-filters.form > div > input { display: none; }
+						.ui div .project-filters.form > div > label:first-child { cursor: pointer; margin: 5px 0 0 5px; height: 36px; line-height: 36px; padding: 0 15px; font-weight: bold; letter-spacing: 2px; color: #333; text-transform: uppercase;  background-color: #fff;  }
+						.ui div .project-filters.form > div > input + label { margin: 5px 0 0 0; cursor: pointer; background-color: #fff; height: 36px; }
+						.ui div .project-filters.form > div > input + label > span { display: none; background-color: #0096e4; color: #fff; width: 36px; height: 36px; box-sizing: border-box; text-align: center; padding-top: 10px; }
+						.ui div .project-filters.form > div > input + label > span > svg { width: 50%; }
+						.ui div .project-filters.form > div > input:not(:checked) + label > span:first-child { display: inline-block; }
+						.ui div .project-filters.form > div > input:checked + label > span:last-child { display: inline-block; }
 	
-						.ui nav.top li.project-filters.form { height: 100px; }
-						.ui nav.top li.project-filters.form > div { position: absolute; width: 100%; box-sizing: border-box; display: flex; flex-direction: row; }
-						.ui nav.top li.project-filters.form > div > div { width: 100%; box-sizing: border-box; display: flex; flex-direction: row; }
-						.ui nav.top li.project-filters.form > div > div .form-element { flex: 1; padding: 10px; height: auto; margin: 0 10px 0 0; }
-						.ui nav.top li.project-filters.form > div > div .form-element:first-child { margin-top: 0px; }
-						.ui nav.top li.project-filters.form > div > div .form-element .input { display: flex; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
-						.ui nav.top li.project-filters.form > div > div .form-element .input > .active-input + label { display: none; }
-						.ui nav.top li.project-filters.form > div > div .form-element .input.button { justify-content: right; }
-						.ui nav.top li.project-filters.form > div > div .form-element .input.button > button { white-space: nowrap; border: 0; font-size: 12px;  cursor: pointer; padding: 4px 8px; font-family: var(--font-mono); background-color: rgba(255,255,255,0.9); }
-						.ui nav.top li.project-filters.form > div > div .form-element .input > .set-input { order: 2; height: 40px; margin: 0 10px 0 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
-						.ui nav.top li.project-filters.form > div > div .form-element .input > .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
-						.ui nav.top li.project-filters.form > div > div .form-element .input > .active-input { order: 3; background: none; padding: 0; margin: 0; display: inline-block; height: auto; }
-						.ui nav.top li.project-filters.form > div > div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
-						.ui nav.top li.project-filters.form > div > div .form-element .input > .active-input > div span:first-child { width: auto; color: #333; font-size: 14px; padding: 0 4px; }
-						.ui nav.top li.project-filters.form > div > div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #444; padding: 0 6px; border: 0;  }
-						.ui nav.top li.project-filters.form > div > div .form-element .input > .active-input > div span.icon svg { height: 11px; }
-						.ui nav.top li.project-filters.form > div > div .form-element .input > input { display: none; }
-						.ui nav.top li.project-filters.form > div > div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; height: 23px; cursor: pointer; white-space: nowrap; }
-						.ui nav.top li.project-filters.form > div > div .form-element .input > input + label > span { display: inline-block; font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
-						.ui nav.top li.project-filters.form > div > div .form-element .input > input:not(:checked) + label > span:first-child {  background-color: #0096e4; color: #fff;  }
-						.ui nav.top li.project-filters.form > div > div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
-						
-						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
-						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
-						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
-						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
-						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
-						
-						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="integer"] .input { height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
-						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
-						.ui nav.top li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
-						
-						.ui nav.top li.project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
-						.ui nav.top li.project-filters.form > div > div .results > p { display: none; }
-						
-						.ui nav.top li.project-filters.form > div > div > .form-element > .date { display: flex; white-space: normal; flex-wrap: nowrap; align-content: flex-start; }
-						.ui nav.top li.project-filters.form > div > div > .form-element > .date > input { display: inline-block; box-shadow: none; font-size: 14px; height: 40px; max-width: 200px; margin: 0 0 5px 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
-						.ui nav.top li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) { order: 2;  }
-						.ui nav.top li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) { order: 4;  }
-						.ui nav.top li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label { order: 1; } 
-						.ui nav.top li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label,
-						.ui nav.top li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { margin-left: 5px; width: 75px; height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
-						.ui nav.top li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { order: 3;  } 
-						
-						.ui nav.left li.project-filters.form > div > div { position: relative; width: 100%; box-sizing: border-box; flex-direction: column; background-color: #a3ce6c;}
-						.ui nav.left li.project-filters.form > div > div .form-element { flex: 0; background-color: rgba(255, 255, 255, 0.1); padding: 5px; height: auto; margin: 0 5px 10px 5px; }
-						.ui nav.left li.project-filters.form > div > div .form-element:first-child { margin-top: 10px; }
-						.ui nav.left li.project-filters.form > div > div .form-element .input { display: block; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
-						.ui nav.left li.project-filters.form > div > div .form-element .input > .active-input + label { display: none; }
-						.ui nav.left li.project-filters.form > div > div .form-element .input.button { text-align: right; }
-						.ui nav.left li.project-filters.form > div > div .form-element .input.button > button { white-space: nowrap; border: 0; font-size: 12px;  cursor: pointer; padding: 4px 8px; font-family: var(--font-mono); background-color: rgba(255,255,255,0.9); }
-						.ui nav.left li.project-filters.form > div > div .form-element .input > .set-input { height: 40px; margin: 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
-						.ui nav.left li.project-filters.form > div > div .form-element .input > .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
-						.ui nav.left li.project-filters.form > div > div .form-element .input > .active-input { background: none; padding: 0; margin: 0; display: inline; }
-						.ui nav.left li.project-filters.form > div > div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; max-width: 100%; overflow: hidden; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
-						.ui nav.left li.project-filters.form > div > div .form-element .input > .active-input > div span:first-child { display: inline-block; width: auto; max-width: calc(100% - 30px); color: #333; font-size: 14px; padding: 0 4px; }
-						.ui nav.left li.project-filters.form > div > div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #444; padding: 0 6px; border: 0;  }
-						.ui nav.left li.project-filters.form > div > div .form-element .input > .active-input > div span.icon svg { height: 11px; }
-						.ui nav.left li.project-filters.form > div > div .form-element .input > input { display: none; }
-						.ui nav.left li.project-filters.form > div > div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; cursor: pointer; white-space: nowrap; }
-						.ui nav.left li.project-filters.form > div > div .form-element .input > input + label > span { display: inline-block; font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
-						.ui nav.left li.project-filters.form > div > div .form-element .input > input:not(:checked) + label > span:first-child {  background-color: #0096e4; color: #fff;  }
-						.ui nav.left li.project-filters.form > div > div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
-						
-						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
-						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
-						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
-						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
-						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
+						.ui div .project-filters.form > div > input:not(:checked) + label + div { display: none; }
 	
-						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="integer"] .input { display: flex; height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
-						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
-						.ui nav.left li.project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui div .project-filters.form > div > input:checked + label + div { position: absolute; width: 30%; min-width: 800px; left: 5px; top: 41px; box-sizing: border-box; flex-direction: column; background-color: #fff; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element { flex: 0; background-color: #a3ce6c; padding: 10px; height: auto; margin: 0 10px 10px 10px; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element:first-child { margin-top: 10px; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input { display: flex; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > .active-input + input[id^=list-toggle] + label { display: none; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input.button { justify-content: right; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input.button > button { white-space: nowrap; border: 0; font-size: 12px;  cursor: pointer; padding: 4px 8px; font-family: var(--font-mono); background-color: rgba(255,255,255,0.9); }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > .set-input { order: 2; height: 40px; margin: 0 10px 0 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > .set-input input { width: 100%;  box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > .set-input input::placeholder {  }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > .active-input { order: 3; background: none; padding: 0; margin: 0; display: inline-block; height: auto; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > .active-input > div span:first-child { width: auto; max-width: 150px; color: #333; font-size: 12px; padding: 0 4px; display: inline-block; overflow-x: hidden; text-overflow: ellipsis;}
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #666; padding: 0 6px; border: 0; vertical-align: top; width: 22px; box-sizing: border-box; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > .active-input > div span.icon svg { height: 11px; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > input { display: none; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > .active-input + input + label + input[id^=operator-toggle] + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; height: 23px; cursor: pointer; white-space: nowrap; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > input[id^=operator-toggle] + label > span { display: inline-block; font-family: var(--font-mono); font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > input[id^=operator-toggle]:not(:checked) + label > span:first-child,
+						.ui div .project-filters.form > div > input:checked + label + div .form-element .input > input[id^=operator-toggle]:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input,
+						.ui div .project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element.list .input > input.list + label,
+						.ui div .project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > label,
+						.ui div .project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > label:nth-of-type(2) { }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > label { color: rgba(0, 0, 0, 0.6);  order: 1;  }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > input { display: inline-block;  box-shadow: none; border: 0; border-radius: 0;  order: 3; height: 40px; width: 60px; background-color: rgba(255, 255, 255, 0.6); margin: 0; padding: 10px; box-sizing: border-box; font-size: 14px; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > input:hover,
+						.ui div .project-filters.form > div > input:checked + label + div .form-element[data-value-type="integer"] .input > input:focus { box-shadow: none; border: 0; border-radius: 0; }
+						.ui div .project-filters.form > div > input:checked + label + div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
+						.ui div .project-filters.form > div > input:checked + label + div .results > p {  }
+						.ui div .project-filters.form > div > input:checked + label + div .results ul.keywords > li > ul > li.clicked { display: none; }
 						
-						.ui nav.left li.project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); width: 40vw; max-width: 750px; }
-						.ui nav.left li.project-filters.form > div > div .results > p { display: none; }
-						
-						.ui nav.left li.project-filters.form > div > div > .form-element > .date { display: flex; white-space: normal; flex-wrap: wrap; align-content: flex-start; }
-						.ui nav.left li.project-filters.form > div > div > .form-element > .date > input { display: inline-block; box-shadow: none; display: inline-block; font-size: 14px; height: 40px; width: calc(100% - 75px); margin: 0 0 5px 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
-						.ui nav.left li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) { order: 2;  }
-						.ui nav.left li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) { order: 4;  }
-						.ui nav.left li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label { order: 1; } 
-						.ui nav.left li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label,
-						.ui nav.left li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { margin-left: 0px; width: 75px; height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
-						.ui nav.left li.project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { order: 3;  } 
+						.ui div .project-filters.form > div > input:checked + label + div .form-element.list .input > .active-input + input[id^=list-toggle] + label { display: inline-block; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element.list .input > .set-input { display: none; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element.list .input > input.list + label { color: rgba(0, 0, 0, 0.6);  padding: 0 10px 0 40px; margin: 0 10px 0 0; line-height: 40px;  cursor: pointer; background: url("/CMS/css/images/icons/down.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6);}
+						.ui div .project-filters.form > div > input:checked + label + div .form-element.list .input > input.list:checked + label {  background-image: url("/CMS/css/images/icons/up.svg"); }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element.list .results ul.keywords li.info { display: none; }
+						.ui div .project-filters.form > div > input:checked + label + div .form-element.list .results ul.keywords > li > ul > li.clicked { cursor: not-allowed; opacity: 0.3; }
+												
+						.ui div .project-filters.form > div > input:checked + label + div .date { display: flex; white-space: normal; flex-wrap: wrap; align-content: flex-start; }
+						.ui div .project-filters.form > div > input:checked + label + div .date > input { display: inline-block; box-shadow: none; display: inline-block; font-size: 14px; height: 40px; width: auto; margin: 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
+						.ui div .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(1) { order: 2;  }
+						.ui div .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(2) { order: 4;  }
+						.ui div .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(1) + label { order: 1; margin-left: 0px; } 
+						.ui div .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(1) + label,
+						.ui div .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(2) + label { height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
+						.ui div .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(2) + label { order: 3;  } 
+						.ui div .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(3) { display: none;  } 
+						.ui div .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(3) + label { order: 5; position: relative; height: 40px; width: 40px; background-color: #0096e4; cursor: pointer; text-align: center; } 
+						.ui div .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(3) + label > span.icon { color: #fff; height: 20px; margin-top: 10px;} 
+						.ui div .project-filters.form > div > input:checked + label + div .date > input:nth-of-type(3) + label > span.icon > svg { height: 100%; } 
+	
+						.ui div.top .project-filters.form { height: 100px; }
+						.ui div.top .project-filters.form > div { position: absolute; width: 100%; box-sizing: border-box; display: flex; flex-direction: row; }
+						.ui div.top .project-filters.form > div > div { width: 100%; box-sizing: border-box; display: flex; flex-direction: row; }
+						.ui div.top .project-filters.form > div > div .form-element { flex: 1; padding: 10px; height: auto; margin: 0 10px 0 0; }
+						.ui div.top .project-filters.form > div > div .form-element:first-child { margin-top: 0px; }
+						.ui div.top .project-filters.form > div > div .form-element .input { display: flex; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
+						.ui div.top .project-filters.form > div > div .form-element .input > .active-input + label { display: none; }
+						.ui div.top .project-filters.form > div > div .form-element .input > .active-input + input[id^=list-toggle] + label { display: none; }
+						.ui div.top .project-filters.form > div > div .form-element .input.button { justify-content: right; }
+						.ui div.top .project-filters.form > div > div .form-element .input.button > button { white-space: nowrap; border: 0; font-size: 12px;  cursor: pointer; padding: 4px 8px; font-family: var(--font-mono); background-color: rgba(255,255,255,0.9); }
+						.ui div.top .project-filters.form > div > div .form-element .input > .set-input { order: 2; height: 40px; margin: 0 10px 0 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
+						.ui div.top .project-filters.form > div > div .form-element .input > .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
+						.ui div.top .project-filters.form > div > div .form-element .input > .active-input { order: 3; background: none; padding: 0; margin: 0; display: inline-block; height: auto; }
+						.ui div.top .project-filters.form > div > div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
+						.ui div.top .project-filters.form > div > div .form-element .input > .active-input > div span:first-child { width: auto; color: #333; font-size: 14px; padding: 0 4px; }
+						.ui div.top .project-filters.form > div > div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #444; padding: 0 6px; border: 0;  }
+						.ui div.top .project-filters.form > div > div .form-element .input > .active-input > div span.icon svg { height: 11px; }
+						.ui div.top .project-filters.form > div > div .form-element .input > input { display: none; }
+						.ui div.top .project-filters.form > div > div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; height: 23px; cursor: pointer; white-space: nowrap; }
+						.ui div.top .project-filters.form > div > div .form-element .input > input + label > span { display: inline-block; font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
+						.ui div.top .project-filters.form > div > div .form-element .input > input:not(:checked) + label > span:first-child {  background-color: #0096e4; color: #fff;  }
+						.ui div.top .project-filters.form > div > div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
+									
+						.ui div.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
+						.ui div.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
+						.ui div.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
+						.ui div.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
+						.ui div.top .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
+									
+						.ui div.top .project-filters.form > div > div .form-element[data-value-type="integer"] .input { height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
+						.ui div.top .project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui div.top .project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
+									
+						.ui div.top .project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); }
+						.ui div.top .project-filters.form > div > div .results > p { display: none; }
+									
+						.ui div.top .project-filters.form > div > div > .form-element > .date { display: flex; white-space: normal; flex-wrap: nowrap; align-content: flex-start; }
+						.ui div.top .project-filters.form > div > div > .form-element > .date > input { display: inline-block; box-shadow: none; font-size: 14px; height: 40px; max-width: 200px; margin: 0 0 5px 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
+						.ui div.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) { order: 2;  }
+						.ui div.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) { order: 4;  }
+						.ui div.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label { order: 1; } 
+						.ui div.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label,
+						.ui div.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { margin-left: 5px; width: 75px; height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
+						.ui div.top .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { order: 3;  } 
+									 
+						.ui div.left .project-filters.form > div > div { position: relative; width: 100%; box-sizing: border-box; flex-direction: column; background-color: #a3ce6c;}
+						.ui div.left .project-filters.form > div > div .form-element { flex: 0; background-color: rgba(255, 255, 255, 0.1); padding: 5px; height: auto; margin: 0 5px 10px 5px; }
+						.ui div.left .project-filters.form > div > div .form-element:first-child { margin-top: 10px; }
+						.ui div.left .project-filters.form > div > div .form-element .input { display: block; background: none; padding: 0; margin: 0; height: auto; white-space: normal; }
+						.ui div.left .project-filters.form > div > div .form-element .input > .active-input + label { display: none; }
+						.ui div.left .project-filters.form > div > div .form-element .input > .active-input + input[id^=list-toggle] + label { display: none; }
+						.ui div.left .project-filters.form > div > div .form-element .input.button { text-align: right; }
+						.ui div.left .project-filters.form > div > div .form-element .input.button > button { white-space: nowrap; border: 0; font-size: 12px;  cursor: pointer; padding: 4px 8px; font-family: var(--font-mono); background-color: rgba(255,255,255,0.9); }
+						.ui div.left .project-filters.form > div > div .form-element .input > .set-input { height: 40px; margin: 0; padding: 0 0 0 40px; background: url("/CMS/css/images/icons/search.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap; }
+						.ui div.left .project-filters.form > div > div .form-element .input > .set-input input { width: 100%; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; }
+						.ui div.left .project-filters.form > div > div .form-element .input > .active-input { background: none; padding: 0; margin: 0; display: inline; }
+						.ui div.left .project-filters.form > div > div .form-element .input > .active-input > div { display: inline-block; min-width: 30px; width: auto; max-width: 100%; overflow: hidden; box-sizing: border-box; white-space: nowrap; margin: 0 5px 5px 0px; background-color: #eee; padding: 0 0 0 5px; height: 30px; font-size: 16px; line-height: 30px; vertical-align: middle;}
+						.ui div.left .project-filters.form > div > div .form-element .input > .active-input > div span:first-child { display: inline-block; width: auto; max-width: calc(100% - 30px); color: #333; font-size: 14px; padding: 0 4px; }
+						.ui div.left .project-filters.form > div > div .form-element .input > .active-input > div span.icon { cursor: pointer; background-color: #ddd; color: #444; padding: 0 6px; border: 0;  }
+						.ui div.left .project-filters.form > div > div .form-element .input > .active-input > div span.icon svg { height: 11px; }
+						.ui div.left .project-filters.form > div > div .form-element .input > input { display: none; }
+						.ui div.left .project-filters.form > div > div .form-element .input > .active-input + label + input + label { display: inline-block; border: 2px solid #0096e4; order: 4; padding: 0; cursor: pointer; white-space: nowrap; }
+						.ui div.left .project-filters.form > div > div .form-element .input > input + label > span { display: inline-block; font-weight: bold; font-size: 10px; padding: 5px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;   }
+						.ui div.left .project-filters.form > div > div .form-element .input > input:not(:checked) + label > span:first-child {  background-color: #0096e4; color: #fff;  }
+						.ui div.left .project-filters.form > div > div .form-element .input > input:checked + label > span:last-child {  background-color: #0096e4; color: #fff; }
+									 
+						.ui div.left .project-filters.form > div > div .form-element[data-value-type="boolean"] .input { display: flex; height: 40px; padding: 0px; box-sizing: border-box; white-space: nowrap; }
+						.ui div.left .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label { order: 2; font-family: var(--font-mono); display: inline-block; font-size: 14px; height: 40px; border: 0; margin: 0; padding: 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6); }
+						.ui div.left .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input + label {  cursor: pointer; height: 40px; width: 50px; margin: 0; border-left: 1px solid rgba(0, 0, 0, 0.1); line-height: 20px; text-align: center; font-weight: bold; font-size: 12px; color: #333; box-sizing: border-box; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6); transition: background-color 100ms ease;  }
+						.ui div.left .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > label:nth-of-type(3) { color: rgba(0, 0, 0, 0.6);  order: 1; }
+						.ui div.left .project-filters.form > div > div .form-element[data-value-type="boolean"] .input > input:checked + label { background-color: #0096e4; color: #fff;  }
+									 
+						.ui div.left .project-filters.form > div > div .form-element[data-value-type="integer"] .input { display: flex; height: 40px; margin: 0 10px 0 0; white-space: nowrap; }
+						.ui div.left .project-filters.form > div > div .form-element[data-value-type="integer"] .input > label { order: 1; display: inline-block; font-size: 14px; height: 40px; border: 0; line-height: 40px; color: rgba(0, 0, 0, 0.6); padding: 0 10px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.6);  }
+						.ui div.left .project-filters.form > div > div .form-element[data-value-type="integer"] .input > input { order: 2; width: 60px; box-shadow: none; display: inline-block; padding: 0px; background-color: transparent; font-size: 14px; height: 40px; border: 0; padding: 10px; background-color: rgba(255, 255, 255, 0.6);  }
+									 
+						.ui div.left .project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); width: 40vw; max-width: 750px; }
+						.ui div.left .project-filters.form > div > div .results { margin-top: 0px; background-color: rgba(255, 255, 255, 0.6); width: 40vw; max-width: 750px; }
+						.ui div.left .project-filters.form > div > div .results > p { display: none; }
+									 
+						.ui div.left .project-filters.form > div > div > .form-element > .date { display: flex; white-space: normal; flex-wrap: wrap; align-content: flex-start; }
+						.ui div.left .project-filters.form > div > div > .form-element > .date > input { display: inline-block; box-shadow: none; display: inline-block; font-size: 14px; height: 40px; width: calc(100% - 75px); margin: 0 0 5px 0; padding: 0 0 0 40px; border: 0; background: url("/CMS/css/images/icons/date.svg") no-repeat scroll 10px center / 20px 20px rgba(255, 255, 255, 0.6); white-space: nowrap;  }
+						.ui div.left .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) { order: 2;  }
+						.ui div.left .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) { order: 4;  }
+						.ui div.left .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label { order: 1; } 
+						.ui div.left .project-filters.form > div > div > .form-element > .date > input:nth-of-type(1) + label,
+						.ui div.left .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { margin-left: 0px; width: 75px; height: 40px; font-weight: bold; letter-spacing: 2px; font-size: 12px; padding: 0 0 0 10px; line-height: 40px; box-sizing: border-box; color: #333; text-transform: uppercase; background-color: rgba(255, 255, 255, 0.6);  } 
+						.ui div.left .project-filters.form > div > div > .form-element > .date > input:nth-of-type(2) + label { order: 3;  } 
 					}
 					
 					';
@@ -758,8 +1105,7 @@ class ui_filter extends base_module {
 	
 	public static function js() {
 	
-		$return = "
-		SCRIPTER.dynamic('project-filter', function(elm_scripter) {
+		$return = "SCRIPTER.dynamic('project-filter', function(elm_scripter) {
 		
 			var elm_filter = elm_scripter.find('[id=y\\\:ui_filter\\\:filter-0]');
 			var elm_ui = elm_scripter.closest('.ui');
@@ -771,16 +1117,37 @@ class ui_filter extends base_module {
 			elm_body.attr('data-project_id', elm_scripter.attr('data-project_id'));
 		
 			// DISPLAY
-			var func_display_data = function() {
+			var func_display_data = function(new_filter_value) {
 
-				var elm_handle_dynamic_project_data = elm_ui.find('[id=y\\\:ui\\\:handle_dynamic_project_data-0]');
-				elm_handle_dynamic_project_data.data({target: elm_handle_dynamic_project_data, method: 'handle_dynamic_project_data', module: 'ui'});
-				elm_handle_dynamic_project_data.quickCommand(elm_handle_dynamic_project_data);
+				if (elm_filter.hasClass('beta')) {
+					
+					let filter_value = elm_scripter.attr('data-filter_value');
+
+					if (!new_filter_value) {
+
+						// empty filter, restart project
+						const elm_run_project_button = elm_scripter.find('.tools [id^=y\\\:ui\\\:run_project-]');
+						elm_run_project_button.trigger('click');
+					
+					} else if (new_filter_value && new_filter_value != filter_value) {
+									
+						// new filter, rerun data
+						elm_scripter.trigger('filter-update');
+					}
+					
+					elm_scripter.attr('data-filter_value', new_filter_value);
 				
-				var elm_object_container = elm_ui.find('.project-dynamic-data > .data > .object');
-				elm_object_container.empty();
+				} else {
 				
-				elm_ui.find('.project-dynamic-nav, .tools').attr('data-object_active', false);
+					var elm_handle_dynamic_project_data = elm_ui.find('[id=y\\\:ui\\\:handle_dynamic_project_data-0]');
+					elm_handle_dynamic_project_data.data({target: elm_handle_dynamic_project_data, method: 'handle_dynamic_project_data', module: 'ui'});
+					elm_handle_dynamic_project_data.quickCommand(elm_handle_dynamic_project_data);
+					
+					var elm_object_container = elm_ui.find('.project-dynamic-data > .data > .object');
+					elm_object_container.empty();
+					
+					elm_ui.find('.project-dynamic-nav, .tools').attr('data-object_active', false);
+				}				
 			}
 			
 			// SEARCH & FILTER
@@ -869,7 +1236,8 @@ class ui_filter extends base_module {
 					return false;
 				}
 
-				var value = {arr_filter: {}, date_range: {}};
+				let has_value = false;
+				let value = {arr_filter: {}, date_range: {}};
 
 				elm_filter.find('.form-element').each(function() {
 
@@ -888,11 +1256,19 @@ class ui_filter extends base_module {
 												
 					if (elm_form_value_type == 'boolean') {
 						
-						value.arr_filter[filter_id] = [{boolean_value: elm_form.find('input:checked').val()}];									
+						value.arr_filter[filter_id] = [{boolean_value: elm_form.find('input:checked').val()}];
+						
+						if (elm_form.find('input:checked').val()) {
+							has_value = true;
+						}								
 					
 					} else if (elm_form_value_type == 'integer') {
 						
-						value.arr_filter[filter_id] = [{integer: elm_form.find('input').val()}];									
+						value.arr_filter[filter_id] = [{integer: elm_form.find('input').val()}];	
+						
+						if (elm_form.find('input').val()) {
+							has_value = true;
+						}													
 					
 					} else {
 					
@@ -906,6 +1282,8 @@ class ui_filter extends base_module {
 							
 								value.arr_filter[filter_key].push({object_id: elm_filter_value.data('object_id'), type_id: elm_filter_value.data('type_id')});
 								
+								has_value = true;
+								
 							} else {  // strings
 								
 								// get rid of remove icon
@@ -913,6 +1291,10 @@ class ui_filter extends base_module {
 								elm_filter_value_string.find('.icon').remove();
 								elm_filter_value_string = elm_filter_value_string.text();
 								value.arr_filter[filter_key].push({string: elm_filter_value_string});
+								
+								if (elm_filter_value_string.length) {
+									has_value = true;
+								}
 							}
 						});
 					}
@@ -922,10 +1304,11 @@ class ui_filter extends base_module {
 				
 				if (arr_dates.has_input) {					
 					value.date_range = arr_dates;
+					has_value = true;
 				}
 
 				elm_filter.data({value: value}).quickCommand(function() {
-					func_display_data();
+					func_display_data((has_value ? JSON.stringify(value) : false));
 				});
 				
 				// Close filter
@@ -980,16 +1363,16 @@ class ui_filter extends base_module {
 				elm_project_filters.find('.results').addClass('hide');
 			}
 			
-			var elms_search_input = elm_filter.find('[id^=y\\\:ui_filter\\\:search-]');			
+			const elms_search_input = elm_filter.find('[id^=y\\\:ui_filter\\\:search-]');			
 			
 			elms_search_input.on('keypress focus keyup', function(e) {
 
-				var elm_search_input = $(this);
-				var in_form = elm_search_input.closest('.form').length;
-				var elm_active_filter = elm_search_input.closest('.input').find('.active-input');
-				var elm_results = elm_search_input.closest('.form-element').find('.results');
-				var filter_id = elm_active_filter.closest('.form-element').attr('data-filter_id');
-				var filter_type_id = elm_search_input.attr('data-filter_type_id');
+				const elm_search_input = $(this);
+				const in_form = elm_search_input.closest('.form').length;
+				const elm_active_filter = elm_search_input.closest('.input').find('.active-input');
+				const elm_results = elm_search_input.closest('.form-element').find('.results');
+				const filter_id = elm_active_filter.closest('.form-element').attr('data-filter_id');
+				const filter_type_id = elm_search_input.attr('data-filter_type_id');
 			
 				FEEDBACK.stop(elm_search_input);
 					
@@ -1007,34 +1390,25 @@ class ui_filter extends base_module {
 						func_filter('elm');
 					}
 				} else if (e.type == 'keyup' || e.type == 'focus') {
-			
-					COMMANDS.setData(elm_search_input[0], {filter_type_id: filter_type_id, filter_id: filter_id}, true);
+				
+					let arr_active_object_ids = [];
+					elm_active_filter_keywords = elm_active_filter.find('.keyword').each(function() {
+						arr_active_object_ids.push($(this).data('object_id'));
+					});
+
+					COMMANDS.setData(elm_search_input[0], {filter_type_id: filter_type_id, filter_id: filter_id, arr_active_object_ids: arr_active_object_ids}, true);
 					
 					COMMANDS.quickCommand(elm_search_input[0], elm_results, {'html': 'replace'});
 
-					/*localStorage[public_user_interface_id+'_pui_search_value_'+filter_id] = elm_search_input.val();*/
 				}
 			});
 			
-			/*if (elms_search_input.length == 1) {
-			
-				var elm_active_filter = elms_search_input.closest('.input').find('.active-input');
-				var filter_id = elm_active_filter.closest('.form-element').attr('data-filter_id');
-				var local_value = localStorage[public_user_interface_id+'_pui_search_value_'+filter_id];
-				
-				if (local_value) {
-				
-					elms_search_input.val(local_value);
-					func_search(elms_search_input, false);
-				}
-			}*/	
-			
 			elm_scripter.on('change', '.select-types > ul input', function() {
 				
-				var elm_select_type = $(this).closest('[id=y\\\:ui_filter\\\:select_types-0]');
-				var arr_type_ids = [];
-				var elm_types_amount = elm_select_type.find('.types-amount');
-				var num_selected_types = 0;
+				const elm_select_type = $(this).closest('[id=y\\\:ui_filter\\\:select_types-0]');
+				const arr_type_ids = [];
+				const elm_types_amount = elm_select_type.find('.types-amount');
+				let num_selected_types = 0;
 				
 				elm_types_amount.empty();
 				
@@ -1051,7 +1425,7 @@ class ui_filter extends base_module {
 				COMMANDS.setData(elm_select_type[0], {type_ids: arr_type_ids}, true);
 				elm_select_type.quickCommand(function() {
 
-					func_display_data();
+					func_display_data(false);
 				});
 				
 			}).on('click', '.results > p.run-quicksearch', function() {
@@ -1065,20 +1439,30 @@ class ui_filter extends base_module {
 
 				$(this).quickCommand(function() {
 
-					func_display_data();
+					func_display_data(false);
 				});
 				
 			}).on('click', '.form-element .active-input div span', function() {
 
-				var elm_active_keyword = $(this);
-				var elm_active_filter = elm_active_keyword.closest('.active-input');
-				var elm_operator_toggle = elm_active_keyword.closest('.form-element').find('input.operator').next('label');
+				// Remove keyword
+
+				const elm_active_keyword = $(this);
+				const active_keyword_object_id = $(this).parent().data('object_id');
+				const elm_form = elm_active_keyword.closest('.form-element')
+				const elm_results = elm_form.find('.results');
+				const elm_active_filter = elm_active_keyword.closest('.active-input');
+				const elm_operator_toggle = elm_form.find('input.operator').next('label');
 				
 				if (!elm_active_keyword.hasClass('icon') && elm_active_keyword.parent().hasClass('string')) {
-					var string_value = elm_active_keyword.html();
-					var elm_search_input = elm_active_filter.parent().find('[id^=y\\\:ui_filter\\\:search-]');
+					const string_value = elm_active_keyword.html();
+					const elm_search_input = elm_active_filter.parent().find('[id^=y\\\:ui_filter\\\:search-]');
 					elm_search_input.val(string_value);
 					elm_search_input.focus();
+				}
+				
+				elm_active_keyword_in_results = elm_results.find('[data-object_id='+active_keyword_object_id+']');
+				if (elm_active_keyword_in_results.length) {
+					elm_active_keyword_in_results.removeClass('clicked');
 				}
 				
 				if (elm_active_keyword.hasClass('icon') || elm_active_keyword.parent().hasClass('string')) {
@@ -1095,7 +1479,37 @@ class ui_filter extends base_module {
 					func_filter('elm');
 				}
 				
-			}).on('click', '.input > input', function() {
+			}).on('click', '.input > input[id^=list-toggle]', function() {
+			
+				const input = $(this);
+				const elm_form = input.closest('.form-element')
+				const elm_results = elm_form.find('.results');
+				const elm_search_input = elm_form.find('.set-input > input');
+				const filter_id = elm_form.attr('data-filter_id');
+				const filter_type_id = elm_search_input.attr('data-filter_type_id');
+				const elm_active_filter = elm_search_input.closest('.input').find('.active-input');
+								
+				if (input.prop('checked')) {
+					
+					if (!elm_results.children().length) {
+					
+						let arr_active_object_ids = [];
+						elm_active_filter_keywords = elm_active_filter.find('.keyword').each(function() {
+							arr_active_object_ids.push($(this).data('object_id'));
+						});
+
+						COMMANDS.setData(elm_search_input[0], {filter_type_id: filter_type_id, filter_id: filter_id, arr_active_object_ids: arr_active_object_ids}, true);	
+						COMMANDS.quickCommand(elm_search_input[0], elm_results, {'html': 'replace'});				
+					} 
+				
+					elm_results.removeClass('hide');
+					
+				} else {
+				
+					elm_results.addClass('hide');
+				}
+				
+			}).on('click', '.input > input[id^=operator-toggle]', function() {
 			
 				var input = $(this);
 			
@@ -1117,21 +1531,39 @@ class ui_filter extends base_module {
 				
 			}).on('click', '.input > button.apply', function() {
 
+				const elm_filters = $(this).closest('.project-filters');
+				elm_filters.find('.form-element .results').each(function() {
+					$(this).addClass('hide');
+				});				
+
 				func_filter('apply_button');
 				
 			}).on('click', '.keywords .keyword', function() {
+				
+				const elm_form = $(this).closest('.form-element');
+				const elm_active_filter = elm_form.find('.active-input');
+				const elm_operator_toggle = $(this).closest('.form-element').find('input.operator').next('label');
+				const elm_results = $(this).closest('.form-element').find('.results');	
+				let elm_form_list = false;
+				
+				if (elm_form.hasClass('list')) {
+					elm_form_list = true;
+				}
+				
+				if ($(this).hasClass('clicked')) {
+					return;
+				}
+				
+				$(this).addClass('clicked');
 			
-				var elm_keyword = $('<div></div>').html('<span>'+$(this).text()+'</span>').addClass($(this).attr('class')).attr('data-object_id', $(this).data('object_id')).attr('data-type_id', $(this).data('type_id'));
-				var elm_remove = $('<span></span>').addClass('icon').appendTo(elm_keyword);
+				const elm_keyword = $('<div></div>').html('<span>'+$(this).text()+'</span>').addClass($(this).attr('class')).attr('data-object_id', $(this).data('object_id')).attr('data-type_id', $(this).data('type_id'));
+				const elm_remove = $('<span></span>').addClass('icon').appendTo(elm_keyword);
 				
 				ASSETS.getIcons(elm_keyword, ['close'], function(data) {
 						
 					elm_remove[0].innerHTML = data.close;
 				});
 				
-				var elm_active_filter = $(this).closest('.form-element').find('.active-input');
-				var elm_operator_toggle = $(this).closest('.form-element').find('input.operator').next('label');
-				var elm_results = $(this).closest('.form-element').find('.results');	
 								
 				elm_keyword.appendTo(elm_active_filter);
 				
@@ -1140,9 +1572,12 @@ class ui_filter extends base_module {
 					elm_operator_toggle.removeClass('hide');
 				}
 				
-				elm_results.addClass('hide');
+				if (!elm_form_list) {
 				
-				elms_search_input.val('');
+					//elm_results.addClass('hide');
+					
+					elms_search_input.val('');
+				}
 				
 				func_filter('elm');
 				
@@ -1231,6 +1666,8 @@ class ui_filter extends base_module {
 			});
 		});	
 		
+		
+		SCRIPTER.dynamic('[data-method=run_project]', 'project-filter');
 		SCRIPTER.dynamic('[data-method=set_project]', 'project-filter');
 		";
 		
@@ -1263,7 +1700,7 @@ class ui_filter extends base_module {
 		}
 		
 		if ($method == "filter") {
-			
+		
 			SiteEndEnvironment::setFeedback('arr_public_user_interface_min_max', [$value['min'], $value['max']], true);
 	
 			$url_filter = false;
@@ -1333,7 +1770,7 @@ class ui_filter extends base_module {
 			}
 	
 			if ($url_filter) {
-				
+		
 				ui::setPublicUserInterfaceModuleVars(['set' => 'filter', 'id' => $url_filter]);
 			
 			} else {
@@ -1344,12 +1781,13 @@ class ui_filter extends base_module {
 		} 
 		
 		if ($method == "search") {
-
+			
 			if (is_array($value)) {
 				
 				$search_name = $value['value_element'];
 				$filter_type_id = $value['filter_type_id'];
 				$filter_id = $value['filter_id'];
+				$arr_active_object_ids = $value['arr_active_object_ids'];
 			}
 
 			$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
@@ -1359,6 +1797,8 @@ class ui_filter extends base_module {
 			$arr_public_interface_settings = cms_nodegoat_public_interfaces::getPublicInterfaceSettings($public_user_interface_id);
 			$arr_selected_types = SiteStartEnvironment::getFeedback('selected_type_ids');
 
+			$version = ($arr_public_interface_settings['beta'] ? 'beta' : 'legacy');
+			
 			if ($arr_selected_types) {
 				$arr_public_interface_project_types = array_intersect($arr_public_interface_project_types, $arr_selected_types);
 			}
@@ -1376,14 +1816,22 @@ class ui_filter extends base_module {
 				}
 	
 				if ($search_name) {
-
-					$arr_objects = ui_data::getPublicInterfaceObjects($arr_public_interface_project_types, ['search' => $search_name], true, 15, false, true, ['override_project_filter' => true]);
-
+					
+					if ($version == 'legacy') {
+						$arr_objects = ui_data::getPublicInterfaceObjects($arr_public_interface_project_types, ['search' => $search_name], true, 15, false, true, ['override_project_filter' => true]);
+					} else {
+						$arr_objects = ui_view_objects::getPublicInterfaceObjects($arr_public_interface_project_types, ['search' => $search_name], true, 15, false, true, ['override_project_filter' => true]);
+					}
+					
 					$elm_objects = '';
 
 					foreach ($arr_objects as $object_id => $arr_object) {
 						
-						$elm_objects .= ui_data::createViewTypeObjectThumbnail($arr_object); 
+						if ($version == 'legacy') {
+							$elm_objects .= ui_data::createViewTypeObjectThumbnail($arr_object); 
+						} else {
+							$elm_objects .= ui_view_object::createViewTypeObjectThumbnail($arr_object); 
+						}
 					}
 					
 					$elm_objects .=  '<p class="run-quicksearch"><span class="icon">'.getIcon('search').'</span><span>'.($arr_public_interface_settings['labels']['search_start'] ? strEscapeHTML($arr_public_interface_settings['labels']['search_start']): 'Click here to search through ').Labels::parseTextVariables($project_name).strEscapeHTML($arr_public_interface_settings['labels']['search_end']).'</span></p>';					
@@ -1392,7 +1840,11 @@ class ui_filter extends base_module {
 
 			if (($filter_id && $filter_type_id) || ($filter_id == 0 && $filter_type_id == 0 && !$arr_public_interface_settings['projects'][$project_id]['use_filter_form'])) {
 				
-				$keywords = ui_data::createViewKeywords($filter_type_id, $search_name, $filter_id);
+				if ($version == 'legacy') {
+					$keywords = ui_data::createViewKeywords($filter_type_id, $search_name, $filter_id, $arr_active_object_ids);
+				} else {
+					$keywords = ui_view_object::createViewKeywords($filter_type_id, $search_name, $filter_id, $arr_active_object_ids);
+				}
 			}
 
 			$this->html = '<div class="results">'.$keywords.$elm_objects.'</div>';
@@ -1622,6 +2074,8 @@ class ui_filter extends base_module {
 
 	public static function createFilterArray($arr_filter) {
 
+		// set from getPublicUserInterfaceModuleVars in ui module
+		// filter can be based on a predifned object_filter, search strings, or object_ids. In the last case createReferencedObjectFilter is called to construct a filter
 		$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
 		$project_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_active_custom_project_id');
 
@@ -1657,13 +2111,14 @@ class ui_filter extends base_module {
 	
 	public static function createReferencedObjectFilter($type_id, $arr_type_object_ids, $crossreferenced = false, $steps = 2) {
 
+		// set from createFilterArray when only object IDs are supplied and the filter needs to be constructed first, following the model
 		$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
 		$project_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_active_custom_project_id');
 		
 		$arr_public_interface_settings = cms_nodegoat_public_interfaces::getPublicInterfaceSettings($public_user_interface_id);
 		$arr_public_interface_project_types = cms_nodegoat_public_interfaces::getPublicInterfaceTypeIDs($public_user_interface_id);
 		$arr_public_interface_project_filter_types = cms_nodegoat_public_interfaces::getPublicInterfaceTypeIDs($public_user_interface_id, false, true);
-				
+			
 		$arr_type_set = StoreType::getTypeSet($type_id);
 		$arr_object_description_ref_type_ids = arrValuesRecursive('object_description_ref_type_id', $arr_type_set['object_descriptions']);
 		$arr_object_sub_description_ref_type_ids = arrValuesRecursive('object_sub_description_ref_type_id', $arr_type_set['object_sub_details']);
@@ -1687,8 +2142,9 @@ class ui_filter extends base_module {
 		foreach ($arr_type_object_ids as $ref_type_id => $arr_object_ids) {
 
 			if (!$crossreferenced || ($crossreferenced && !in_array($ref_type_id, $arr_object_description_ref_type_ids) && !in_array($ref_type_id, $arr_object_sub_description_ref_type_ids))) {
-				
-				$trace = new TraceTypesNetwork($arr_types, true, true);
+	
+				// only when no relations are found between type id and ref_type_id, look for second order relations
+				$trace = new TraceTypesNetwork($arr_types, false, false);
 				$trace->run($type_id, $type_id, $steps, TraceTypesNetwork::RUN_MODE_BOTH, ['shortest' => true]);
 
 				$arr_type_network_paths = $trace->getTypeNetworkPaths(true);
@@ -1700,8 +2156,7 @@ class ui_filter extends base_module {
 				$collect->setFilter([$type_id => []]);
 				$collect->init(false);
 				$arr_collect_info = $collect->getResultInfo();
-				
-
+				// check if filters will be returned or not?
 				foreach ($arr_collect_info['filters'][0] as $arr_collect_info_filter) {
 
 					if ($arr_collect_info_filter['object_filter']) {
@@ -1723,7 +2178,8 @@ class ui_filter extends base_module {
 	public static function isFilterActive($return_total_filtered = false, $data_display_mode = false) {
 		
 		// SET BY FILTER ITSELF!!!
-		
+		// Legacy only
+	
 		$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
 		$public_user_interface_active_custom_project_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_active_custom_project_id');
 		$arr_public_interface_project_types = cms_nodegoat_public_interfaces::getPublicInterfaceTypeIDs($public_user_interface_id, $public_user_interface_active_custom_project_id, false);

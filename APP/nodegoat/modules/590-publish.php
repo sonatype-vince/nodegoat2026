@@ -82,7 +82,7 @@ class publish extends base_module {
 				} else {
 					
 					$str_path_internal = str2Label(arr2String($this->arr_query['download'], '/'), '/.');
-					$str_path_internal = str_replace('..', '', $str_path_internal);
+					$str_path_internal = FileStore::cleanPath($str_path_internal);
 					
 					$publish->readProjectFile($arr_instance_project, $str_path_internal);
 				}

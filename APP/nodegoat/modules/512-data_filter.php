@@ -153,17 +153,17 @@ class data_filter extends base_module {
 			if ($is_referenced) {
 				
 				if ($filter_name) {
-					$filter_name = '<span><span class="icon" data-category="direction">'.getIcon('updown-up').'</span><span>'.$filter_name.'</span></span><span>'.Labels::parseTextVariables($arr_source_type_set['type']['name']).'</span>';
+					$filter_name = '<span><span class="icon" data-category="direction">'.getIcon('updown-up').'</span><span>'.$filter_name.'</span></span><span>'.strEscapeHTML(Labels::parseTextVariables($arr_source_type_set['type']['name'])).'</span>';
 				} else {
-					$filter_name = '<span><span class="icon" data-category="direction">'.getIcon('updown-up').'</span><span>'.Labels::parseTextVariables($arr_source_type_set['type']['name']).'</span></span>';
+					$filter_name = '<span><span class="icon" data-category="direction">'.getIcon('updown-up').'</span><span>'.strEscapeHTML(Labels::parseTextVariables($arr_source_type_set['type']['name'])).'</span></span>';
 				}
 			} else {
 
-				$filter_name = '<span><span class="icon" data-category="direction">'.getIcon('updown-down').'</span><span>'.$filter_name.'</span></span><span>'.Labels::parseTextVariables($arr_type_set['type']['name']).'</span>';
+				$filter_name = '<span><span class="icon" data-category="direction">'.getIcon('updown-down').'</span><span>'.$filter_name.'</span></span><span>'.strEscapeHTML(Labels::parseTextVariables($arr_type_set['type']['name'])).'</span>';
 			}
 		} else {
 			
-			$filter_name = '<span><span class="source"></span>'.Labels::parseTextVariables($arr_type_set['type']['name']).'</span>';
+			$filter_name = '<span><span class="source"></span>'.strEscapeHTML(Labels::parseTextVariables($arr_type_set['type']['name'])).'</span>';
 		}
 		
 		$return_link = '<li'.($arr_source['filter_code'] ? ' data-parent_id="'.$arr_source['filter_code'].'"' : '').'><a href="#'.$filter_code.'">'.$filter_name.'</a><span><input type="button" class="data del" value="del" /></span></li>';
@@ -210,7 +210,7 @@ class data_filter extends base_module {
 				
 				<div class="tabs">
 					<ul>
-						<li><a href="#">'.Labels::parseTextVariables($arr_type_set['type']['name']).'</a></li>
+						<li><a href="#">'.strEscapeHTML(Labels::parseTextVariables($arr_type_set['type']['name'])).'</a></li>
 						<li><a href="#"><span><span class="icon" data-category="direction">'.getIcon('updown-up').'</span><span>'.getLabel('lbl_referenced').'</span></span></a></li>
 					</ul>
 					
@@ -350,7 +350,7 @@ class data_filter extends base_module {
 									$arr_reference_type_set = StoreType::getTypeSet($ref_type_id);
 									$arr_select_reference_sources = [];
 									
-									$arr_html_type_referenced_tabs['links'][] = '<li><a href="#">'.Labels::parseTextVariables($arr_reference_type_set['type']['name']).'</a></li>';
+									$arr_html_type_referenced_tabs['links'][] = '<li><a href="#">'.strEscapeHTML(Labels::parseTextVariables($arr_reference_type_set['type']['name'])).'</a></li>';
 									
 									$return_content = '<div><div class="options">';
 								
@@ -756,7 +756,7 @@ class data_filter extends base_module {
 								if (!is_array($arr_object_sub_date['object_sub_date_chronology'])) {
 									$arr_object_sub_date['object_sub_date_chronology'] = json_decode($arr_object_sub_date['object_sub_date_chronology'], true);
 								}
-								$arr_object_sub_date['object_sub_date_chronology'] = value2JSON($arr_object_sub_date['object_sub_date_chronology'], JSON_PRETTY_PRINT);
+								$arr_object_sub_date['object_sub_date_chronology'] = value2JSON($arr_object_sub_date['object_sub_date_chronology'], JSON_DEFAULT_ENCODE | JSON_PRETTY_PRINT);
 							}
 														
 							$return .= '<li class="date-section">
@@ -1174,7 +1174,7 @@ class data_filter extends base_module {
 				unset($arr_options['transcension']);
 				
 				$str_class_module = EnucleateValueTypeModule::getClassName($arr_type_options['type']);
-				$arr_fields = $str_class_module::getValueFields();
+				$arr_fields = $str_class_module::getValueFields(EnucleateValueTypeModule::FIELD_MODE_FILTER);
 				
 				$return = '';
 				
@@ -1387,7 +1387,7 @@ class data_filter extends base_module {
 		$str_html_advanded = '<fieldset>
 			<ul>
 				<li><label>'.getLabel('lbl_form').'</label><div>'
-					.'<textarea name="plain" placeholder="'.getLabel('lbl_filter_advanced_input').'">'.($arr_type_filter ? value2JSON($arr_type_filter, JSON_PRETTY_PRINT) : '').'</textarea>'
+					.'<textarea name="plain" placeholder="'.getLabel('lbl_filter_advanced_input').'">'.($arr_type_filter ? value2JSON($arr_type_filter, JSON_DEFAULT_ENCODE | JSON_PRETTY_PRINT) : '').'</textarea>'
 				.'</div></li>
 			</ul>
 		</fieldset>';
@@ -2803,7 +2803,7 @@ class data_filter extends base_module {
 					
 					$arr_object_description = $arr_type_set['object_descriptions'][$object_description_id];
 					
-					if ($_SESSION['NODEGOAT_CLEARANCE'] < $arr_object_description['object_description_clearance_view'] || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, $object_description_id) || $arr_object_definition['object_definition_style'] == 'hide') {
+					if ($_SESSION['NODEGOAT_CLEARANCE'] < $arr_object_description['object_description_clearance_view'] || !custom_projects::checkAccessTypeConfiguration(StoreCustomProject::ACCESS_PURPOSE_VIEW, $arr_project['types'], $arr_type_set, $object_description_id) || $arr_object_definition['object_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 						continue;
 					}
 										
@@ -2859,8 +2859,19 @@ class data_filter extends base_module {
 				
 				$external->setLimit(20);
 				$external->setFilter(['name' => $value_search]);
-				$external->request();
-
+				
+				try {
+				
+					$external->request();
+				} catch (RealTroubleThrown $e) {
+				
+					if ($e->getTroubleSuppress() == LOG_SYSTEM) {
+						throw($e);
+					}
+					
+					message($e->getTroubleMessage(), 'ATTENTION', LOG_CLIENT, null, null, 10000, $e);
+				}
+				
 				try {
 					
 					$arr_results = $external->getResultValues();

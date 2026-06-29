@@ -216,7 +216,7 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 							if ($str_attribute == 'date_chronology') {
 								if ($arr_object_sub_value['object_sub_date_chronology']) {
 									$arr_object_sub_value['object_sub_date_chronology'] = FormatTypeObjects::formatToChronology($arr_object_sub_value['object_sub_date_chronology']);
-									$arr_object_sub_value['object_sub_date_chronology'] = value2JSON($arr_object_sub_value['object_sub_date_chronology'], JSON_PRETTY_PRINT);
+									$arr_object_sub_value['object_sub_date_chronology'] = value2JSON($arr_object_sub_value['object_sub_date_chronology'], JSON_DEFAULT_ENCODE | JSON_PRETTY_PRINT);
 								}
 								$s_cur_arr[$object_sub_id] = $arr_object_sub_value['object_sub_date_chronology'];
 								$this->addColumn('object_sub_details_date_chronology', $cur_target_type_id, $str_identifier_column, $arr_column_base, $arr_options);
@@ -258,6 +258,10 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 		
 		$arr_type_set = StoreType::getTypeSet($type_id);
 		
+		$has_multi = false;
+		$str_value_type = null;
+		$arr_value_type_settings = null;
+		
 		if ($type == 'object_description') {
 			
 			$key_ref_object_id = 'object_definition_ref_object_id';
@@ -270,6 +274,7 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 				$str_value_type = 'ref_object_id';
 			} else {
 				$str_value_type = $arr_object_description['object_description_value_type'];
+				$arr_value_type_settings = $arr_object_description['object_description_value_type_settings'];
 			}
 		} else {
 			
@@ -277,12 +282,12 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 			$key_value = 'object_sub_definition_value';
 			
 			$arr_object_sub_description = $arr_type_set['object_sub_details'][$arr_options['object_sub_details_id']]['object_sub_descriptions'][$arr_options['object_sub_description_id']];
-			$has_multi = false;
-			
+
 			if ($arr_object_sub_description['object_sub_description_ref_type_id'] && !$arr_object_sub_description['object_sub_description_is_dynamic']) {
 				$str_value_type = 'ref_object_id';
 			} else {
 				$str_value_type = $arr_object_sub_description['object_sub_description_value_type'];
+				$arr_value_type_settings = $arr_object_sub_description['object_sub_description_value_type_settings'];
 			}
 		}
 	
@@ -362,18 +367,24 @@ class ExportTypesObjectsNetworkCSV extends ExportTypesObjectsNetwork {
 		}
 		
 		// Values plain
+		
+		if (isset($arr_options['attribute'])) {
+			$arr_value_type_settings['attribute'] = $arr_options['attribute'];
+		}
 
 		if ($type == 'object_sub_description') {
-			return [$arr_options['object_sub_id'] => static::formatToDataType($str_value_type, $arr_definition[$key_value][0])]; // Object definition value is casted to array earlier, select first element (0)
+			return [$arr_options['object_sub_id'] => static::formatToDataType($str_value_type, $arr_definition[$key_value][0], $arr_value_type_settings)]; // Object definition value is casted to array earlier, select first element (0)
 		}
 		
-		return static::formatToDataType($str_value_type, $arr_definition[$key_value]);
+		return static::formatToDataType($str_value_type, $arr_definition[$key_value], $arr_value_type_settings);
 	}
 	
-	protected function formatToDataType($str_value_type, $value) {
+	protected function formatToDataType($str_value_type, $value, $arr_value_type_settings) {
 		
 		if ($str_value_type == 'vector') {
 			$value = FormatTypeObjects::parseValue($str_value_type, $value);
+		} else if ($str_value_type == 'module') {
+			$value = FormatTypeObjects::parseValue($str_value_type, $value, $arr_value_type_settings);
 		}
 		
 		return $value;

@@ -68,7 +68,7 @@ Initial release.
 * Data: Added a new multi-change mode 'replace' to support value replacements using simple match/replace and advanced regular expressions.
 * Visualisation geographical: Developed and implemented new modes for location label placement. Labels can be positioned algorithmically (applies force and collision) to prevent overlap in locations and their labels, and labels can be dragged manually. 
 * Project: Added a Project overview mode that generates a visualisation for the graph of the implemented data model and its options. The graph can be rearranged by dragging, and highlighted by clicking.
-* Model: Created a value type Application extention 'Music Notation' to be able to store and render sheet music. The rendering to SVG is done by Verovio (verovio.org) as a WebAssembly file.
+* Model: Created a value type Application extension 'Music Notation' to be able to store and render sheet music. The rendering to SVG is done by Verovio (verovio.org) as a WebAssembly file.
 * Pattern Pairs: Moved and extended the 'String To Object Pairs' functionality from Import to its own separate new StorePatternsTypeObjectPair class and data_pattern_pairs interface. Pattern Pairs can communicate with current (Import/Ingest and upcomming Reconcile) and future functionalities.
 * Data/Model: Geometries now support and enforce their geographic coordinate system (indicated by their CRS in e.g. GeoJSON). By default geometries are interpreted using the WGS84 geographic coordinate system (EPSG:4326). Any other geographic coordinate system in the EPSG registry is now supported with help of the GDAL library (gdal.org), and can be used interchangeably throughout.
 * Various fixes, modernisation, and overall streamlining.
@@ -124,6 +124,14 @@ Initial release.
 * API: Implemented a full OpenAPI description for the nodegoat API using any configured Project as its endpoint. The description exposes a machine-readable output with: query and storage possibilities, available data Models and their schemas, Filters, Scopes, Conditions, any added custom descriptions, etc..
 * Conditions: Added a secondary 'highlight colour' option for nodes in Conditions. The secondary colour becomes available when including weighted values in the Condition and allows to specify a lower bound for weighting the colours. The colour/weight range is calculated using summary statistics.
 * Data/Filter/Model: Added new functionalities in class GenerateTypeObjects to be able to compute and expose summary statistics using values from Object Descriptions and Sub Objects: e.g. averages, ranges, min, max.
+* Various fixes and tweaks.
+
+## VERSION 8.6
+
+* Model: Created a value type Application extension 'Filecard'. This extension module links an Object's media value (i.e. image) with storing results from OCR data or vision-language models. The module handles key-value pairs and the recognised segments that can overlay the linked image.
+* Model: Fully integrated the Object Description value type 'Application' (internally called 'module' / classes EnucleateValueTypeModule*) by giving the extension modules full access to their usage in the data Model. A module can now provide their configuration by extending the Model's value type settings.
+* Conditions: Added new Condition function option routine named 'replace' to do text substitution. For example, this makes it possible to generate a dynamic Condition icon (path/URL) based on data stored in a matched Object (which in turn can be included as images for nodes in the visualisations).
+* Visualisation social: Graph rendering now supports rendering the required dynamics of multi-modality/time/Conditions above 100000 nodes and 1 million edges on any decent client.
 * Various fixes and tweaks.
 
 ## VERSION x.x

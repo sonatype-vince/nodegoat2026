@@ -409,7 +409,7 @@ class CreateProjectOverviewGraph {
 			';
 			
 			$svg_header = '<g class="header">
-				<text x="'.static::$num_scene_margin.'" y="'.static::$num_scene_margin.'">'.Labels::parseTextVariables($this->arr_project['project']['name']).'</text>
+				<text x="'.static::$num_scene_margin.'" y="'.static::$num_scene_margin.'">'.strEscapeXML(Labels::parseTextVariables($this->arr_project['project']['name'])).'</text>
 			</g>';
 			
 			$this->num_scene_header_height = static::$num_header_height;
@@ -438,7 +438,7 @@ class CreateProjectOverviewGraph {
 					.' L0,'.$num_box_header_height
 					.' L0,0'
 				.'" />
-				<text class="name"><textPath startOffset="0%" href="#box-header-text">'.$arr_box['header']['name'].'</textPath></text>
+				<text class="name"><textPath startOffset="0%" href="#box-header-text">'.strEscapeXML($arr_box['header']['name']).'</textPath></text>
 			</g>';
 			
 			$num_box_element_y += $num_box_header_height;
@@ -490,13 +490,13 @@ class CreateProjectOverviewGraph {
 				switch ($arr_element['class']) {
 					
 					case 'object-sub-details':
-						$svg_text = '<text class="name"><textPath startOffset="0%" href="#box-element-text">['.$arr_element['name'].']</textPath></text>';
+						$svg_text = '<text class="name"><textPath startOffset="0%" href="#box-element-text">['.strEscapeXML($arr_element['name']).']</textPath></text>';
 						break;
 					case 'object-sub-description':
-						$svg_text = '<text class="name" dx="'.($num_box_element_text_margin_x*2).'"><textPath startOffset="0%" href="#box-element-text">'.$arr_element['name'].'</textPath></text>';
+						$svg_text = '<text class="name" dx="'.($num_box_element_text_margin_x*2).'"><textPath startOffset="0%" href="#box-element-text">'.strEscapeXML($arr_element['name']).'</textPath></text>';
 						break;
 					default:
-						$svg_text = '<text class="name"><textPath startOffset="0%" href="#box-element-text">'.$arr_element['name'].'</textPath></text>';
+						$svg_text = '<text class="name"><textPath startOffset="0%" href="#box-element-text">'.strEscapeXML($arr_element['name']).'</textPath></text>';
 				}
 				
 				$svg_value = '';

@@ -686,7 +686,7 @@ class StoreType {
 						.'-'.(int)$object_sub_details_date_use_object_sub_details_id
 						.'-'.(int)$object_sub_details_date_start_use_object_sub_description_id.'-'.(int)$object_sub_details_date_end_use_object_sub_description_id
 						.'-'.(int)$object_sub_details_date_start_use_object_description_id.'-'.(int)$object_sub_details_date_end_use_object_description_id
-						.'-'.(int)$object_sub_details_location_use_object_sub_details_id
+						.'-'.(int)$object_sub_details_location_use_object_sub_details_id.'-'.(int)$arr_object_sub_details_self['object_sub_details_location_ref_object_sub_details_id_locked']
 						.'-'.(int)$object_sub_details_location_use_object_sub_description_id.'-'.(int)$object_sub_details_location_use_object_description_id
 						.'-'.(int)$object_sub_details_location_use_object_id;
 						
@@ -694,12 +694,11 @@ class StoreType {
 						.'-'.(int)$arr_cur_object_sub_details_self['object_sub_details_date_use_object_sub_details_id']
 						.'-'.(int)$arr_cur_object_sub_details_self['object_sub_details_date_start_use_object_sub_description_id'].'-'.(int)$arr_cur_object_sub_details_self['object_sub_details_date_end_use_object_sub_description_id']
 						.'-'.(int)$arr_cur_object_sub_details_self['object_sub_details_date_start_use_object_description_id'].'-'.(int)$arr_cur_object_sub_details_self['object_sub_details_date_end_use_object_description_id']
-						.'-'.(int)$arr_cur_object_sub_details_self['object_sub_details_location_use_object_sub_details_id']
+						.'-'.(int)$arr_cur_object_sub_details_self['object_sub_details_location_use_object_sub_details_id'].'-'.(int)$arr_cur_object_sub_details_self['object_sub_details_location_ref_object_sub_details_id_locked']
 						.'-'.(int)$arr_cur_object_sub_details_self['object_sub_details_location_use_object_sub_description_id'].'-'.(int)$arr_cur_object_sub_details_self['object_sub_details_location_use_object_description_id']
 						.'-'.(int)$arr_cur_object_sub_details_self['object_sub_details_location_use_object_id'];
 					
 					if ($str_compare != $str_compare_cur) {
-						
 						$arr_touched_cache_object_sub_details_ids[] = $object_sub_details_id;
 					}
 					
@@ -1036,10 +1035,10 @@ class StoreType {
 				continue;
 			}
 			
-			$value_type_base = $arr_object_description['object_description_value_type_base'];
+			$str_value_type_base = $arr_object_description['object_description_value_type_base'];
 			$reference_type_id = $arr_object_description['object_description_ref_type_id'];
 			
-			$this->parseTypeObjectDescriptionValueType($value_type_base, $reference_type_id, true);
+			$this->parseTypeObjectDescriptionValueType($str_value_type_base, $reference_type_id, true);
 			
 			/*if ($this->type_id && $reference_type_id == $this->type_id) { // Possible recursion in the name or search
 				if ($arr_object_description['object_description_in_name']) {
@@ -1054,7 +1053,7 @@ class StoreType {
 				$has_name = true;
 			}
 			
-			if ($value_type_base == 'reference_mutable') {
+			if ($str_value_type_base == 'reference_mutable') {
 				$num_count_mutable++;
 			}
 			
@@ -1104,12 +1103,12 @@ class StoreType {
 					continue;
 				}
 				
-				$value_type_base = $arr_object_sub_description['object_sub_description_value_type_base'];
+				$str_value_type_base = $arr_object_sub_description['object_sub_description_value_type_base'];
 				$reference_type_id = $arr_object_sub_description['object_sub_description_ref_type_id'];
 			
-				$this->parseTypeObjectDescriptionValueType($value_type_base, $reference_type_id, true);
+				$this->parseTypeObjectDescriptionValueType($str_value_type_base, $reference_type_id, true);
 				
-				if ($value_type_base == 'reference_mutable') {
+				if ($str_value_type_base == 'reference_mutable') {
 					$num_count_mutable++;
 				}
 				
@@ -1171,9 +1170,9 @@ class StoreType {
 		");
 	}
 	
-	protected function parseTypeObjectDescriptionValueType(&$value_type_base, &$ref_type_id, $do_check = false) {
+	protected function parseTypeObjectDescriptionValueType(&$str_value_type_base, &$ref_type_id, $do_check = false) {
 				
-		if ($value_type_base == 'reference_mutable') {
+		if ($str_value_type_base == 'reference_mutable') {
 			
 			$store_ref_type_id = [];
 			
@@ -1201,38 +1200,44 @@ class StoreType {
 			
 			if (!$store_ref_type_id) {
 				
-				$value_type_base = '';
+				$str_value_type_base = '';
 				$store_ref_type_id = 0;
 			}
 			
 			$ref_type_id = $store_ref_type_id;
 		} else {
 			
-			if ($value_type_base == 'string') {
-				$value_type_base = '';
-			} else if ($value_type_base == 'float') {
-				$value_type_base = 'numeric';
-			} else if ($value_type_base == 'int') {
-				$value_type_base = 'integer';
-			} else if ($value_type_base == 'bool') {
-				$value_type_base = 'boolean';
+			if ($str_value_type_base == 'string') {
+				$str_value_type_base = '';
+			} else if ($str_value_type_base == 'float') {
+				$str_value_type_base = 'numeric';
+			} else if ($str_value_type_base == 'int') {
+				$str_value_type_base = 'integer';
+			} else if ($str_value_type_base == 'bool') {
+				$str_value_type_base = 'boolean';
 			}
 			
 			$ref_type_id = $this->getTypeID($ref_type_id);
 			
-			if (in_array($value_type_base, ['type', 'classification', 'reversal'])) {
+			if (in_array($str_value_type_base, ['type', 'classification', 'reversal'])) {
 				
 				if (!$ref_type_id) {
-					$value_type_base = '';
+					$str_value_type_base = '';
 				}
 			} else {
 				
 				$ref_type_id = 0;
+				
+				$arr_value_types_base = StoreType::getValueTypesBase();
+				
+				if (!isset($arr_value_types_base[$str_value_type_base])) {
+					error(getLabel('msg_object_description_invalid'));
+				}
 			}
 		}
 	}
 		
-	protected function parseTypeObjectDescriptionValueTypeOptions($value_type_base, $ref_type_id, $has_multi, $has_default_value, $in_name, $arr_value_type_settings) {
+	protected function parseTypeObjectDescriptionValueTypeOptions($str_value_type_base, $ref_type_id, $has_multi, $has_default_value, $in_name, $arr_value_type_settings) {
 		
 		$str_value = '';
 			
@@ -1244,7 +1249,7 @@ class StoreType {
 				$arr_value_type_settings = json_decode($arr_value_type_settings, true);
 			}
 			
-			switch ($value_type_base) {
+			switch ($str_value_type_base) {
 				case 'external':
 					
 					if ($arr_value_type_settings['id']) {
@@ -1257,7 +1262,7 @@ class StoreType {
 					if ($arr_value_type_settings['html']) {
 						$arr_value['html'] = true;
 					}
-					if ($value_type_base == 'text_tags' && $arr_value_type_settings['marginalia']) {
+					if ($str_value_type_base == 'text_tags' && $arr_value_type_settings['marginalia']) {
 						$arr_value['marginalia'] = true;
 					}
 					break;
@@ -1271,7 +1276,12 @@ class StoreType {
 				case 'module':
 				
 					if ($arr_value_type_settings['type']) {
-						$arr_value['type'] = $arr_value_type_settings['type'];
+						
+						$arr_value = EnucleateValueTypeModule::parseTypeObjectDescriptionValueTypeOptions($arr_value_type_settings);
+						
+						if (!$arr_value['type']) {
+							$arr_value['type'] = $arr_value_type_settings['type'];
+						}
 					}
 					break;
 			}
@@ -1300,7 +1310,7 @@ class StoreType {
 					}
 				} else {
 
-					$value_default = FormatTypeObjects::formatToSQLValue($value_type_base, $value_default);
+					$value_default = FormatTypeObjects::formatToSQLValue($str_value_type_base, $value_default);
 					
 					if ($value_default === false || $value_default === '') { // Boolean false is returned as '0'
 						$value_default = null;
@@ -1342,37 +1352,37 @@ class StoreType {
 		return $str_value;
 	}
 	
-	public function getConvertTypeObjectDefinitions($object_description_id, $to_value_type_base) {
+	public function getConvertTypeObjectDefinitions($object_description_id, $str_target_value_type_base) {
 		
-		$value_type_base = $this->arr_type_set['object_descriptions'][$object_description_id]['object_description_value_type_base'];
+		$str_value_type_base = $this->arr_type_set['object_descriptions'][$object_description_id]['object_description_value_type_base'];
 		
-		if ($to_value_type_base == $value_type_base) {
+		if ($str_target_value_type_base == $str_value_type_base) {
 			return;
 		}
 		
 		$do_convert = false;
 		
-		switch ($to_value_type_base) {
+		switch ($str_target_value_type_base) {
 			case 'media';
-				if ($value_type_base == '') {
+				if ($str_value_type_base == '') {
 					$do_convert = true;
 				}
 				break;
 			case 'text';
 			case 'text_layout';
 			case 'text_tags';
-				if ($value_type_base == '' || $value_type_base == 'integer' || $value_type_base == 'numeric') {
+				if ($str_value_type_base == '' || $str_value_type_base == 'integer' || $str_value_type_base == 'numeric') {
 					$do_convert = true;
 				}
 				break;
 			case '';
-				if ($value_type_base == 'text' || $value_type_base == 'text_layout' || $value_type_base == 'text_tags' || $value_type_base == 'integer' || $value_type_base == 'numeric') {
+				if ($str_value_type_base == 'text' || $str_value_type_base == 'text_layout' || $str_value_type_base == 'text_tags' || $str_value_type_base == 'integer' || $str_value_type_base == 'numeric') {
 					$do_convert = true;
 				}
 				break;
 			case 'integer';
 			case 'numeric';
-				if ($value_type_base == 'integer' || $value_type_base == 'numeric') {
+				if ($str_value_type_base == 'integer' || $str_value_type_base == 'numeric') {
 					$do_convert = true;
 				}
 				break;
@@ -1396,19 +1406,19 @@ class StoreType {
 		return $arr_objects;
 	}
 	
-	public function getConvertTypeObjectSubDefinitions($object_sub_details_id, $object_sub_description_id, $to_value_type_base) {
+	public function getConvertTypeObjectSubDefinitions($object_sub_details_id, $object_sub_description_id, $str_target_value_type_base) {
 		
-		$value_type_base = $this->arr_type_set['object_sub_details'][$object_sub_details_id]['object_sub_descriptions'][$object_sub_description_id]['object_sub_description_value_type_base'];
+		$str_value_type_base = $this->arr_type_set['object_sub_details'][$object_sub_details_id]['object_sub_descriptions'][$object_sub_description_id]['object_sub_description_value_type_base'];
 		
-		if ($to_value_type_base == $value_type_base) {
+		if ($str_target_value_type_base == $str_value_type_base) {
 			return;
 		}
 		
 		$do_convert = false;
 		
-		switch ($to_value_type_base) {
+		switch ($str_target_value_type_base) {
 			case 'media';
-				if ($value_type_base == '') {
+				if ($str_value_type_base == '') {
 					$do_convert = true;
 				}
 				break;
@@ -2473,10 +2483,14 @@ class StoreType {
 				$arr_row['object_description_in_search'] = DBFunctions::unescapeAs($arr_row['object_description_in_search'], DBFunctions::TYPE_BOOLEAN);
 				$arr_row['object_description_in_overview'] = DBFunctions::unescapeAs($arr_row['object_description_in_overview'], DBFunctions::TYPE_BOOLEAN);
 				$arr_row['object_description_is_identifier'] = DBFunctions::unescapeAs($arr_row['object_description_is_identifier'], DBFunctions::TYPE_BOOLEAN);
+								
+				$arr_row['object_description_is_dynamic'] = DBFunctions::unescapeAs($arr_row['object_description_is_dynamic'], DBFunctions::TYPE_BOOLEAN);
 				
 				$arr_row['object_description_value_type_settings'] = ($arr_row['object_description_value_type_settings'] ? json_decode($arr_row['object_description_value_type_settings'], true) : []);
 				
-				$arr_row['object_description_is_dynamic'] = DBFunctions::unescapeAs($arr_row['object_description_is_dynamic'], DBFunctions::TYPE_BOOLEAN);
+				if ($arr_row['object_description_value_type'] == 'module') {
+					$arr_row['object_description_value_type_settings'] = EnucleateValueTypeModule::parseTypeObjectDescriptionValueTypeOptions($arr_row['object_description_value_type_settings'], $arr_row);
+				}
 			}
 			
 			$arr['object_descriptions'][$arr_row['object_description_id']] = $arr_row;
@@ -2531,9 +2545,13 @@ class StoreType {
 				$arr_row['object_sub_description_in_search'] = DBFunctions::unescapeAs($arr_row['object_sub_description_in_search'], DBFunctions::TYPE_BOOLEAN);
 				$arr_row['object_sub_description_in_overview'] = DBFunctions::unescapeAs($arr_row['object_sub_description_in_overview'], DBFunctions::TYPE_BOOLEAN);
 				
-				$arr_row['object_sub_description_value_type_settings'] = ($arr_row['object_sub_description_value_type_settings'] ? json_decode($arr_row['object_sub_description_value_type_settings'], true) : []);
-
 				$arr_row['object_sub_description_is_dynamic'] = DBFunctions::unescapeAs($arr_row['object_sub_description_is_dynamic'], DBFunctions::TYPE_BOOLEAN);
+				
+				$arr_row['object_sub_description_value_type_settings'] = ($arr_row['object_sub_description_value_type_settings'] ? json_decode($arr_row['object_sub_description_value_type_settings'], true) : []);
+				
+				if ($arr_row['object_sub_description_value_type'] == 'module') {
+					$arr_row['object_sub_description_value_type_settings'] = EnucleateValueTypeModule::parseTypeObjectDescriptionValueTypeOptions($arr_row['object_sub_description_value_type_settings'], $arr_row);
+				}
 				
 				$arr['object_sub_details'][$arr_row['object_sub_details_id']]['object_sub_descriptions'][$arr_row['object_sub_description_id']] = $arr_row;
 			
@@ -3196,7 +3214,7 @@ class StoreType {
 		return $arr;
 	}
 	
-	public static function getTypesObjectValueTypeDescriptions($value_type_base, $type_id) {
+	public static function getTypesObjectValueTypeDescriptions($str_value_type_base, $type_id) {
 		
 		if (is_array($type_id)) {
 			$sql_type_ids = implode(',', arrParseRecursive($type_id, TYPE_INTEGER));
@@ -3204,10 +3222,10 @@ class StoreType {
 			$sql_type_ids = (int)$type_id;
 		}
 		
-		if (is_array($value_type_base)) {
-			$sql_value_types = implode("','", DBFunctions::arrEscape($value_type_base));
+		if (is_array($str_value_type_base)) {
+			$sql_value_types = implode("','", DBFunctions::arrEscape($str_value_type_base));
 		} else {
-			$sql_value_types = "'".DBFunctions::strEscape($value_type_base)."'";
+			$sql_value_types = "'".DBFunctions::strEscape($str_value_type_base)."'";
 		}
 
 		$arr = [];
@@ -3660,7 +3678,11 @@ class StoreType {
 			self::getValueTypes();
 		}
 		
-		$arr_value_type = self::$arr_value_types[$str_type];
+		$arr_value_type = (self::$arr_value_types[$str_type] ?? null);
+		
+		if ($arr_value_type === null) {
+			error(getLabel('msg_object_description_value_type_missing'));
+		}
 		
 		if ($str_purpose && isset($arr_value_type['purpose'][$str_purpose])) {
 			$arr_value_type = $arr_value_type['purpose'][$str_purpose];
@@ -4081,6 +4103,9 @@ class StoreType {
 
 					foreach ($s_arr['selection'] as $key => $value) {
 						
+						$str_id = null;
+						$str_attribute = null; // Special additional value attribute (i.e. module values)
+						
 						if ($value['id']) { // Form
 							$str_id = $value['id'];
 						} else if ($value && $value['object_description_id'] !== null) { // Already parsed previously
@@ -4089,19 +4114,33 @@ class StoreType {
 							continue;
 						}
 						
-						$arr_selection[$str_id] = [
-							'object_description_id' => 0,
-							'object_sub_details_id' => 0,
-							'object_sub_description_id' => 0
-						];
+						if (strpos($str_id, '-') !== false) { // If id contains attributes; group attributes on description-level
+							
+							$arr_id = explode('-', $str_id);
+							$str_id = $arr_id[0];
+							$str_attribute = $arr_id[1];
+						}
+						
+						if (!isset($arr_selection[$str_id])) {
+								
+							$arr_selection[$str_id] = [
+								'object_description_id' => 0,
+								'object_sub_details_id' => 0,
+								'object_sub_description_id' => 0
+							];
+						}
+						
+						if ($str_attribute !== null) {
+							$arr_selection[$str_id]['attribute'][$str_attribute] = $str_attribute;
+						}
 					}
 					
 					foreach ($arr_type_set['object_descriptions'] as $object_description_id => $arr_object_description) {
 						
 						$str_id = 'object_description_'.$object_description_id;
 						
-						if ((isset($arr_selection[$str_id]) || isset($arr_selection[$str_id.'_id']) || isset($arr_selection[$str_id.'_text'])) && !static::checkTypeConfigurationUserClearance($arr_type_set, $num_user_clearance, $object_description_id, false, false, self::CLEARANCE_PURPOSE_VIEW)) {
-							unset($arr_selection[$str_id], $arr_selection[$str_id.'_id'], $arr_selection[$str_id.'_text']);
+						if ((isset($arr_selection[$str_id]) || isset($arr_selection[$str_id.'_id']) || isset($arr_selection[$str_id.'_text']) || isset($arr_selection[$str_id.'_attribute'])) && !static::checkTypeConfigurationUserClearance($arr_type_set, $num_user_clearance, $object_description_id, false, false, self::CLEARANCE_PURPOSE_VIEW)) {
+							unset($arr_selection[$str_id], $arr_selection[$str_id.'_id'], $arr_selection[$str_id.'_text'], $arr_selection[$str_id.'_attribute']);
 							continue;
 						}
 						
@@ -4115,6 +4154,18 @@ class StoreType {
 						if (isset($arr_selection[$str_id.'_text'])) {
 							$arr_selection[$str_id.'_text']['object_description_id'] = $object_description_id;
 							$arr_selection[$str_id.'_text']['use_text'] = true;
+						}
+						if (isset($arr_selection[$str_id.'_attribute']['attribute'])) {
+							
+							$arr_selection[$str_id.'_attribute']['object_description_id'] = $object_description_id;
+							
+							foreach ($arr_selection[$str_id.'_attribute']['attribute'] as $str_attribute) { // Ungroup attributes
+								
+								$arr_selection[$str_id.'_attribute-'.$str_attribute] = $arr_selection[$str_id.'_attribute'];
+								$arr_selection[$str_id.'_attribute-'.$str_attribute]['attribute'] = $str_attribute;
+							}
+							
+							unset($arr_selection[$str_id.'_attribute']);
 						}
 					}
 					
@@ -4180,8 +4231,8 @@ class StoreType {
 						foreach ($arr_object_sub_details['object_sub_descriptions'] as $object_sub_description_id => $arr_object_sub_description) {
 							
 							$str_id = 'object_sub_description_'.$object_sub_description_id;
-							if ((isset($arr_selection[$str_id]) || isset($arr_selection[$str_id.'_id']) || isset($arr_selection[$str_id.'_text'])) && !static::checkTypeConfigurationUserClearance($arr_type_set, $num_user_clearance, false, $object_sub_details_id, $object_sub_description_id, self::CLEARANCE_PURPOSE_VIEW)) {
-								unset($arr_selection[$str_id], $arr_selection[$str_id.'_id'], $arr_selection[$str_id.'_text']);
+							if ((isset($arr_selection[$str_id]) || isset($arr_selection[$str_id.'_id']) || isset($arr_selection[$str_id.'_text']) || isset($arr_selection[$str_id.'_attribute'])) && !static::checkTypeConfigurationUserClearance($arr_type_set, $num_user_clearance, false, $object_sub_details_id, $object_sub_description_id, self::CLEARANCE_PURPOSE_VIEW)) {
+								unset($arr_selection[$str_id], $arr_selection[$str_id.'_id'], $arr_selection[$str_id.'_text'], $arr_selection[$str_id.'_attribute']);
 								continue;
 							}
 							
@@ -4198,6 +4249,19 @@ class StoreType {
 								$arr_selection[$str_id.'_text']['object_sub_details_id'] = $object_sub_details_id;
 								$arr_selection[$str_id.'_text']['object_sub_description_id'] = $object_sub_description_id;
 								$arr_selection[$str_id.'_text']['use_text'] = true;
+							}
+							if (isset($arr_selection[$str_id.'_attribute']['attribute'])) {
+								
+								$arr_selection[$str_id.'_attribute']['object_sub_details_id'] = $object_description_id;
+								$arr_selection[$str_id.'_attribute']['object_sub_description_id'] = $object_sub_description_id;
+								
+								foreach ($arr_selection[$str_id.'_attribute']['attribute'] as $str_attribute) { // Ungroup attributes
+								
+									$arr_selection[$str_id.'_attribute-'.$str_attribute] = $arr_selection[$str_id.'_attribute'];
+									$arr_selection[$str_id.'_attribute-'.$str_attribute]['attribute'] = $str_attribute;
+								}
+								
+								unset($arr_selection[$str_id.'_attribute']);
 							}
 						}
 					}

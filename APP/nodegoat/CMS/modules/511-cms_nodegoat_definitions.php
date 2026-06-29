@@ -166,7 +166,7 @@ class cms_nodegoat_definitions extends base_module {
 				'options' => function($arr_options) {
 					return '<label>'.getLabel('lbl_reset').'</label><input type="checkbox" name="options[reset]" value="1"'.($arr_options['reset'] ? ' checked="checked"' :'').' />';
 				}
-			],
+			]
 		];
 	}
 	
@@ -178,6 +178,25 @@ class cms_nodegoat_definitions extends base_module {
 				'run' => function() {
 					
 					GenerateTypeObjects::setSQLFunctionObjectSubDate();
+					
+					if (DB::ENGINE_IS_MARIADB) { // MariaDB does not have ST_MakeEnvelope: https://mariadb.com/docs/release-notes/community-server/about/compatibility-and-differences/function-differences-between-mariadb-and-mysql/function-differences-between-mariadb-11-4-and-mysql-8-0
+						
+						DB::queryMulti("
+							DROP FUNCTION IF EXISTS ".DATABASE_NODEGOAT_TEMP.".ST_MakeEnvelope;
+
+							CREATE FUNCTION ".DATABASE_NODEGOAT_TEMP.".ST_MakeEnvelope(pt1 GEOMETRY, pt2 GEOMETRY)
+								RETURNS GEOMETRY
+								DETERMINISTIC READS SQL DATA
+								LANGUAGE SQL
+								BEGIN
+									RETURN ST_Envelope(ST_GeomFromText(
+										CONCAT('GEOMETRYCOLLECTION(', ST_AsText(pt1), ',', ST_AsText(pt2), ')')
+										, ST_SRID(pt1))
+									);
+								END
+							;
+						");
+					}
 				},
 				'transform' => false
 			],
@@ -396,29 +415,27 @@ class cms_nodegoat_definitions extends base_module {
 			FileStore::deleteFile(DIR_HOME_TYPE_OBJECT_MEDIA.$str_file);
 		}
 		
-		msg('Cleaned up '.count($arr_delete).' files.', 'FILES', LOG_BOTH, arr2String($arr_delete, PHP_EOL));
+		message('Cleaned up '.count($arr_delete).' files.', 'FILES', LOG_BOTH, arr2String($arr_delete, PHP_EOL));
 	}
 	
 	// Caching
 	
 	public static function cacheTypesObjects($arr_options = []) {
 		
-		$date_start = false;
-		$date_end = false;
+		$do_rebuild = true;
 		
 		if (!$arr_options['reset']) {
 			
-			$is_updated = FilterTypeObjects::getTypesUpdatedAfter($arr_options['date_executed']['previous'], [], true);
+			$is_updated = FilterTypeObjects::getTypesUpdatedAfter(null, [], true);
 			
 			if (!$is_updated) {
 				return;
 			}
 			
-			$date_start = $arr_options['date_executed']['previous'];
-			$date_end = $arr_options['date_executed']['now'];
+			$do_rebuild = false;
 		}
 		
-		StoreTypeObjectsProcessing::cacheTypesObjectSubs($date_start, $date_end);
+		StoreTypeObjectsProcessing::cacheTypesObjectSubs($do_rebuild);
 	}
 	
 	public static function buildTypesObjectsCache($arr_options = []) {
@@ -522,7 +539,7 @@ class cms_nodegoat_definitions extends base_module {
 			
 			if ($str_error !== '') {
 				
-				error(__METHOD__.' ERROR:'.PHP_EOL
+				error(__METHOD__.' ERROR:'.EOL_1100CC
 					.strIndent($str_error),
 				TROUBLE_NOTICE); // Make notice
 			}
@@ -531,7 +548,7 @@ class cms_nodegoat_definitions extends base_module {
 			
 			if ($str_result) {
 				
-				$str_separator = PHP_EOL;
+				$str_separator = EOL_1100CC;
 				$str_line = strtok($str_result, $str_separator);
 
 				while ($str_line !== false) {
@@ -540,22 +557,22 @@ class cms_nodegoat_definitions extends base_module {
 					
 					if ($arr_result) { // JSON output
 						
-						$num_time = time();
+						if (isset($arr_result['statistics'])) {
 						
-						if (($num_time - $num_time_status) > static::$num_graph_analysis_timeout_status) {
+							$num_time = time();
 							
-							if ($arr_result['statistics']) {
-								
-								msg('Status:'.PHP_EOL
+							if (($num_time - $num_time_status) > static::$num_graph_analysis_timeout_status) {
+
+								message('Status:'.EOL_1100CC
 									.'	Jobs: total = '.num2String($arr_result['statistics']['jobs']).' timeouts = '.num2String($arr_result['statistics']['timeouts']),
 								'GRAPH ANALYSIS'); // Provide status update and keep database connection alive
+
+								$num_time_status = $num_time;
 							}
-				
-							$num_time_status = $num_time;
 						}
 					} else {
 					
-						msg($str_line, 'GRAPH ANALYSIS');
+						message($str_line, 'GRAPH ANALYSIS');
 					}
 					
 					$str_line = strtok($str_separator);
@@ -573,6 +590,20 @@ class cms_nodegoat_definitions extends base_module {
 		}
 	}
 	
+	public static function checkGraphAnalysisService() {
+		
+		$arr_job = cms_jobs::getJob('cms_nodegoat_definitions', 'runGraphAnalysisService');
+		
+		if ($arr_job && $arr_job['process_id']) {
+			
+			$arr_job['host'] = 'http://127.0.0.1:'.$arr_job['port'].'/graph/';
+			
+			return $arr_job;
+		} else {
+			return false;
+		}	
+	}
+	
 	// Information retrieval
 	
 	public static function runInformationRetrievalService($arr_options) {
@@ -584,7 +615,7 @@ class cms_nodegoat_definitions extends base_module {
 		$path_store = DIR_ROOT_STORAGE.DIR_HOME.DIR_CMS.DIR_PRIVATE.'information_retrieval/';
 		FileStore::makeDirectoryTree($path_store);
 		
-		$process = new ProcessProgram(DIR_PROGRAMS_RUN.'information_retrieval --port '.(int)$arr_options['port'].' --path "'.escapeshellcmd($path_store).'"');
+		$process = new ProcessProgram(DIR_PROGRAMS_RUN.'information_retrieval --port '.(int)$arr_options['port'].' --path '.escapeshellarg($path_store));
 		
 		$cleanup_id = Mediator::attach('cleanup', false, function() use ($process) {
 
@@ -603,7 +634,7 @@ class cms_nodegoat_definitions extends base_module {
 			
 			if ($str_error !== '') {
 				
-				error(__METHOD__.' ERROR:'.PHP_EOL
+				error(__METHOD__.' ERROR:'.EOL_1100CC
 					.strIndent($str_error),
 				TROUBLE_NOTICE); // Make notice
 			}
@@ -612,7 +643,7 @@ class cms_nodegoat_definitions extends base_module {
 			
 			if ($str_result) {
 				
-				$str_separator = PHP_EOL;
+				$str_separator = EOL_1100CC;
 				$str_line = strtok($str_result, $str_separator);
 
 				while ($str_line !== false) {
@@ -621,22 +652,22 @@ class cms_nodegoat_definitions extends base_module {
 					
 					if ($arr_result) { // JSON output
 						
-						$num_time = time();
-						
-						if (($num_time - $num_time_status) > static::$num_information_retrieval_timeout_status) {
+						if (isset($arr_result['statistics'])) {
 							
-							if ($arr_result['statistics']) {
+							$num_time = time();
+							
+							if (($num_time - $num_time_status) > static::$num_information_retrieval_timeout_status) {
 								
-								msg('Status:'.PHP_EOL
+								message('Status:'.EOL_1100CC
 									.'	Jobs: Total = '.num2String($arr_result['statistics']['jobs']),
 								'INFO RETRIEVAL'); // Provide status update and keep database connection alive
+					
+								$num_time_status = $num_time;
 							}
-				
-							$num_time_status = $num_time;
 						}
 					} else {
 					
-						msg($str_line, 'INFO RETRIEVAL');
+						message($str_line, 'INFO RETRIEVAL');
 					}
 					
 					$str_line = strtok($str_separator);
@@ -822,7 +853,7 @@ class cms_nodegoat_definitions extends base_module {
 					$num_sql++;
 				} catch (Exception $e) {
 					
-					msg($arr_row);
+					message($arr_row);
 				}
 				
 				if ($num_sql === 500) {

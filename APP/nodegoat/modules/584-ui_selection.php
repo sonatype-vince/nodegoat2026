@@ -18,6 +18,8 @@ class ui_selection extends base_module {
 	
 	protected $arr_access = [
 		'ui' => [],
+		'ui_view_objects' => [],
+		'ui_view_object' => [],
 		'ui_data' => []
 	];
 		
@@ -31,11 +33,11 @@ class ui_selection extends base_module {
 			
 			$arr_external_selection = cms_nodegoat_public_interfaces::getPublicInterfaceSelection($selection_id);
 		}
-	
+
 		$return = '<div class="selections-container list" 
 									'.($arr_external_selection ? '
 											data-new_external_selection_id="'.$arr_external_selection['id'].'" 
-											data-new_external_selection_title="'.$arr_external_selection['selection_title'].'"
+											data-new_external_selection_title="'.strEscapeHTML($arr_external_selection['selection_title']).'"
 										' : '').' 
 									data-url="'.SiteStartEnvironment::getBasePath(0, false).SiteStartEnvironment::getPage('name').'.p/'.$public_user_interface_id.'/'.$public_user_interface_active_custom_project_id.'"></div>';
 		
@@ -329,7 +331,7 @@ class ui_selection extends base_module {
 			if (!$arr_selection || !is_array($arr_selection) || !$arr_selection['selection_title']) {
 				return false;
 			}
-			
+		
 			if ($arr_selection['url_id'] && !$arr_selection['elements']) {
 				
 				// external selection

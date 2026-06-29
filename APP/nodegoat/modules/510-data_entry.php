@@ -773,8 +773,21 @@ class data_entry extends base_module {
 		
 		$arr_object_description = $arr_type_set['object_descriptions'][$object_description_id];
 		
-		$arr_object_definition_value = ($arr_object_definition['object_definition_value'] ? JSON2Value($arr_object_definition['object_definition_value']) : []);
+		$arr_object_definition_value = ($arr_object_definition['object_definition_value'] ?: []);
+		$str_object_definition_context = null;
 		
+		if ($arr_object_definition_value) {
+				
+			if (isset($arr_object_description['object_description_value_type_settings']['context'])) {
+				
+				$arr_object_definition_value = explode(GenerateTypeObjects::SQL_GROUP_SEPERATOR_2, $arr_object_definition_value);
+				$str_object_definition_context = ($arr_object_definition_value[1] ?? null);
+				$arr_object_definition_value = $arr_object_definition_value[0];
+			}
+			
+			$arr_object_definition_value = JSON2Value($arr_object_definition_value);
+		}
+			
 		if (StoreType::getValueType($arr_object_description['object_description_value_type'], 'module_class', 'entry')) {
 			
 			$class_module = StoreType::getValueType($arr_object_description['object_description_value_type'], 'module_class', 'entry');
@@ -868,7 +881,7 @@ class data_entry extends base_module {
 		} else {
 			
 			$module = EnucleateValueTypeModule::init($arr_object_description['object_description_value_type_settings']['type']);
-			$module->setValue($arr_object_definition_value);
+			$module->setValue($arr_object_definition_value, $str_object_definition_context);
 				
 			$html = $module->createTemplate($str_name);
 				
@@ -1437,7 +1450,7 @@ class data_entry extends base_module {
 					$arr_html_fields['date_object_sub'] = '<input type="hidden" id="y:data_filter:lookup_type_object_sub_pick-0" name="'.$form_name.'[object_sub_date_object_sub_id]" value="'.$date_object_sub_id.'" />'
 						.'<input type="search" class="select" id="y:data_filter:select_type_object_sub-0" value="'.$str_date_object_sub_name.'" readonly="readonly" />';
 					
-					$arr_html_fields['date_chronology'] = '<textarea name="'.$form_name.'[object_sub_date_chronology]" placeholder="ChronoJSON">'.($arr_date_chronology ? value2JSON($arr_date_chronology, JSON_PRETTY_PRINT) : '').'</textarea>';
+					$arr_html_fields['date_chronology'] = '<textarea name="'.$form_name.'[object_sub_date_chronology]" placeholder="ChronoJSON">'.($arr_date_chronology ? value2JSON($arr_date_chronology, JSON_DEFAULT_ENCODE | JSON_PRETTY_PRINT) : '').'</textarea>';
 					$arr_html_fields['date_chronology_create'] = '<input type="button" class="data add popup" id="y:data_entry:select_chronology-'.$type_id.'_'.$object_sub_details_id.'_'.$object_id.'" value="create" />';
 				} else {
 					unset($arr_date_options_select['object_sub'], $arr_date_options_select['chronology']);
@@ -1484,7 +1497,7 @@ class data_entry extends base_module {
 					}
 				}
 				
-				$arr_html_fields['location_geometry'] = '<textarea name="'.$form_name.'[object_sub_location_geometry]" placeholder="GeoJSON">'.($arr_location_geometry ? value2JSON($arr_location_geometry, JSON_PRETTY_PRINT) : '').'</textarea>';
+				$arr_html_fields['location_geometry'] = '<textarea name="'.$form_name.'[object_sub_location_geometry]" placeholder="GeoJSON">'.($arr_location_geometry ? value2JSON($arr_location_geometry, JSON_DEFAULT_ENCODE | JSON_PRETTY_PRINT) : '').'</textarea>';
 				$arr_html_fields['location_create'] = '<input type="button" class="data add select_geometry" value="create" />';
 				
 				$arr_html_fields['location_latitude'] = '<input type="text" name="'.$form_name.'[object_sub_location_latitude]" value="'.$arr_location_geometry_point[1].'" placeholder="'.getLabel('lbl_latitude').'" /><label title="'.getLabel('lbl_latitude').'">λ</label>';
@@ -2530,7 +2543,7 @@ class data_entry extends base_module {
 					$has_append = true;
 				}
 				
-				$arr_values['object_definition_value'] = FormatTypeObjects::formatToSQLValue($arr_object_description['object_description_value_type'], $arr_values['object_definition_value']);
+				$arr_values['object_definition_value'] = FormatTypeObjects::formatToSQLValue($arr_object_description['object_description_value_type'], $arr_values['object_definition_value'], $arr_object_description['object_description_value_type_settings']);
 			}
 
 			$html_return_value = FormatTypeObjects::formatToFormValue($arr_object_description['object_description_value_type'], $arr_values['object_definition_value'], $arr_values['object_definition_ref_object_id'], $str_field_name, $arr_object_description['object_description_value_type_settings'], $arr_format_extra);
@@ -2766,7 +2779,7 @@ class data_entry extends base_module {
 						$has_replace = true;
 					}
 					
-					$arr_values['object_sub_definition_value'] = FormatTypeObjects::formatToSQLValue($arr_object_sub_description['object_sub_description_value_type'], $arr_values['object_sub_definition_value']);
+					$arr_values['object_sub_definition_value'] = FormatTypeObjects::formatToSQLValue($arr_object_sub_description['object_sub_description_value_type'], $arr_values['object_sub_definition_value'], $arr_object_sub_description['object_sub_description_value_type_settings']);
 				}
 				
 				$html_return_value = FormatTypeObjects::formatToFormValue($arr_object_sub_description['object_sub_description_value_type'], $arr_values['object_sub_definition_value'], $arr_values['object_sub_definition_ref_object_id'], $str_field_name, $arr_object_sub_description['object_sub_description_value_type_settings'], $arr_format_extra);
@@ -4066,7 +4079,7 @@ class data_entry extends base_module {
 					
 					$arr_date_chronology = FormatTypeObjects::formatToChronology($arr_date_chronology);
 					$arr_date_chronology = arrFilterRecursive($arr_date_chronology);
-					$arr[$version]['object_sub_date_chronology'] = ($arr_date_chronology ? value2JSON($arr_date_chronology, JSON_PRETTY_PRINT) : '');
+					$arr[$version]['object_sub_date_chronology'] = ($arr_date_chronology ? value2JSON($arr_date_chronology, JSON_DEFAULT_ENCODE | JSON_PRETTY_PRINT) : '');
 					$arr_date_chronology_point = FormatTypeObjects::formatToChronologyPointOnly($arr_date_chronology);
 					
 					$arr[$version]['object_sub_date_type'] = 'chronology';
@@ -4087,7 +4100,7 @@ class data_entry extends base_module {
 				if ($arr_location_geometry) {
 					
 					$arr_location_geometry = FormatTypeObjects::formatToGeometry($arr_location_geometry);
-					$arr[$version]['object_sub_location_geometry'] = ($arr_location_geometry ? value2JSON($arr_location_geometry, JSON_PRETTY_PRINT) : '');
+					$arr[$version]['object_sub_location_geometry'] = ($arr_location_geometry ? value2JSON($arr_location_geometry, JSON_DEFAULT_ENCODE | JSON_PRETTY_PRINT) : '');
 				}
 				
 				$return_version = $arr[$version];
@@ -4355,7 +4368,7 @@ class data_entry extends base_module {
 			$arr_chronology['type'] = (!$object_sub_details_id || $arr_object_sub_details['object_sub_details']['object_sub_details_is_date_period'] ? 'period' : 'point');
 			$arr_chronology = self::formatChronologyInput($arr_chronology);
 			
-			$str_chronology = ($arr_chronology ? value2JSON($arr_chronology, JSON_PRETTY_PRINT) : '');
+			$str_chronology = ($arr_chronology ? value2JSON($arr_chronology, JSON_DEFAULT_ENCODE | JSON_PRETTY_PRINT) : '');
 
 			$this->html = $str_chronology;
 		}
@@ -4967,7 +4980,7 @@ class data_entry extends base_module {
 					
 					if ($arr_object_definition['object_definition_style']) {
 						
-						if ($arr_object_definition['object_definition_style'] == 'hide') {
+						if ($arr_object_definition['object_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 							
 							$arr_data[] = '';
 							$count++;
@@ -6224,7 +6237,7 @@ class data_entry extends base_module {
 					}
 				} else {
 					
-					$arr_object_sub_definition['object_sub_definition_value'] = FormatTypeObjects::formatToSQLValue($arr_object_sub_description['object_sub_description_value_type'], $arr_object_sub_definition['object_sub_definition_value']);
+					$arr_object_sub_definition['object_sub_definition_value'] = FormatTypeObjects::formatToSQLValue($arr_object_sub_description['object_sub_description_value_type'], $arr_object_sub_definition['object_sub_definition_value'], $arr_object_sub_description['object_sub_description_value_type_settings']);
 				}
 				
 				$arr_object_sub_definitions[$arr_object_sub_definition['object_sub_description_id']] = $arr_object_sub_definition;

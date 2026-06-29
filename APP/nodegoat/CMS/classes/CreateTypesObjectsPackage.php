@@ -51,7 +51,7 @@ class CreateTypesObjectsPackage {
 				
 			foreach ($arr_object['object_definitions'] as $object_description_id => &$arr_object_definition) {
 									
-				if ((($arr_object_definition['object_definition_value'] === null || $arr_object_definition['object_definition_value'] === '' || $arr_object_definition['object_definition_value'] === []) && !$arr_object_definition['object_definition_ref_object_id']) || $arr_object_definition['object_definition_style'] == 'hide') {
+				if ((($arr_object_definition['object_definition_value'] === null || $arr_object_definition['object_definition_value'] === '' || $arr_object_definition['object_definition_value'] === []) && !$arr_object_definition['object_definition_ref_object_id']) || $arr_object_definition['object_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 					
 					unset($arr_object['object_definitions'][$object_description_id]);
 					continue;
@@ -79,7 +79,7 @@ class CreateTypesObjectsPackage {
 				
 				foreach ($arr_object_sub['object_sub_definitions'] as $object_sub_description_id => &$arr_object_sub_definition) {
 					
-					if ((($arr_object_sub_definition['object_sub_definition_value'] === null || $arr_object_sub_definition['object_sub_definition_value'] === '') && !$arr_object_sub_definition['object_sub_definition_ref_object_id']) || $arr_object_sub_definition['object_sub_definition_style'] == 'hide') {
+					if ((($arr_object_sub_definition['object_sub_definition_value'] === null || $arr_object_sub_definition['object_sub_definition_value'] === '') && !$arr_object_sub_definition['object_sub_definition_ref_object_id']) || $arr_object_sub_definition['object_sub_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 						
 						unset($arr_object_sub['object_sub_definitions'][$object_sub_description_id]);
 						continue;
@@ -210,7 +210,7 @@ class CreateTypesObjectsPackage {
 			
 			foreach ($arr_object['object_definitions'] as $object_description_id => $arr_object_definition) {
 									
-				if ((($arr_object_definition['object_definition_value'] === null || $arr_object_definition['object_definition_value'] === '' || $arr_object_definition['object_definition_value'] === []) && !$arr_object_definition['object_definition_ref_object_id']) || $arr_object_definition['object_definition_style'] == 'hide') {
+				if ((($arr_object_definition['object_definition_value'] === null || $arr_object_definition['object_definition_value'] === '' || $arr_object_definition['object_definition_value'] === []) && !$arr_object_definition['object_definition_ref_object_id']) || $arr_object_definition['object_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 					continue;
 				}
 					
@@ -341,7 +341,7 @@ class CreateTypesObjectsPackage {
 				
 				foreach ($arr_object_sub['object_sub_definitions'] as $object_sub_description_id => $arr_object_sub_definition) {
 					
-					if ((($arr_object_sub_definition['object_sub_definition_value'] === null || $arr_object_sub_definition['object_sub_definition_value'] === '') && !$arr_object_sub_definition['object_sub_definition_ref_object_id']) || $arr_object_sub_definition['object_sub_definition_style'] == 'hide') {
+					if ((($arr_object_sub_definition['object_sub_definition_value'] === null || $arr_object_sub_definition['object_sub_definition_value'] === '') && !$arr_object_sub_definition['object_sub_definition_ref_object_id']) || $arr_object_sub_definition['object_sub_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 						continue;
 					}
 					
@@ -428,7 +428,7 @@ class CreateTypesObjectsPackage {
 				
 				foreach ($arr_object['object_definitions'] as $object_description_id => &$arr_object_definition) {
 					
-					if ((($arr_object_definition['object_definition_value'] === null || $arr_object_definition['object_definition_value'] === '' || $arr_object_definition['object_definition_value'] === []) && !$arr_object_definition['object_definition_ref_object_id']) || $arr_object_definition['object_definition_style'] == 'hide') {
+					if ((($arr_object_definition['object_definition_value'] === null || $arr_object_definition['object_definition_value'] === '' || $arr_object_definition['object_definition_value'] === []) && !$arr_object_definition['object_definition_ref_object_id']) || $arr_object_definition['object_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 						
 						unset($arr_object['object_definitions'][$object_description_id]);
 						continue;
@@ -456,7 +456,7 @@ class CreateTypesObjectsPackage {
 
 					foreach ($arr_object_sub['object_sub_definitions'] as $object_sub_description_id => &$arr_object_sub_definition) {
 
-						if ((($arr_object_sub_definition['object_sub_definition_value'] === null || $arr_object_sub_definition['object_sub_definition_value'] === '') && !$arr_object_sub_definition['object_sub_definition_ref_object_id']) || $arr_object_sub_definition['object_sub_definition_style'] == 'hide') {
+						if ((($arr_object_sub_definition['object_sub_definition_value'] === null || $arr_object_sub_definition['object_sub_definition_value'] === '') && !$arr_object_sub_definition['object_sub_definition_ref_object_id']) || $arr_object_sub_definition['object_sub_definition_style'] === GenerateTypeObjects::CONDITION_ACTION_HIDE) {
 							
 							unset($arr_object_sub['object_sub_definitions'][$object_sub_description_id]);
 							continue;

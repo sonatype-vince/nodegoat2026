@@ -19,8 +19,9 @@ class CollectTypesObjects {
 	protected $is_generating = false;
 	protected $arr_path_generate = [];
 	
-	protected $do_force_walk = false;
-	protected $do_collect_walk_depth = false;
+	protected $do_walk_force = false;
+	protected $do_walk_collect_depth = false;
+	protected $do_walk_track_reference_source_in_out = false;
 	protected $arr_path_objects = [];
 	protected $arr_path_objects_referenced = [];
 	protected $has_collected_referenced = false;
@@ -274,10 +275,11 @@ class CollectTypesObjects {
 		return $this->arr_path_objects_referenced;
 	}
 	
-	public function setWalkMode($do_force = false, $do_collect_depth = false) {
+	public function setWalkMode($do_force = false, $do_collect_depth = false, $do_track_source_in_out = false) {
 		
-		$this->do_force_walk = $do_force;
-		$this->do_collect_walk_depth = $do_collect_depth;
+		$this->do_walk_force = $do_force; // Make a full Walk, without actual ids
+		$this->do_walk_collect_depth = $do_collect_depth; // Set collection array to recursive
+		$this->do_walk_track_reference_source_in_out = $do_track_source_in_out; // In PATH_OUT, the followed references are sourced from previous incoming and outgoing objects, potentially both. Track in which the reference can be found.
 	}
 	
 	public function getWalkedObject($object_id, $arr = [], $func_call = false) {
@@ -362,19 +364,20 @@ class CollectTypesObjects {
 											
 											foreach ($arr_ref_object_ids as $str_identifier) {
 												
-												list($ref_type_id, $ref_object_id) = explode('_', $str_identifier);
+												[$ref_type_id, $ref_object_id] = explode('_', $str_identifier);
 												
 												if ($arr_connection['ref_type_id'] != (int)$ref_type_id) {
 													continue;
 												}
 												
-												$arr_collect_ids[(int)$ref_object_id] = (int)$ref_object_id;
+												$ref_object_id = (int)$ref_object_id;
+												$arr_collect_ids[$ref_object_id] = $ref_object_id;
 											}
 											
 											$arr_ref_object_ids = $arr_collect_ids;
 										} else {
 											
-											list($ref_type_id, $ref_object_id) = explode('_', $arr_ref_object_ids);
+											[$ref_type_id, $ref_object_id] = explode('_', $arr_ref_object_ids);
 											
 											if ($arr_connection['ref_type_id'] != (int)$ref_type_id) {
 												continue;
@@ -441,7 +444,7 @@ class CollectTypesObjects {
 													continue;
 												}
 												
-												list($ref_type_id, $ref_object_id) = explode('_', $ref_object_id);
+												[$ref_type_id, $ref_object_id] = explode('_', $ref_object_id);
 												
 												if ($arr_connection['ref_type_id'] != (int)$ref_type_id) {
 													continue;
@@ -527,7 +530,7 @@ class CollectTypesObjects {
 
 					$arr_info['in_out'] = TraceTypesNetwork::PATH_START;
 					
-					if ($this->do_collect_walk_depth) {
+					if ($this->do_walk_collect_depth) {
 						$arr_pass = &$arr[$object_id];
 					}
 					
@@ -545,6 +548,7 @@ class CollectTypesObjects {
 							$arr_info_use = $arr_info;
 
 							$arr_ref_object_ids = [];
+							$arr_info_connection = [];
 							
 							if ($in_out == TraceTypesNetwork::PATH_OUT) {
 								
@@ -590,20 +594,29 @@ class CollectTypesObjects {
 												
 												foreach ($arr_object_ids as $str_identifier) {
 													
-													list($ref_type_id, $ref_object_id) = explode('_', $str_identifier);
+													[$ref_type_id, $ref_object_id] = explode('_', $str_identifier);
 													
 													if ($arr_connection['ref_type_id'] != (int)$ref_type_id) {
 														continue;
 													}
 													
-													$arr_collect_ids[(int)$ref_object_id] = (int)$ref_object_id;
+													$ref_object_id = (int)$ref_object_id;
+													$arr_collect_ids[$ref_object_id] = $ref_object_id;
 												}
 												
 												$arr_object_ids = $arr_collect_ids;
 											} else {
 												
-												list($ref_type_id, $ref_object_id) = explode('_', $arr_object_ids);
-												$arr_object_ids = ($arr_connection['ref_type_id'] == (int)$ref_type_id ? [(int)$ref_object_id => (int)$ref_object_id] : null);
+												[$ref_type_id, $ref_object_id] = explode('_', $arr_object_ids);
+
+												if ($arr_connection['ref_type_id'] == (int)$ref_type_id ) {
+													
+													$ref_object_id = (int)$ref_object_id;
+													$arr_object_ids = [$ref_object_id => $ref_object_id];
+												} else {
+													
+													$arr_object_ids = null;
+												}
 											}
 										}
 										
@@ -616,8 +629,12 @@ class CollectTypesObjects {
 											if ($do_trace_check && $arr_source_info['object_id'] == $ref_object_id) {
 												continue;
 											}
-
+											
 											$arr_ref_object_ids[$ref_object_id] = $ref_object_id;
+											
+											if ($this->do_walk_track_reference_source_in_out) {
+												$arr_info_connection[$ref_object_id]['source_in_out'][$use_in_out] = true;
+											}
 										}
 									}
 								} else {
@@ -637,10 +654,18 @@ class CollectTypesObjects {
 													}
 												
 													$arr_ref_object_ids[$ref_object_id] = $ref_object_id;
+													
+													if ($this->do_walk_track_reference_source_in_out) {
+														$arr_info_connection[$ref_object_id]['source_in_out'][$use_in_out] = true;
+													}
 												}
 											} else {
 												
 												$arr_ref_object_ids[$arr_object_ids] = $arr_object_ids;
+												
+												if ($this->do_walk_track_reference_source_in_out) {
+													$arr_info_connection[$arr_object_ids]['source_in_out'][$use_in_out] = true;
+												}
 											}
 										}
 									}
@@ -654,8 +679,6 @@ class CollectTypesObjects {
 							}
 							
 							$arr_info_use += ['type_id' => $type_id, 'object_id' => $object_id, 'object_description_id' => $object_description_id, 'mutable' => $arr_connection['mutable'], 'in_out' => $in_out, 'identifier' => $arr_source_info['identifier'].'_'.$arr_connection['identifier']];
-							
-							$arr_info_connection = [];
 							
 							foreach ($arr_ref_object_ids as $key => $ref_object_id) {
 								
@@ -674,7 +697,7 @@ class CollectTypesObjects {
 								}
 							}
 							
-							if ($this->do_force_walk && !$arr_ref_object_ids) {
+							if ($this->do_walk_force && !$arr_ref_object_ids) {
 								$arr_ref_object_ids[] = 0;
 							}
 							
@@ -694,7 +717,7 @@ class CollectTypesObjects {
 									$arr_info_use = $arr_info_connection[$ref_object_id] + $arr_info_use;
 								}
 								
-								if ($this->do_collect_walk_depth) {
+								if ($this->do_walk_collect_depth) {
 									$arr_pass = &$arr[$in_out][$target_type_id][$ref_object_id];
 								}
 															
@@ -714,6 +737,7 @@ class CollectTypesObjects {
 								$arr_info_use = $arr_info;
 								
 								$arr_object_subs_ref_object_ids = [];
+								$arr_info_connection = [];
 
 								if ($object_sub_connection_id === 'object_sub_location') {
 									
@@ -739,8 +763,14 @@ class CollectTypesObjects {
 												}
 
 												$ref_object_id = $arr_object_sub['object_sub']['object_sub_location_ref_object_id'];
+												
 												if ($ref_object_id) {
+													
 													$arr_object_subs_ref_object_ids[$object_sub_id][$ref_object_id] = $ref_object_id;
+													
+													if ($this->do_walk_track_reference_source_in_out) {
+														$arr_info_connection[$object_sub_id][$ref_object_id]['source_in_out'][$use_in_out] = true;
+													}
 												}
 											}
 										}
@@ -800,16 +830,27 @@ class CollectTypesObjects {
 														if ($arr_ref_object_ids) {
 															
 															foreach ($arr_ref_object_ids as $ref_object_id => $value) {
+																
 																$arr_object_subs_ref_object_ids[$object_sub_id][$ref_object_id] = $ref_object_id;
+																
+																if ($this->do_walk_track_reference_source_in_out) {
+																	$arr_info_connection[$object_sub_id][$ref_object_id]['source_in_out'][$use_in_out] = true;
+																}
 															}
 														}
 													} else {
 														
 														$ref_object_id = $arr_object_sub['object_sub_definitions'][$object_sub_connection_id]['object_sub_definition_ref_object_id'];
-														list($ref_type_id, $ref_object_id) = explode('_', $ref_object_id);
+														[$ref_type_id, $ref_object_id] = explode('_', $ref_object_id);
 														
 														if ($arr_connection['ref_type_id'] == (int)$ref_type_id) {
-															$arr_object_subs_ref_object_ids[$object_sub_id][(int)$ref_object_id] = (int)$ref_object_id;
+															
+															$ref_object_id = (int)$ref_object_id;
+															$arr_object_subs_ref_object_ids[$object_sub_id][$ref_object_id] = $ref_object_id;
+															
+															if ($this->do_walk_track_reference_source_in_out) {
+																$arr_info_connection[$object_sub_id][$ref_object_id]['source_in_out'][$use_in_out] = true;
+															}
 														}
 													}
 												} else {
@@ -817,7 +858,12 @@ class CollectTypesObjects {
 													$ref_object_id = $arr_object_sub['object_sub_definitions'][$object_sub_connection_id]['object_sub_definition_ref_object_id'];
 													
 													if ($ref_object_id) {
+														
 														$arr_object_subs_ref_object_ids[$object_sub_id][$ref_object_id] = $ref_object_id;
+														
+														if ($this->do_walk_track_reference_source_in_out) {
+															$arr_info_connection[$object_sub_id][$ref_object_id]['source_in_out'][$use_in_out] = true;
+														}
 													}
 												}
 											}
@@ -848,8 +894,6 @@ class CollectTypesObjects {
 									$arr_info_use += ['type_id' => $type_id, 'object_id' => $object_id, 'object_sub_details_id' => $object_sub_details_id, 'object_sub_description_id' => $object_sub_connection_id, 'mutable' => $arr_connection['mutable'], 'in_out' => $in_out, 'identifier' => $arr_source_info['identifier'].'_'.$arr_connection['identifier']];
 								}
 								
-								$arr_info_connection = [];
-								
 								foreach ($arr_object_subs_ref_object_ids as $object_sub_id => &$arr_ref_object_ids) {
 												
 									foreach ($arr_ref_object_ids as $key => $ref_object_id) {
@@ -873,7 +917,7 @@ class CollectTypesObjects {
 										continue;
 									}
 									
-									if ($this->do_force_walk) {
+									if ($this->do_walk_force) {
 										$arr_ref_object_ids = [0];
 									} else {
 										unset($arr_object_subs_ref_object_ids[$object_sub_id]);
@@ -881,7 +925,7 @@ class CollectTypesObjects {
 								}
 								unset($arr_ref_object_ids);
 								
-								if ($this->do_force_walk && !$arr_object_subs_ref_object_ids) {
+								if ($this->do_walk_force && !$arr_object_subs_ref_object_ids) {
 									$arr_object_subs_ref_object_ids[] = [0];
 								}
 								
@@ -905,7 +949,7 @@ class CollectTypesObjects {
 											$arr_info_use = $arr_info_connection[$object_sub_id][$ref_object_id] + $arr_info_use;
 										}
 										
-										if ($this->do_collect_walk_depth) {
+										if ($this->do_walk_collect_depth) {
 											$arr_pass = &$arr[$in_out][$target_type_id][$ref_object_id];
 										}
 										

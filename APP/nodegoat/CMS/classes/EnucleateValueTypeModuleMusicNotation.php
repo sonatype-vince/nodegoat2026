@@ -47,14 +47,24 @@ class EnucleateValueTypeModuleMusicNotation extends EnucleateValueTypeModuleBase
 		return $return;
 	}
 	
-	protected function enucleateModule($mode) {
+	protected function enucleateModule($mode, $str_field = null) {
 		
 		$return = '';
 		
-		if ($mode == static::VIEW_TEXT) {
+		if ($str_field !== null) {
 			
-			if ($this->arr_value['notation']) {
-				 
+			if ($mode == static::VIEW_TEXT) {
+				
+				if ($str_field == 'render_image') {
+					$return = ($this->arr_value['render']['image'] ?? '');
+				} else {
+					$return = ($this->arr_value['notation'][$str_field] ?? '');
+				}
+			}
+		} else if ($mode == static::VIEW_TEXT) {
+			
+			if ($this->arr_value['notation']) { // Not empty
+				
 				$return = 
 					'@clef: '.$this->arr_value['notation']['clef'].EOL_1100CC
 					.'@keysig: '.$this->arr_value['notation']['key_signature'].EOL_1100CC
@@ -64,8 +74,6 @@ class EnucleateValueTypeModuleMusicNotation extends EnucleateValueTypeModuleBase
 				;
 			}
 		} else {
-			
-			$return = '';
 			
 			if (!empty($this->arr_value['render']['image'])) {
 				
@@ -113,11 +121,12 @@ class EnucleateValueTypeModuleMusicNotation extends EnucleateValueTypeModuleBase
 	protected static function getModuleValueFields() {
 		
 		return [
-			'clef' => ['name' => getLabel('lbl_music_notation_clef'), 'type' => '', 'path' => '$.notation.clef'],
-			'key_signature' => ['name' => getLabel('lbl_music_notation_key_signature'), 'type' => '', 'path' => '$.notation.key_signature'],
-			'time_signature' => ['name' => getLabel('lbl_music_notation_time_signature'), 'type' => '', 'path' => '$.notation.time_signature'],
-			'key' => ['name' => getLabel('lbl_music_notation_key'), 'type' => '', 'path' => '$.notation.key'],
-			'code' => ['name' => getLabel('lbl_music_notation_code'), 'type' => '', 'path' => '$.notation.code']
+			'clef' => ['name' => getLabel('lbl_music_notation_clef'), 'type' => '', 'path' => '$.notation.clef', 'mode' => parent::FIELD_MODE_VIEW | parent::FIELD_MODE_FILTER],
+			'key_signature' => ['name' => getLabel('lbl_music_notation_key_signature'), 'type' => '', 'path' => '$.notation.key_signature', 'mode' => parent::FIELD_MODE_VIEW | parent::FIELD_MODE_FILTER],
+			'time_signature' => ['name' => getLabel('lbl_music_notation_time_signature'), 'type' => '', 'path' => '$.notation.time_signature', 'mode' => parent::FIELD_MODE_VIEW | parent::FIELD_MODE_FILTER],
+			'key' => ['name' => getLabel('lbl_music_notation_key'), 'type' => '', 'path' => '$.notation.key', 'mode' => parent::FIELD_MODE_VIEW | parent::FIELD_MODE_FILTER],
+			'code' => ['name' => getLabel('lbl_music_notation_code'), 'type' => '', 'path' => '$.notation.code', 'mode' => parent::FIELD_MODE_VIEW | parent::FIELD_MODE_FILTER],
+			'render_image' => ['name' => getLabel('lbl_image'), 'type' => '', 'path' => '$.render.image', 'mode' => parent::FIELD_MODE_VIEW]
 		];
 	}
 	
@@ -247,7 +256,7 @@ class EnucleateValueTypeModuleMusicNotation extends EnucleateValueTypeModuleBase
 				});
 				func_render();			
 			};
-								
+			
 			worker.addEventListener('message', func_ready);
 			
 			const func_close = function() {

@@ -47,7 +47,7 @@ Import additional SQL to their respective databases:
 
 ### PostgreSQL
 
-See [1100CC SETUP](https://github.com/LAB1100/1100CC/blob/master/SETUP.md#postgresql) for more information about running nodegoat using PostgreSQL. nodegoat additionally requires the `postgis` extention enabled in its database. The PGLoader script can be extended with:
+See [1100CC SETUP](https://github.com/LAB1100/1100CC/blob/master/SETUP.md#postgresql) for more information about running nodegoat using PostgreSQL. nodegoat additionally requires the `postgis` extension enabled in its database. The PGLoader script can be extended with:
 
 ```sql
 LOAD DATABASE

@@ -41,7 +41,9 @@ class data_ingest extends ingest_source {
 	];
 	
 	protected static $num_pointer_query_limit = 10;
+	protected static $num_pointer_query_batch_size = 2;
 	protected static $num_pointer_query_resolve_limit = 5;
+	protected static $num_pointer_query_error_limit = 3;
 	protected static $num_pointer_filter_limit = 500;
 	protected static $num_pointer_filter_resolve_limit = 50;
 	
@@ -72,6 +74,10 @@ class data_ingest extends ingest_source {
 			$str_html_state = '<li>
 				<label>'.getLabel('lbl_type_module_objects_processed').'</label>
 				<div>'.FilterTypeObjects::getModuleObjectTypeCount($system_object_description_id, $system_object_id, $system_type_id).'</div>
+			</li>
+			<li>
+				<label>'.getLabel('lbl_ingest_query_batch_size').'</label>
+				<div><input type="range" step="1" min="1" max="'.static::$num_pointer_query_limit.'" /><input type="number" name="ingest[settings][batch]" step="1" min="1" max="'.static::$num_pointer_query_limit.'" value="'.static::$num_pointer_query_batch_size.'" /></div>
 			</li>';
 		} else {
 			
@@ -125,7 +131,7 @@ class data_ingest extends ingest_source {
 		
 		if (arrHasKeysRecursive('conversion_id', $arr_response_values, true)) {
 			
-			SiteEndEnvironment::setFeedback('ingest_source', cms_details::setWebServiceActiveUser($_SESSION['USER_ID'], value2Hash(session_id())));
+			SiteEndEnvironment::setFeedback('ingest_source', cms_details::setWebServiceActiveUser($_SESSION['USER_ID'], value2Hash(SiteStartEnvironment::getSessionID())));
 			$has_webservice = true;
 		}
 		
@@ -161,6 +167,10 @@ class data_ingest extends ingest_source {
 		
 		$system_object_id = $arr_template['identifier'];
 		
+		if (!empty($arr_feedback['settings'])) {
+			$arr_template['settings'] = $arr_feedback['settings'];
+		}
+		
 		$this->is_new_template_process = (!isset($arr_feedback['in_process'])); // Only true first round
 		
 		while (true) {
@@ -173,8 +183,12 @@ class data_ingest extends ingest_source {
 			
 			if ($this->is_done_template_process || $this->has_feedback_template_process) {
 				break;
-			} else {
-				$arr_template = static::getTemplate($system_object_id);
+			}
+				
+			$arr_template = static::getTemplate($system_object_id);
+			
+			if (!empty($arr_feedback['settings'])) {
+				$arr_template['settings'] = $arr_feedback['settings'];
 			}
 			
 			$this->is_new_template_process = true;
@@ -244,6 +258,8 @@ class data_ingest extends ingest_source {
 				$get_new = false;
 			}
 		}
+		
+		// Get results
 
 		if ($get_new) {
 			
@@ -274,17 +290,24 @@ class data_ingest extends ingest_source {
 			
 			$arr_objects_set = $filter->init();
 			
-			$external = new ResourceExternal($arr_resource);
+			$external = new ResourceExternal($arr_resource, true);
+			$external->debug(Settings::get('debug', 'nodegoat_ingest_request'));
+			$external->setTimeout(null, null, null); // Potential to tweak
+
 			$arr_response_values = $external->getResponseValues(true);
 			
 			FileStore::storeFile($arr_state['source']);
-			$file_source = fopen($arr_state['source'], 'w+');
+			$file_source = fopen($arr_state['source'], 'w+'); // Truncates, would erase a previous dirty run
 			$stream = IngestTypeObjectsResourceExternal::getSourceStream($file_source);
-			$socket = false;
+			$socket = null;
 			$has_results = false;
+			$arr_errors = [];
+			$arr_iterate_object_ids = $arr_object_ids;
 			
 			if (arrHasKeysRecursive('conversion_id', $arr_response_values, true)) {
+				
 				$socket = $this->getConversionSocket();
+				$external->setResultConversionSocket($socket);
 			}
 			
 			$arr_filter_value = [];
@@ -292,58 +315,117 @@ class data_ingest extends ingest_source {
 			foreach ($arr_pointers['filter_value'] as $arr_pointer) {
 				$arr_filter_value[$arr_pointer['pointer_heading']][] = $arr_pointer['value'];
 			}
-			
-			foreach ($arr_object_ids as $use_object_id) {
-			
-				$arr_filter = [];
-				
-				if ($arr_pointers_query_object) {
 
-					$arr_object_set = GenerateTypeObjects::getTypeObjectValuesByFlatMap($use_type_id, $arr_objects_set[$use_object_id], $arr_map);
+			$num_batch_size = ((($num = (int)($arr_template['settings']['batch'] ?? 0)) >= 1 && $num <= static::$num_pointer_query_limit) ? $num : static::$num_pointer_query_batch_size);
+			
+			while ($arr_batch_object_ids = array_splice($arr_iterate_object_ids, 0, $num_batch_size)) {
+				
+				foreach ($arr_batch_object_ids as $key => $use_object_id) {
+				
+					$arr_filter = [];
 					
-					foreach ($arr_pointers_query_object as $arr_pointer) {
+					if ($arr_pointers_query_object) {
+
+						$arr_object_set = GenerateTypeObjects::getTypeObjectValuesByFlatMap($use_type_id, $arr_objects_set[$use_object_id], $arr_map);
 						
-						$arr_value = $arr_object_set[$arr_pointer['element_id']];
+						foreach ($arr_pointers_query_object as $arr_pointer) {
+							
+							$arr_value = $arr_object_set[$arr_pointer['element_id']];
+							
+							if (!$arr_value) {
+								continue;
+							}
+							
+							$arr_filter[$arr_pointer['pointer_heading']] = $arr_value;
+						}
+					}
+					
+					if (!$arr_filter) { // Check if the filter contains object-specific values
 						
-						if (!$arr_value) {
+						unset($arr_batch_object_ids[$key]);
+						continue;
+					}
+					
+					foreach ($arr_pointers['query_value'] as $arr_pointer) {
+						$arr_filter[$arr_pointer['pointer_heading']] = $arr_pointer['value'];
+					}
+					
+					$external->setFilter($arr_filter, true);
+					$external->request($use_object_id);
+				}
+				
+				$num_time = microtime(true);
+
+				while ($arr_batch_object_ids !== []) {
+					
+					$has_processed_result = false;
+					
+					foreach ($arr_batch_object_ids as $key => $use_object_id) {
+						
+						$has_state = false;
+						
+						try {
+							
+							$has_state = $external->getRequestResult($use_object_id);
+						} catch (RealTroubleThrown $e) {
+				
+							if ($e->getTroubleSuppress() == LOG_SYSTEM) {
+								throw($e);
+							}
+							
+							$arr_errors[] = $e;
+						}
+						
+						if ($has_state === null) { // Not ready
 							continue;
 						}
 						
-						$arr_filter[$arr_pointer['pointer_heading']] = $arr_value;
+						unset($arr_batch_object_ids[$key]);
+						$has_processed_result = true;
+						
+						if (!$external->hasResult()) {
+							continue;
+						}
+						
+						if ($use_type_as_query) { // The object ID is not needed anymore because we only used the object's data
+							$use_object_id = false;
+						}
+						
+						IngestTypeObjectsResourceExternal::streamSourceByObjectId($stream, $external, $use_object_id, $arr_filter_value);
+						
+						$has_results = true;
+					}
+					
+					if (!$has_processed_result) { // If nothing happened in this loop, give it a fraction (0.01 second) of peace
+						usleep(10000);
+					}
+					
+					$num_cur_time = microtime(true);
+					
+					if (($num_cur_time - $num_time) > 5.0) {
+						
+						Mediator::checkState();
+						$num_time = $num_cur_time;
 					}
 				}
-				
-				if (!$arr_filter) { // Check if the filter contains object-specific values
-					continue;
-				}
-				
-				foreach ($arr_pointers['query_value'] as $arr_pointer) {
-					$arr_filter[$arr_pointer['pointer_heading']] = $arr_pointer['value'];
-				}
-
-				$external = new ResourceExternal($arr_resource);
-				$external->debug(Settings::get('debug', 'nodegoat_ingest_request'));
-				$external->setTimeout(null, null, null, true);
-				$external->setFilter($arr_filter, true);
-				$external->setResultConversionSocket($socket);
-				$external->request();
+			}
 			
-				if (!$external->hasResult()) {
-					continue;
-				}
+			if ($arr_errors && count($arr_errors) >= static::$num_pointer_query_error_limit) { // Abort when errors reach a certain limit
 				
-				if ($use_type_as_query) { // The object ID is not needed anymore because we only used the object's data
-					$use_object_id = false;
-				}
+				$e = reset($arr_errors); // Use first error
 				
-				IngestTypeObjectsResourceExternal::streamSourceByObjectId($stream, $external, $use_object_id, $arr_filter_value);
+				message($e->getTroubleMessage(), 'ATTENTION', LOG_CLIENT, null, null, 10000, $e); // Log message
+				$arr_result = ['error' => ['message' => $e->getTroubleMessage()]]; // Return message
 				
-				$has_results = true;
+				$this->is_done_template_process = true;
+				
+				return $this->createProcessTemplateStoreCheck($arr_template, $arr_result);
 			}
 			
 			if (!$has_results) {
 				
 				static::updateTemplateState($system_object_id, ['object_ids' => $arr_object_ids, 'status' => 'done']);
+				
 				return '';
 			}
 
@@ -357,6 +439,8 @@ class data_ingest extends ingest_source {
 
 			$num_pointer_state = 0;
 		}
+		
+		// Ingest result
 		
 		$ingest->setSource($file_source);
 		
@@ -476,18 +560,29 @@ class data_ingest extends ingest_source {
 			$socket = null;
 			
 			if (arrHasKeysRecursive('conversion_id', $arr_response_values, true)) {
+				
 				$socket = $this->getConversionSocket();
+				$external->setResultConversionSocket($socket);
 			}
 			
 			while (true) {
 				
 				Mediator::checkState();
 			
-				$external = new ResourceExternal($arr_resource);
 				$external->setFilter($arr_filter, true);
 				$external->setLimit([$num_offset, $num_limit]);
-				$external->setResultConversionSocket($socket);
-				$external->request();
+				
+				try {
+					
+					$external->request();
+				} catch (RealTroubleThrown $e) {
+				
+					if ($e->getTroubleSuppress() == LOG_SYSTEM) {
+						throw($e);
+					}
+					
+					message($e->getTroubleMessage(), 'ATTENTION', LOG_CLIENT, null, null, 10000, $e);
+				}
 				
 				$num_limit = $external->getResultValuesCount();
 				
@@ -733,6 +828,8 @@ class data_ingest extends ingest_source {
 		$arr_template['state']['source'] = $path_file;
 		
 		$arr_template['state']['pointer_state'] = $num_state;
+		
+		$arr_template['settings'] = null; // Reserved for user-defined settings when running the template
 
 		return $arr_template;
 	}

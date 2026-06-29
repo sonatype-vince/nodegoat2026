@@ -114,7 +114,7 @@ class QueryTypeObjectsInformationRetrieval {
     	
 	public function query() {
 
-		$command = 'curl --no-buffer --silent --show-error -X POST "'.$this->str_host.'query/term/" -H  "accept: application/json" -H  "Content-Type: application/json" --data-binary @-';
+		$command = 'curl --no-buffer --silent --show-error -X POST '.escapeshellarg($this->str_host.'query/term/').' -H  "accept: application/json" -H  "Content-Type: application/json" --data-binary @-';
 		
 		$process = new ProcessProgram($command);
 

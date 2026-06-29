@@ -935,7 +935,7 @@ abstract class ingest_source extends base_module {
 			$str_message = parseBody(getLabel('msg_ingest_stopped').' '.getLabel('msg_object_locked_multi')).parseBody($str_locked);
 			
 		} else if ($arr_result['error'] !== null) {
-						
+			
 			$str_message = parseBody($arr_result['error']['message']);
 		} else {
 
@@ -1574,6 +1574,10 @@ abstract class ingest_source extends base_module {
 	}
 	
 	public static function parseTemplate($arr_template_raw) {
+		
+		if (!$arr_template_raw['pointers']) {
+			error(getLabel('msg_missing_information'), TROUBLE_ERROR, LOG_CLIENT);
+		}
 		
 		$template_mode = (int)$arr_template_raw['mode'];
 		if (!$template_mode) {

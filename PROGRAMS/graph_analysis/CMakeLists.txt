@@ -18,7 +18,7 @@ add_subdirectory(${PARENT_DIR}/SERVICES/web_server ${CMAKE_CURRENT_BINARY_DIR}/S
 # Include the RapidJSON header files
 include_directories(${PARENT_DIR}/LIBRARIES/rapidjson/include)
 
-find_package(Boost COMPONENTS system thread REQUIRED)
+find_package(Boost COMPONENTS thread REQUIRED)
 
 # Prepare program
 add_executable(graph_analysis program.cpp)
@@ -35,4 +35,3 @@ target_include_directories(graph_analysis PRIVATE ${Boost_INCLUDE_DIR})
 set_target_properties(graph_analysis PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 install(TARGETS graph_analysis DESTINATION ${PARENT_DIR}/RUN)
-

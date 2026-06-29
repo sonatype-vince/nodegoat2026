@@ -334,9 +334,7 @@ class retrieval extends base_module {
 			.mod.retrieval > section > article:empty { display: none; }
 			.mod.retrieval > section > article > details { margin-top: 24px; }
 			.mod.retrieval > section > article > details > p { font-size: 0.8em; font-family: var(--font-mono); }
-			.mod.retrieval li > label > span.optional::before { content: \'[\'; }
-			.mod.retrieval li > label > span.optional::after { content: \']\'; }
-			.mod.retrieval li > label > span.optional { font-size: 0.7em; font-weight: normal; margin-left: 0.3em; text-transform: lowercase; }
+			.mod.retrieval li > label > span.optional { font-size: 1rem; margin-left: 4px; }
 			.mod.retrieval label > span + .icon,
 			.mod.retrieval label > .icon + span { margin-left: 4px; }
 			.mod.retrieval label > .icon svg { height: 0.8em; vertical-align: baseline; }

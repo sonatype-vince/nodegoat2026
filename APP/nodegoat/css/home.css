@@ -30,9 +30,10 @@ hr { border-bottom-width: 1px; }
 
 .page-login .site .mod a.nodegoat-logo { display: block; width: 187px; height: 200px; margin: 80px auto 40px auto; background-image: url('/css/images/nodegoat.svg'); background-size: 187px 200px; background-repeat: no-repeat; }
 .page-login .back { background-color: transparent; }
-.page-login .back .mod.login section.info { width: 400px; margin: 0 auto;  margin-bottom: 40px; padding: 20px; box-sizing: border-box; }
-.page-login .back .mod.login form { width: 400px; margin: 0 auto;  background-color: rgba(255, 255, 255, 0.6); padding: 50px; box-sizing: border-box; }
-.page-login .back .mod.login + .mod nav { width: 400px; margin: 0 auto; }
+.page-login .back .mod.login section.info,
+.page-login .back .mod.login form { width: 480px; margin: 0 auto; }
+.page-login .back .mod.login section.info { margin-bottom: 40px; padding: 20px; box-sizing: border-box; }
+.page-login .back .mod.login form { background-color: rgba(255, 255, 255, 0.6); padding: 50px; box-sizing: border-box; }
 
 .dir-login .site { max-width: 1500px; }
 
@@ -215,6 +216,14 @@ div.analysis-object > span + span::before { content: "|"; padding: 0px 4px; }
 .data_viewer .record > dl > div > dd div.album > img,
 .data_viewer .record > dl > div > dd div.album > video { object-fit: contain; }
 .data_viewer .record > dl > div > dd div.album > object { width: 100%; height: 100%; min-width: 300px; min-height: 400px; }
+.data_viewer .record > dl > div > dd > span.limited { display: block; margin-top: 5px; }
+
+.data_viewer .record > dl > div > dd > span.limited,
+.mod.retrieval li > label > span.optional { font-size: 1rem; font-weight: normal; text-transform: lowercase; }
+.data_viewer .record > dl > div > dd > span.limited::before,
+.mod.retrieval li > label > span.optional::before { content: '['; }
+.data_viewer .record > dl > div > dd > span.limited::after,
+.mod.retrieval li > label > span.optional::after { content: ']'; }
 
 /* CUSTOM & BODY CONTENT */
 
@@ -237,6 +246,7 @@ div.analysis-object > span + span::before { content: "|"; padding: 0px 4px; }
 /* INTERFACE */
 
 section.info { background-color: var(--nodegoat-dark); }
+section.info.attention .icon[data-name="info-point"] > svg { height: 1.2rem; }
 
 *[type=button].pulse, *[type=submit].pulse,
 a.pulse, .a.pulse,
@@ -260,6 +270,7 @@ input[type=hidden]:not([value=""]):not([value="null"]):not([value="[]"]) + *[typ
 .custom_projects > form > h1 > small,
 .project-overview > div > h1 > small,
 .public_interfaces > form > h1 > small,
+.presentation_instances > form > h1 > small,
 .popup > form.storage fieldset ul > li > div > small,
 .popup > form[data-method^="handle_"] > h2 > small { display: block; margin-top: 1px; vertical-align: middle; font-size: 1.1rem; font-weight: normal; font-family: var(--font-mono); }
 .popup > form.storage fieldset ul > li > div > small { display: inline-block; }
@@ -270,6 +281,7 @@ input[type=hidden]:not([value=""]):not([value="null"]):not([value="[]"]) + *[typ
 .custom_projects > form > h1 > small::before,
 .project-overview > div > h1 > small::before,
 .public_interfaces > form > h1 > small::before,
+.presentation_instances > form > h1 > small::before,
 .popup > form.storage fieldset ul > li > div > small::before,
 .popup > form[data-method^="handle_"] > h2 > small::before { content: "("; margin-right: 0.14em; }
 .view_type_object .overview h1 > small::after,
@@ -279,6 +291,7 @@ input[type=hidden]:not([value=""]):not([value="null"]):not([value="[]"]) + *[typ
 .custom_projects > form > h1 > small::after,
 .project-overview > div > h1 > small::after,
 .public_interfaces > form > h1 > small::after,
+.presentation_instances > form > h1 > small::after,
 .popup > form.storage fieldset ul > li > div > small::after,
 .popup > form[data-method^="handle_"] > h2 > small::after { content: ")"; margin-left: 0.14em; }
 .view_type_object .overview h1 > small > span + span::before,

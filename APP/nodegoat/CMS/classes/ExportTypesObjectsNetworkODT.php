@@ -152,7 +152,7 @@ class ExportTypesObjectsNetworkODT extends ExportTypesObjectsNetwork {
 								
 								if ($arr_object_sub_value['object_sub_date_chronology']) {
 									$str_object_sub_date_chronology = FormatTypeObjects::formatToChronology($arr_object_sub_value['object_sub_date_chronology']);
-									$str_object_sub_date_chronology = value2JSON($str_object_sub_date_chronology, JSON_PRETTY_PRINT);
+									$str_object_sub_date_chronology = value2JSON($str_object_sub_date_chronology, JSON_DEFAULT_ENCODE | JSON_PRETTY_PRINT);
 								}
 								
 								$this->printValue($str_object_sub_date_chronology, true, 'pre');

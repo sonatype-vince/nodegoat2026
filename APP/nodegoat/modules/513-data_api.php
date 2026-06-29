@@ -605,25 +605,35 @@ class data_api extends api_io {
 		
 		$collect->setInitLimit($num_stream);
 		
-		while ($collect->init()) {
+		try {
 			
-			$arr_objects = $collect->getPathObjects(CollectTypesObjects::PATH_START);
-			
-			Mediator::checkState();
-			
-			if ($arr_collect_info['connections']) {
-				$arr_objects = $output_objects->initPath($collect, $arr_objects);
-			} else {
-				$arr_objects = $output_objects->init($type_id, $arr_objects);
+			while ($collect->init()) {
+				
+				$arr_objects = $collect->getPathObjects(CollectTypesObjects::PATH_START);
+				
+				Mediator::checkState();
+								
+				if ($arr_collect_info['connections']) {
+					$arr_objects = $output_objects->initPath($collect, $arr_objects);
+				} else {
+					$arr_objects = $output_objects->init($type_id, $arr_objects);
+				}
+				
+				Mediator::checkState();
+				
+				if (count($arr_objects) > 20) { // Do not pretty print above a certain limit, use normal JSON
+					Response::setFormat(Response::getFormat() & ~Response::PARSE_PRETTY);
+				}
+				
+				Response::stream($arr_objects);
 			}
-			
-			Mediator::checkState();
-			
-			if (count($arr_objects) > 20) { // Do not pretty print above a certain limit, use normal JSON
-				Response::setFormat(Response::getFormat() & ~Response::PARSE_PRETTY);
+		} catch (Exception $e) {
+
+			if ($e->getTroubleSuppress() != LOG_SYSTEM) {
+				error($e->getTroubleMessage(), TROUBLE_ERROR, LOG_CLIENT);
 			}
-			
-			Response::stream($arr_objects);
+
+			throw($e);
 		}
 	}
 	
@@ -1129,7 +1139,7 @@ class data_api extends api_io {
 			}
 		} else {
 			
-			if (count($this->arr_settings['type']) > 1) { // There should be one Type ID provided
+			if ((int)$this->arr_settings['type'] != $this->arr_settings['type']) { // There should be one Type ID provided
 				$this->errorInput('No Type specified');
 			}
 			
@@ -1324,7 +1334,16 @@ class data_api extends api_io {
 		
 		$analyse->setAnalyse($type_id, $arr_analysis);
 		
-		$analyse->input($collect);
+		try {
+			$analyse->input($collect);
+		} catch (Exception $e) {
+
+			if ($e->getTroubleSuppress() != LOG_SYSTEM) {
+				error($e->getTroubleMessage(), TROUBLE_ERROR, LOG_CLIENT);
+			}
+
+			throw($e);
+		}
 		
 		$analyse->readInputResourcePackage();
 		
@@ -2501,9 +2520,7 @@ class data_api extends api_io {
 					'required' => true,
 					'content' => [
 						'application/json' => [
-							'schema' => [
-								'type' => ['$ref' => '#/components/schemas/model.type']
-							]
+							'schema' => ['$ref' => '#/components/schemas/model.type']
 						]
 					]
 				],

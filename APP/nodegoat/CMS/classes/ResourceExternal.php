@@ -28,6 +28,8 @@ class ResourceExternal {
 	const PARSE_XML = 'xml';
 	const PARSE_YAML = 'yaml';
 	
+	protected $num_requests = 0;
+	protected $arr_requests = [];
 	protected $str_result = '';
 	protected $arr_result_values = null;
 	protected $mode_result_parse = self::PARSE_DEFAULT;
@@ -44,8 +46,10 @@ class ResourceExternal {
 	protected $num_timeout = 45; // Seconds
 	protected $do_timeout_retry = true;
 	protected $num_timeout_conversion = 30; // Seconds
-	protected $is_iteration = false;
+	protected $do_iteration = false;
 	protected $do_debug = false;
+	
+	protected $arr_cache_request_values = [];
 	
 	const VIEW_PLAIN = 1;
 	
@@ -53,25 +57,33 @@ class ResourceExternal {
 	const TAGCODE_PARSE_QUERY_CAPTURE = '((?>(?:(?>[^\[]+)|\[(?!\/query\]))*))';
 	const TAGCODE_PARSE_QUERY_CLOSE = '\[\/query\]';
 	const TAGCODE_PARSE_QUERY = self::TAGCODE_PARSE_QUERY_OPEN.self::TAGCODE_PARSE_QUERY_CAPTURE.self::TAGCODE_PARSE_QUERY_CLOSE; // \[query=([\w]+)\](.+?)\[\/query\]
-	const TAGCODE_PARSE_VARIABLE_OPEN = '\[variable(?:=([\w]+)(?:\:([\w-]+))?)?\]';
+	const TAGCODE_PARSE_VARIABLE_OPEN = '\[variable(?:=([\w]+)(?:\:([\w\-;,]+))?)?\]';
 	const TAGCODE_PARSE_VARIABLE_CAPTURE = '((?>(?:(?>[^\[]+)|\[(?!\/variable\]))*))';
 	const TAGCODE_PARSE_VARIABLE_CLOSE = '\[\/variable\]';
-	const TAGCODE_PARSE_VARIABLE = self::TAGCODE_PARSE_VARIABLE_OPEN.self::TAGCODE_PARSE_VARIABLE_CAPTURE.self::TAGCODE_PARSE_VARIABLE_CLOSE; // \[variable(?:=([\w]+)(?:\:([\w-]+))?)?\](.+?)\[\/variable\]
+	const TAGCODE_PARSE_VARIABLE = self::TAGCODE_PARSE_VARIABLE_OPEN.self::TAGCODE_PARSE_VARIABLE_CAPTURE.self::TAGCODE_PARSE_VARIABLE_CLOSE; // \[variable(?:=([\w]+)(?:\:([\w\-;,]+))?)?\](.+?)\[\/variable\]
+	const TAGCODE_PARSE_VALUE = '\[parse=([\w\-;,]+)\]((?:(?>[^\[]+)|(?R)|\[(?!\/?parse\]))*)\[\/parse\]';
 	const TAGCODE_PARSE_LIMIT = '\[\[limit(?:=([\d]*))?\]\]';
 	const TAGCODE_PARSE_OFFSET = '\[\[offset(?:=([\d]*))?\]\]';
 		
-    public function __construct($arr_resource, $identifier = false, $view = self::VIEW_PLAIN) {
+	public function __construct($arr_resource, $do_iteration = false) {
 		
 		
 		$this->arr_resource = $arr_resource;
-		$this->identifier = $identifier;
-		$this->view = $view;
-    }
+		$this->do_iteration = (bool)$do_iteration; // Mass-operation/iteration
+		
+		if ($this->do_iteration) {
+			$this->do_timeout_retry = false; // By default, only follow-up on timeout doing a single call
+		}
+	}
 	
-	public function request() {
+	public function request($str_identifier = null) {
 
 		// [query=name]...[/query]
 		// [variable(=name(:type))]...[/variable]
+		
+		$this->num_requests++;
+		$this->str_uri_template_begin = null;
+		$this->str_uri_template_end = null;
 		
 		$str_query = $this->arr_resource['query'];
 		
@@ -199,7 +211,7 @@ class ResourceExternal {
 			$str_query = preg_replace('/'.static::TAGCODE_PARSE_QUERY_OPEN.'/s', '', $str_query);
 			$str_query = preg_replace('/'.static::TAGCODE_PARSE_QUERY_CLOSE.'/s', '', $str_query);
 			
-			if ($this->arr_resource['protocol'] == static::PROTOCOL_API) { // Encode only the values in case of url targeted protocols
+			if ($this->arr_resource['protocol'] == static::PROTOCOL_API) { // Encode only the values when relevant for the protocol
 				
 				$str_query = preg_replace_callback(
 					'/'.static::TAGCODE_PARSE_VARIABLE.'/s',
@@ -214,6 +226,11 @@ class ResourceExternal {
 				$str_query = preg_replace('/'.static::TAGCODE_PARSE_VARIABLE_OPEN.'/s', '', $str_query);
 				$str_query = preg_replace('/'.static::TAGCODE_PARSE_VARIABLE_CLOSE.'/s', '', $str_query);
 			}
+		}
+		
+		if ($this->arr_resource['protocol'] == static::PROTOCOL_API) { // Encode only the values when relevant for the protocol, supports nested tags!
+			
+			$str_query = preg_replace_callback('/'.static::TAGCODE_PARSE_VALUE.'/s', [$this, 'parseTagcodeRequestValue'], $str_query);
 		}
 		
 		if ($this->arr_resource['protocol'] == static::PROTOCOL_SPARQL) {
@@ -236,84 +253,122 @@ class ResourceExternal {
 		
 		Labels::setVariable('resource_name', $this->arr_resource['name']);
 		Labels::setVariable('seconds', $this->num_timeout);
-		status(getLabel('msg_external_resource_running'), false, false, 3000);
+		if ($this->do_iteration) {
+			Labels::setVariable('request_info', '#'.$this->num_requests);
+			$str_label = getLabel('msg_external_resource_running_iterate');
+		} else {
+			Labels::setVariable('request_info', ($this->arr_limit[0] + 1).' - '.($this->arr_limit[0] + $this->arr_limit[1]));
+			$str_label = getLabel('msg_external_resource_running');
+		}
+		status($str_label, null, null, [
+			'identifier' => 'r_e_'.$this->arr_resource['id'], 'duration' => 1000, 'persist' => true,
+			'clear' => ['identifier' => 'r_e_'.$this->arr_resource['id'], 'timeout' => 0]
+		]);
 		
-		$str_content_type = '';
 		$arr_request = $this->prepareRequest($str_query, ['offset' => $this->arr_limit[0], 'limit' => $this->arr_limit[1]]);
 		$arr_request_settings = [
 			'timeout' => $this->num_timeout,
 			'headers' => (($this->arr_resource['url_headers'] ?: []) + ['Accept' => 'application/json, application/ld+json, */*;q=0.1']),
 			'secrets' => Settings::get('nodegoat_external_resource_secrets', null, [$arr_request['url']]),
-			'header_callback' => function($str_header) use (&$str_content_type) {
+			'header_callback' => function($str_header) use ($str_identifier) {
 				
-				if (strpos($str_header, 'Content-Type:') !== false) {
-					$str_content_type = trim(str_replace('Content-Type:', '', $str_header));
+				if (stripos($str_header, 'content-type:') !== false) {
+					$this->arr_requests[$str_identifier]['settings']['response']['content_type'] = trim(str_replace('content-type:', '', strtolower($str_header)));
 				}
 			},
-			'post' => $arr_request['body']
+			'post' => $arr_request['body'],
+			'response' => ['content_type' => '']
 		];
 		
-		$data = new FileGet($arr_request['url'], $arr_request_settings, (!$this->is_iteration ? true : false)); // Do async?
+		$data = new FileGet($arr_request['url'], $arr_request_settings, ($this->do_iteration ? FileGet::ASYNC_CUSTOM : FileGet::ASYNC_USER));
+		
+		$this->arr_requests[$str_identifier] = ['data' => $data, 'request' => $arr_request, 'settings' => &$arr_request_settings, 'query' => $str_query];
+
+		if ($this->do_iteration) { // Do queue
+			return;
+		}
+		
+		return $this->getRequestResult($str_identifier);
+	}
+	
+	public function getRequestResult($str_identifier = null) {
+		
+		$this->str_result = '';
+		$this->arr_result_values = null;
+		
+		if (!isset($this->arr_requests[$str_identifier])) {
+			error('Missing request.');
+		}
+		
+		['data' => $data, 'request' => $arr_request, 'settings' => &$arr_request_settings, 'query' => $str_query] = $this->arr_requests[$str_identifier];
+
 		$str_result = $data->get();
 		
+		if ($str_result === null) { // If asynchronous, check state
+			return null; // Not ready yet
+		}
+		
+		unset($this->arr_requests[$str_identifier]);
+
 		if ($this->do_debug) {
 			message('DEBUG: request.', 'EXTERNAL RESOURCE', LOG_SYSTEM, 'REQUEST:'.EOL_1100CC.EOL_1100CC.print_r($data->getRequest(), true).EOL_1100CC.'BODY:'.EOL_1100CC.EOL_1100CC.$arr_request['body']);
 		}
 
 		if (!$str_result) {
 			
-			if ($data->getError() == 'timeout') {
-				
-				status(getLabel('msg_external_resource_timeout'), false, false, 5000);
-				
-				if ($this->do_timeout_retry) {
-					
-					$str_msg_found_records = getLabel('msg_external_resource_timeout_found_records');
-					
-					$num_timer = time();
-					$num_limit = 1;
-					
-					while ((time() - $num_timer) < $this->num_timeout) {
+			$str_error = $data->getError();
 
-						$arr_request = $this->prepareRequest($str_query, ['offset' => $this->arr_limit[0], 'limit' => $num_limit]);
-						$arr_request_settings['timeout'] = ($this->num_timeout / 2);
+			if ($str_error == 'timeout' && $this->do_timeout_retry) {
+				
+				status(getLabel('msg_external_resource_timeout_retry'), null, null, 5000);
+				
+				$str_msg_found_records = getLabel('msg_external_resource_timeout_found_records');
+				
+				$num_timer = time();
+				$num_limit = 1;
+				
+				while ((time() - $num_timer) < $this->num_timeout) {
+
+					$arr_request = $this->prepareRequest($str_query, ['offset' => $this->arr_limit[0], 'limit' => $num_limit]);
+					$arr_request_settings['timeout'] = ($this->num_timeout / 2);
+					
+					$data = new FileGet($arr_request['url'], $arr_request_settings, FileGet::ASYNC_USER);
+					$str_result_test = $data->get();
+					
+					if (!$str_result_test) {
 						
-						$data = new FileGet($arr_request['url'], $arr_request_settings, true);
-						$str_result_test = $data->get();
-						
-						if (!$str_result_test) {
-							
-							if (!$str_result && $data->getError() == 'timeout') {
-								msg(getLabel('msg_external_resource_timeout_stop'), 'ATTENTION', LOG_CLIENT, false, false, 10000);
-							}
-							
-							break;
+						if (!$str_result && $data->getError() == 'timeout') {
+							error(getLabel('msg_external_resource_timeout_stop'));
 						}
 						
-						usleep(500000); // Do not pressure, 0.5 seconds
-						
-						Labels::setVariable('count', $num_limit);
-						status(Labels::parseTextVariables($str_msg_found_records), false, false, 2000);
-						
-						$str_result = $str_result_test;
-						$num_limit++;
+						break;
 					}
+					
+					usleep(500000); // Do not pressure, 0.5 seconds
+					
+					Labels::setVariable('count', $num_limit);
+					status(Labels::parseTextVariables($str_msg_found_records), null, null, 2000);
+					
+					$str_result = $str_result_test;
+					$num_limit++;
 				}
-			} else if ($data->getError()) {
+			} else if ($str_error) {
+				
+				if ($str_error == 'timeout') {
+					status(getLabel('msg_external_resource_timeout'), null, null, 5000);
+				}
 				
 				Labels::setVariable('response', $data->getErrorResponse());
 				Labels::setVariable('debug_url', $arr_request['url']);
 				Labels::setVariable('debug_query', $arr_request['query']);
 				
-				$str_message = getLabel('msg_external_resource_error');
-				
-				msg($str_message, 'ATTENTION', LOG_CLIENT, false, false, 10000);
+				error(getLabel('msg_external_resource_error'));
 			}
 		}
 		
 		if ($str_result) {
-				
-			$this->parseContentType($str_content_type, $arr_request['url']);
+			
+			$this->parseContentType($arr_request_settings['response']['content_type'], $arr_request['url']);
 			
 			if ($this->mode_result_parse == static::PARSE_TEXT) {
 				
@@ -335,14 +390,58 @@ class ResourceExternal {
 		return (bool)$this->str_result;
 	}
 	
-	protected function prepareRequestValue($str_value, $str_type_variable = null) {
+	protected function parseTagcodeRequestValue($arr_match) {
 		
-		if ($str_type_variable === 'data-url' || $str_type_variable === 'data-base64') {
+		$str_text = preg_replace_callback('/'.static::TAGCODE_PARSE_VALUE.'/s', [$this, 'parseTagcodeRequestValue'], $arr_match[2]);
+
+		return $this->prepareRequestValue($str_text, $arr_match[1], true);
+	}
+	
+	protected function prepareRequestValue($str_value, $str_type_variable = null, $do_cache = false) {
+		
+		// Parse single values
+		
+		$arr_type_variables = [];
+		$str_cache_identifier = null;
+		
+		if ($str_type_variable) {
+			
+			if ($do_cache) {
+				
+				$str_cache_identifier = $str_type_variable.$str_value;
+				
+				if (isset($this->arr_cache_request_values[$str_cache_identifier])) {
+					return $this->arr_cache_request_values[$str_cache_identifier];
+				}
+			}
+			
+			if (strpos($str_type_variable, ';') !== false) {
+				
+				foreach (explode(';', $str_type_variable) as $v) {
+					
+					$v = explode(',', $v);
+					$arr_type_variables[$v[0]] = ($v[1] ?? true);
+				}
+			} else {
+				
+				$arr_type_variables = explode(',', $str_type_variable);
+				$arr_type_variables = [$arr_type_variables[0] => ($arr_type_variables[1] ?? true)];
+			}
+		}
+		
+		if (isset($arr_type_variables['data-url']) || isset($arr_type_variables['data-base64'])) {
 			
 			try {
 				
 				$media = new EnucleateMedia($str_value, DIR_HOME_TYPE_OBJECT_MEDIA);
-				$str_value = $media->enucleate(($str_type_variable === 'data-base64' ? EnucleateMedia::VIEW_DATA_BASE64 : EnucleateMedia::VIEW_DATA_URL));
+				
+				if (isset($arr_type_variables['resize'])) {
+					
+					$num_size = (is_numeric($arr_type_variables['resize']) ? $arr_type_variables['resize'] : 1000);
+					$media->setSizing($num_size, $num_size, ['type' => 'jpg']);
+				}
+				
+				$str_value = $media->enucleate((isset($arr_type_variables['data-base64']) ? EnucleateMedia::VIEW_DATA_BASE64 : EnucleateMedia::VIEW_DATA_URL));
 			} catch (Exception $e) {
 				
 				Labels::setVariable('parse_name', 'Media File');
@@ -350,11 +449,28 @@ class ResourceExternal {
 			}
 		}
 		
-		if ($this->arr_resource['protocol_method'] == static::METHOD_POST) {
-			return StreamJSONOutput::parse($str_value);
+		// Parse output
+		
+		if (isset($arr_type_variables['convert-json'])) {
+			
+			$str_value = strSerial2Value($str_value);
+			$str_value = value2JSON($str_value);
+		} else if (isset($arr_type_variables['escape-json'])) {
+			
+			$str_value = StreamJSONOutput::parse($str_value);
+		} else if ($this->arr_resource['protocol_method'] == static::METHOD_POST) {
+			
+			$str_value = StreamJSONOutput::parse($str_value);
+		} else {
+			
+			$str_value = rawurlencode($str_value);
 		}
-	
-		return rawurlencode($str_value);
+		
+		if ($str_cache_identifier !== null) {
+			$this->arr_cache_request_values[$str_cache_identifier] = $str_value;
+		}
+		
+		return $str_value;
 	}
 	
 	protected function prepareRequest($str_query, $arr_options) {
@@ -380,7 +496,7 @@ class ResourceExternal {
 				
 				$num_limit_max = (int)$arr_match_limit[1];
 				$s_str_target =& $str_query;
-			} else { // Non-SPARQL requests may also have limit/offet in URL
+			} else { // Non-SPARQL requests may also have limit/offset in URL
 				
 				preg_match('/'.static::TAGCODE_PARSE_LIMIT.'/', $str_url_options, $arr_match_limit);
 				
@@ -443,6 +559,8 @@ class ResourceExternal {
 		
 		$str_content_type = explode(';', $str_content_type); // E.g. 'application/json; charset=utf-8'
 		$str_content_type = $str_content_type[0];
+		
+		$this->mode_result_parse = static::PARSE_DEFAULT;
 		
 		if ($str_content_type) {
 			
@@ -636,10 +754,6 @@ class ResourceExternal {
 	public function setResultConversionSocket($socket) {
 		
 		$this->socket_conversion = $socket;
-		
-		if (!$socket) {
-			return false;
-		}
 	}
 	
 	public function getResultValues($do_flat = true) {
@@ -906,7 +1020,7 @@ class ResourceExternal {
 		$this->arr_order = $arr_order;
 	}
 	
-	public function setTimeout($num_timeout, $num_timeout_conversion = null, $do_timeout_retry = null, $is_iteration = null) {
+	public function setTimeout($num_timeout, $num_timeout_conversion = null, $do_timeout_retry = null) {
 		
 		if ($num_timeout !== null) {
 			$this->num_timeout = (int)$num_timeout;
@@ -918,10 +1032,6 @@ class ResourceExternal {
 		
 		if ($do_timeout_retry !== null) {
 			$this->do_timeout_retry = (bool)$do_timeout_retry;
-		}
-		
-		if ($is_iteration !== null) {
-			$this->is_iteration = (bool)$is_iteration; // When in mass-operation/iteration, adjust accordingly
 		}
 	}
 		
@@ -1004,15 +1114,15 @@ class ResourceExternal {
 		return $arr_values;
 	}
 	
-	public function getURL() {
+	public function getURL($str_identifier, $mode_view = self::VIEW_PLAIN) {
 		
 		if ($this->arr_resource['protocol'] == static::PROTOCOL_STATIC) {
-			$str_url = $this->arr_resource['url'].$this->identifier.$this->arr_resource['url_options'];
+			$str_url = $this->arr_resource['url'].$str_identifier.$this->arr_resource['url_options'];
 		} else {
-			$str_url = $this->identifier;
+			$str_url = $str_identifier;
 		}
 		
-		if ($this->view == self::VIEW_PLAIN) {
+		if ($mode_view == self::VIEW_PLAIN) {
 			$str_url = strEscapeHTML($str_url);
 			$return = '<a href="'.$str_url.'" target="_blank">'.$str_url.'</a>';
 		}

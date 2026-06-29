@@ -87,11 +87,7 @@ class ParseTypeFeatures {
 									}
 									
 									$str_path_file = $arr_file['tmp_name'];
-									
-									$str_extension = FileStore::getExtension($arr_file['name']);
-									if ($str_extension == FileStore::EXTENSION_UNKNOWN) {
-										$str_extension = FileStore::getExtension($str_path_file);
-									}
+									$str_extension = FileStore::getStoredExtension($str_path_file, $arr_file['name']);
 									
 									if ($str_extension != 'svg') {
 										
@@ -569,7 +565,7 @@ class ParseTypeFeatures {
 		}
 		
 		if (!$arr_map_layers) {
-			$arr_map_layers[] = ['url' => '//mt{s}.googleapis.com/vt?pb=!1m4!1m3!1i{z}!2i{x}!3i{y}!2m3!1e0!2sm!3i278000000!3m14!2sen-US!3sUS!5e18!12m1!1e47!12m3!1e37!2m1!1ssmartmaps!12m4!1e26!2m2!1sstyles!2zcy50OjE3fHAudjpvZmYscy50OjE4fHAudjpvZmYscy50OjIwfHMuZTpsfHAudjpvZmYscy50OjgxfHAudjpvZmYscy50OjJ8cC52Om9mZixzLnQ6NDl8cC52Om9mZixzLnQ6NTB8cy5lOmx8cC52Om9mZixzLnQ6NHxwLnY6b2ZmLHMudDo2fHMuZTpsfHAudjpvZmY!4e0!20m1!1b1', 'opacity' => 1, 'attribution' => 'Map data ©'.date('Y').' Google']; // //mt{s}.googleapis.com/vt?lyrs=m@205000000&src=apiv3&hl=en-US&x={x}&y={y}&z={z}&s=Galil&apistyle=p.v%3Aoff%2Cs.t%3A6%7Cp.v%3Aon%7Cp.c%3A%23ffc7d7e4%2Cs.t%3A82%7Cp.v%3Aon%2Cs.t%3A19%7Cp.v%3Aon&style=api%7Csmartmaps
+			$arr_map_layers = (Settings::get('visual_settings_map_layers') ?: []);
 		}
 
 		$arr_settings['map_layers'] = $arr_map_layers;
@@ -670,14 +666,13 @@ class ParseTypeFeatures {
 				],
 				'forceatlas2' => [
 					'lin_log_mode' => (bool)(isset($arr_settings['social_forceatlas2']['lin_log_mode']) ? $arr_settings['social_forceatlas2']['lin_log_mode'] : false),
-					'outbound_attraction_distribution' => (bool)(isset($arr_settings['social_forceatlas2']['outbound_attraction_distribution']) ? $arr_settings['social_forceatlas2']['outbound_attraction_distribution'] : false),
 					'adjust_sizes' => (bool)(isset($arr_settings['social_forceatlas2']['adjust_sizes']) ? $arr_settings['social_forceatlas2']['adjust_sizes'] : false),
 					'edge_weight_influence' => (float)((string)$arr_settings['social_forceatlas2']['edge_weight_influence'] !== '' ? $arr_settings['social_forceatlas2']['edge_weight_influence'] : 0),
-					'scaling_ratio' => (float)($arr_settings['social_forceatlas2']['scaling_ratio'] ?: 1),
 					'strong_gravity_mode' => (bool)(isset($arr_settings['social_forceatlas2']['strong_gravity_mode']) ? $arr_settings['social_forceatlas2']['strong_gravity_mode'] : false),
-					'gravity' => (float)((string)$arr_settings['social_forceatlas2']['gravity'] !== '' ? $arr_settings['social_forceatlas2']['gravity'] : 1),
-					'slow_down' => (float)((string)$arr_settings['social_forceatlas2']['slow_down'] !== '' ? $arr_settings['social_forceatlas2']['slow_down'] : 1),
-					'optimize_theta' => (float)((string)$arr_settings['social_forceatlas2']['optimize_theta'] !== '' ? $arr_settings['social_forceatlas2']['optimize_theta'] : 0.5)
+					'gravity' => ((string)$arr_settings['social_forceatlas2']['gravity'] !== '' ? (float)$arr_settings['social_forceatlas2']['gravity'] : null), // Auto
+					'scaling_ratio' => ($arr_settings['social_forceatlas2']['scaling_ratio'] ? (float)$arr_settings['social_forceatlas2']['scaling_ratio'] : null), // Auto
+					'outbound_attraction_distribution' => (variableHasValue($arr_settings['social_forceatlas2']['outbound_attraction_distribution'], null, '') ? null : (bool)$arr_settings['social_forceatlas2']['outbound_attraction_distribution']), // Auto
+					'optimize_theta' => ((string)$arr_settings['social_forceatlas2']['optimize_theta'] !== '' ? (float)$arr_settings['social_forceatlas2']['optimize_theta'] : null) // Auto
 				],
 				'settings' => [
 					'disconnected_dot_show' => (int)((string)$arr_settings['social_disconnected_dot_show'] !== '' ? (bool)$arr_settings['social_disconnected_dot_show'] : true),
@@ -731,6 +726,11 @@ class ParseTypeFeatures {
 		unset($arr_map_layer);
 		
 		return $arr;
+	}
+	
+	public static function compareVisualSettings($arr_settings, $arr_settings_default) {
+		
+		return ($arr_settings === $arr_settings_default); // Do strict
 	}
 	
 	public static function parseSettingAdvancedInput($value, $str_separator = EOL_1100CC) {

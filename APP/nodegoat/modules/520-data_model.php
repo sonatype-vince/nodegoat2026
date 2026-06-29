@@ -854,6 +854,24 @@ class data_model extends base_module {
 					<div><select name="'.$str_name_settings.'[type]">'.cms_general::createDropdown($arr_modules, ($arr_value_type_settings ? $arr_value_type_settings['type'] : '')).'</select></div>
 				</li>';
 				
+				if ($arr_value_type_settings['type']) {
+					
+					$arr_type_set = StoreType::getTypeSet($type_id);
+					
+					$arr_html = EnucleateValueTypeModule::createTypeObjectDescriptionValueTypeOptions($arr_value_type_settings, $str_name_settings, $arr_type_set);
+					
+					if ($arr_html) {
+						
+						foreach ($arr_html as $str_label => $str_html) {
+							
+							$html_option .= '<li>
+								<label><span class="input">'.$str_label.'</span></label>
+								<div>'.$str_html.'</div>
+							</li>';
+						}
+					}
+				}
+				
 				break;
 			case 'text_layout':
 			case 'text_tags':
@@ -962,7 +980,7 @@ class data_model extends base_module {
 					$value_value = (is_array($arr_values) ? current($value_value) : $value_value);
 				}
 				
-				$value_value = FormatTypeObjects::formatToSQLValue($value_type, $value_value);
+				$value_value = FormatTypeObjects::formatToSQLValue($value_type, $value_value, $arr_value_type_settings);
 			}
 			
 			$html_default_value = FormatTypeObjects::formatToFormValue($value_type, $value_value, $value_reference, $str_name_default, $arr_value_type_settings, $arr_format_extra);
@@ -1238,7 +1256,7 @@ class data_model extends base_module {
 					.'<input type="button" id="y:data_model:store_condition-'.$type_id.'" class="data edit popup" value="save" title="'.getLabel('inf_conditions_store').'" />'
 					.'<input type="button" id="y:data_model:open_condition-'.$type_id.'" class="data add popup" value="open" title="'.getLabel('inf_conditions_open').'" />'
 				.'</span></li>
-				<li><a href="#">'.getLabel('lbl_condition').': '.Labels::parseTextVariables($arr_type_set['type']['name']).'</a></li>
+				<li><a href="#">'.getLabel('lbl_condition').': '.strEscapeHTML(Labels::parseTextVariables($arr_type_set['type']['name'])).'</a></li>
 				<li><a href="#">'.getLabel('lbl_model').'</a></li>
 			</ul>
 			
@@ -1360,7 +1378,7 @@ class data_model extends base_module {
 								}
 								
 								$return .= '<li>
-									<label>'.Labels::parseTextVariables($arr_type['name']).'</label><div>'
+									<label>'.strEscapeHTML(Labels::parseTextVariables($arr_type['name'])).'</label><div>'
 										.$html_select
 										.'<input type="checkbox" value="1" name="model_conditions['.$cur_type_id.'][condition_use_current]" title="'.getLabel('inf_condition_model_conditions_use_current').'"'.($arr_model_conditions[$cur_type_id]['condition_use_current'] ? ' checked="checked"' : '').' />'
 									.'</div>
@@ -1534,10 +1552,22 @@ class data_model extends base_module {
 						
 						if ($arr_object_description['object_description_ref_type_id'] || $arr_object_description['object_description_value_type'] == 'text_tags') {
 							
-							arrInsert($arr_type_set_flat, $str_id, [$str_id.'_id' => ['id' => $str_id.'_id', 'name' => $arr_type_set_flat[$str_id]['name'].' - Object ID']]);
+							arrInsert($arr_type_set_flat, $str_id, [$str_id.'_id' => ['id' => $str_id.'_id', 'name' => Labels::addContainer($arr_type_set_flat[$str_id]['name']).' - Object ID']]);
 							
 							if ($arr_object_description['object_description_value_type'] == 'text_tags') {
-								arrInsert($arr_type_set_flat, $str_id, [$str_id.'_text' => ['id' => $str_id.'_text', 'name' => $arr_type_set_flat[$str_id]['name'].' - Text']]);
+								arrInsert($arr_type_set_flat, $str_id, [$str_id.'_text' => ['id' => $str_id.'_text', 'name' => Labels::addContainer($arr_type_set_flat[$str_id]['name']).' - Text']]);
+							}
+						} else if ($arr_object_description['object_description_value_type'] == 'module') {
+							
+							$str_class_module = EnucleateValueTypeModule::getClassName($arr_object_description['object_description_value_type_settings']['type']);
+							$arr_fields = $str_class_module::getValueFields(EnucleateValueTypeModule::FIELD_MODE_VIEW);
+							
+							$pos_insert = $str_id;
+							
+							foreach ($arr_fields as $str_identifier => $arr_field) {
+								
+								$str_id_attribute = $str_id.'_attribute-'.$str_identifier;
+								$pos_insert = arrInsert($arr_type_set_flat, $pos_insert, [$str_id_attribute => ['id' => $str_id_attribute, 'name' => Labels::addContainer($arr_type_set_flat[$str_id]['name']).' - '.Labels::addContainer($arr_field['name'])]]);
 							}
 						}
 					} else if ($str_descriptions_type == static::TYPE_NETWORK_DESCRIPTIONS_DATE) {
@@ -1585,14 +1615,14 @@ class data_model extends base_module {
 				
 				if ($str_descriptions_type == static::TYPE_NETWORK_DESCRIPTIONS_FLAT || $str_descriptions_type == static::TYPE_NETWORK_DESCRIPTIONS_CONCEPT) {
 					
-					$arr_type_set_flat[$str_id.'id']['name'] = $arr_type_set_flat[$str_id.'id']['name'].' Sub-Object ID';
+					$arr_type_set_flat[$str_id.'id']['name'] = Labels::addContainer($arr_type_set_flat[$str_id.'id']['name']).' Sub-Object ID';
 					
 					if ($str_descriptions_type == static::TYPE_NETWORK_DESCRIPTIONS_FLAT) {
 						
 						$str_id = $str_id.'location_ref_type_id';
 						
 						if ($arr_type_set_flat[$str_id]) {
-							arrInsert($arr_type_set_flat, $str_id, [$str_id.'_id' => ['id' => $str_id.'_id', 'name' => $arr_type_set_flat[$str_id]['name'].' - Object ID']]);
+							arrInsert($arr_type_set_flat, $str_id, [$str_id.'_id' => ['id' => $str_id.'_id', 'name' => Labels::addContainer($arr_type_set_flat[$str_id]['name']).' - Object ID']]);
 						}
 					}
 				} else if ($str_descriptions_type == static::TYPE_NETWORK_DESCRIPTIONS_DISPLAY) {
@@ -1627,10 +1657,22 @@ class data_model extends base_module {
 							
 							if ($arr_object_sub_description['object_sub_description_ref_type_id'] || $arr_object_sub_description['object_sub_description_value_type'] == 'text_tags') {
 								
-								arrInsert($arr_type_set_flat, $str_id, [$str_id.'_id' => ['id' => $str_id.'_id', 'name' => $arr_type_set_flat[$str_id]['name'].' - Object ID']]);
+								arrInsert($arr_type_set_flat, $str_id, [$str_id.'_id' => ['id' => $str_id.'_id', 'name' => Labels::addContainer($arr_type_set_flat[$str_id]['name']).' - Object ID']]);
 								
 								if ($arr_object_sub_description['object_sub_description_value_type'] == 'text_tags') {
-									arrInsert($arr_type_set_flat, $str_id, [$str_id.'_text' => ['id' => $str_id.'_text', 'name' => $arr_type_set_flat[$str_id]['name'].' - Text']]);
+									arrInsert($arr_type_set_flat, $str_id, [$str_id.'_text' => ['id' => $str_id.'_text', 'name' => Labels::addContainer($arr_type_set_flat[$str_id]['name']).' - Text']]);
+								}
+							} else if ($arr_object_sub_description['object_sub_description_value_type'] == 'module') {
+								
+								$str_class_module = EnucleateValueTypeModule::getClassName($arr_object_sub_description['object_sub_description_value_type_settings']['type']);
+								$arr_fields = $str_class_module::getValueFields(EnucleateValueTypeModule::FIELD_MODE_VIEW);
+								
+								$pos_insert = $str_id;
+								
+								foreach ($arr_fields as $str_identifier => $arr_field) {
+
+									$str_id_attribute = $str_id.'_attribute-'.$str_identifier;
+									$pos_insert = arrInsert($arr_type_set_flat, $pos_insert, [$str_id_attribute => ['id' => $str_id_attribute, 'name' => Labels::addContainer($arr_type_set_flat[$str_id]['name']).' - '.Labels::addContainer($arr_field['name'])]]);
 								}
 							}
 						} else if ($str_descriptions_type == static::TYPE_NETWORK_DESCRIPTIONS_DATE) {
@@ -1734,7 +1776,7 @@ class data_model extends base_module {
 							
 							if ($do_compact) {
 								
-								$str_name_reference = ($in_out == TraceTypesNetwork::PATH_IN ? getLabel('lbl_referenced') : getLabel('lbl_referencing')).cms_general::OPTION_GROUP_SEPARATOR.' '.($in_out == TraceTypesNetwork::PATH_IN ? static::SYMBOL_IN : static::SYMBOL_OUT).' ['.Labels::parseTextVariables($arr_use_type_set['object_sub_details'][$object_sub_details_id]['object_sub_details']['object_sub_details_name']).'] '.Labels::parseTextVariables($str_name).($arr_connection['dynamic'] ? static::SYMBOL_DYNAMIC : ($arr_connection['mutable'] ? static::SYMBOL_MUTABLE : ''));
+								$str_name_reference = ($in_out == TraceTypesNetwork::PATH_IN ? getLabel('lbl_referenced') : getLabel('lbl_referencing')).cms_general::OPTION_GROUP_SEPARATOR.' '.($in_out == TraceTypesNetwork::PATH_IN ? static::SYMBOL_IN : static::SYMBOL_OUT).' ['.strEscapeHTML(Labels::parseTextVariables($arr_use_type_set['object_sub_details'][$object_sub_details_id]['object_sub_details']['object_sub_details_name'])).'] '.strEscapeHTML(Labels::parseTextVariables($str_name)).($arr_connection['dynamic'] ? static::SYMBOL_DYNAMIC : ($arr_connection['mutable'] ? static::SYMBOL_MUTABLE : ''));
 								
 								$arr_return_paths[$ref_type_id]['html']['options'][$in_out][] = [
 									'id' => $str_name_path_connection,
@@ -1748,7 +1790,7 @@ class data_model extends base_module {
 								
 								$arr_return_paths[$ref_type_id]['html'] .= '<label>'
 									.'<span>'
-										.'<span class="sub-name">'.Labels::parseTextVariables($arr_use_type_set['object_sub_details'][$object_sub_details_id]['object_sub_details']['object_sub_details_name']).'</span> <span'.($arr_connection['dynamic'] ? ' class="dynamic-references-name"' : '').'>'.Labels::parseTextVariables($str_name).'</span>'
+										.'<span class="sub-name">'.strEscapeHTML(Labels::parseTextVariables($arr_use_type_set['object_sub_details'][$object_sub_details_id]['object_sub_details']['object_sub_details_name'])).'</span> <span'.($arr_connection['dynamic'] ? ' class="dynamic-references-name"' : '').'>'.strEscapeHTML(Labels::parseTextVariables($str_name)).'</span>'
 									.'</span>'
 									.'<input type="checkbox" name="'.$str_name_path.$str_name_path_connection.'" value="1"'.($arr_checked ? ' checked="checked"' : '').' />'
 									.'<span class="icon" data-category="direction">'.getIcon(($in_out == TraceTypesNetwork::PATH_IN ? 'updown-up' : 'updown-down')).'</span>'
@@ -1803,7 +1845,7 @@ class data_model extends base_module {
 						} else {
 							
 							$arr_return_paths[$ref_type_id]['html'] .= '<label>'
-								.'<span'.($arr_connection['dynamic'] ? ' class="dynamic-references-name"' : '').'>'.Labels::parseTextVariables($arr_use_type_set['object_descriptions'][$object_description_id]['object_description_name']).'</span>'
+								.'<span'.($arr_connection['dynamic'] ? ' class="dynamic-references-name"' : '').'>'.strEscapeHTML(Labels::parseTextVariables($arr_use_type_set['object_descriptions'][$object_description_id]['object_description_name'])).'</span>'
 								.'<input type="checkbox" name="'.$str_name_path.$str_name_path_connection.'" value="1"'.($arr_checked ? ' checked="checked"' : '').' />'
 								.'<span class="icon" data-category="direction">'.getIcon(($in_out == TraceTypesNetwork::PATH_IN ? 'updown-up' : 'updown-down')).'</span>'
 							.'</label>';
@@ -1868,14 +1910,14 @@ class data_model extends base_module {
 				
 				foreach ($arr_source_path as $source_type_id) {
 
-					$str_source_path_name .= '<span>'.Labels::parseTextVariables($arr_types[$source_type_id]['name']).'</span>';
+					$str_source_path_name .= '<span>'.strEscapeHTML(Labels::parseTextVariables($arr_types[$source_type_id]['name'])).'</span>';
 				}
 			}
 			
-			$str_source_path_name .= '<span>'.Labels::parseTextVariables($arr_types[$type_id]['name']).'</span>';
+			$str_source_path_name .= '<span>'.strEscapeHTML(Labels::parseTextVariables($arr_types[$type_id]['name'])).'</span>';
 			
 			$return .= '<div class="node" data-type_id="'.$type_id.'">';
-				$return .= '<h4><span></span><span>'.Labels::parseTextVariables($arr_type_set['type']['name']).'</span></h4>';
+				$return .= '<h4><span></span><span>'.strEscapeHTML(Labels::parseTextVariables($arr_type_set['type']['name'])).'</span></h4>';
 				
 				$arr_options_values = $arr_options['value']['types'][$source_path][$type_id];
 				$name = $arr_options['name'].'[types]['.$source_path.']['.$type_id.']';
@@ -2213,7 +2255,7 @@ class data_model extends base_module {
 						} else {
 							
 							$arr_ref_type_set = StoreType::getTypeSet($ref_type_id);
-							$return_deep = '<div class="node" data-type_id="'.$ref_type_id.'" data-source_path="'.$arr_return_path['path'].'"><h4><span></span><span>'.Labels::parseTextVariables($arr_ref_type_set['type']['name']).'</span></h4></div>';
+							$return_deep = '<div class="node" data-type_id="'.$ref_type_id.'" data-source_path="'.$arr_return_path['path'].'"><h4><span></span><span>'.strEscapeHTML(Labels::parseTextVariables($arr_ref_type_set['type']['name'])).'</span></h4></div>';
 						}
 					}
 					
@@ -3149,7 +3191,7 @@ class data_model extends base_module {
 				$arr_data['id'] = 'x:data_model:id-'.$arr_row['id'];
 				
 				$str_name = ($arr_row['label'] ? $arr_row['label'].' '.$arr_row['name'] : $arr_row['name']);
-				$arr_data[] = Labels::parseTextVariables($str_name);
+				$arr_data[] = strEscapeHTML(Labels::parseTextVariables($str_name));
 				$arr_data[] = '<span class="info"><span class="icon" title="'.($arr_row['definitions'] ? strEscapeHTML(Labels::parseTextVariables($arr_row['definitions'])) : getLabel('inf_none')).'">'.getIcon('info').'</span><span>'.(int)$arr_row['definitions_count'].'</span></span>';
 				if ($id != 'reversals') {
 					$arr_data[] = '<span class="info"><span class="icon" title="'.($arr_row['object_descriptions'] ? strEscapeHTML(Labels::parseTextVariables($arr_row['object_descriptions'])) : getLabel('inf_none')).'">'.getIcon('info').'</span><span>'.(int)$arr_row['object_descriptions_count'].'</span></span>';

@@ -34,18 +34,22 @@ class IngestTypeObjectsFile extends IngestTypeObjects {
 		
 		$stream->open($arr_output);
 
-		$count_rows = 0;
+		$num_count_rows = 0;
 		$arr_row = fgetcsv($file_source, null, $str_delimiter, $str_enclosure, CSV_ESCAPE);
+		
+		if ($arr_row === false) {
+			return false;
+		}
 		
 		$num_columns = count($arr_row);
 		$arr_column_labels = $arr_row;
 		
-		$count_rows++;
+		$num_count_rows++;
 		$arr_row = fgetcsv($file_source, null, $str_delimiter, $str_enclosure, CSV_ESCAPE);
 		
 		while ($arr_row !== false) {
 
-			if ($num_limit !== false && $count_rows > $num_limit) {
+			if ($num_limit !== false && $num_count_rows > $num_limit) {
 				
 				Labels::setVariable('limit', $num_limit);
 				error(getLabel('msg_import_limit_exceeded'));
@@ -69,13 +73,13 @@ class IngestTypeObjectsFile extends IngestTypeObjects {
 				$stream->stream([$arr]);
 			}
 
-			$count_rows++;
+			$num_count_rows++;
 			$arr_row = fgetcsv($file_source, null, $str_delimiter, $str_enclosure, CSV_ESCAPE);
 		}
 				
 		fclose($file_source);
 
-		$num_objects = ($count_rows - 1); // -1 for the heading
+		$num_objects = ($num_count_rows - 1); // -1 for the heading
 		
 		if (!$num_objects) {
 			return false;

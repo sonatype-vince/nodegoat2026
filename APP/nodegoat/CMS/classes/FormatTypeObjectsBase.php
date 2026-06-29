@@ -292,12 +292,59 @@ abstract class FormatTypeObjectsBase {
 				}
 				break;
 			case 'module':
-				
-				$module = EnucleateValueTypeModule::init($arr_type_settings['type']);
-				$module->setValue(JSON2Value($value));
-				
-				$value = $module->enucleate(EnucleateValueTypeModule::VIEW_TEXT);
+			
+				if (isset($arr_type_settings['attribute'])) { // Get specific attribute/value from module
 
+					$module = EnucleateValueTypeModule::init($arr_type_settings['type']);
+					
+					if (is_array($value)) {
+						
+						foreach ($value as &$v) {
+
+							if (isset($arr_type_settings['context'])) { // Remove the context
+								
+								$v = explode(GenerateTypeObjects::SQL_GROUP_SEPERATOR_2, $v);
+								$module->setValue(JSON2Value($v[0]), $v[1]);
+							} else {
+								
+								$module->setValue(JSON2Value($v));
+							}
+							
+							$v = $module->enucleate(EnucleateValueTypeModule::VIEW_TEXT, ($arr_type_settings['attribute'] ?? null));
+						}
+					} else {
+						
+						if (isset($arr_type_settings['context'])) { // Remove the context
+							
+							$value = explode(GenerateTypeObjects::SQL_GROUP_SEPERATOR_2, $value);
+							$module->setValue(JSON2Value($value[0]), $value[1]);
+						} else {
+							
+							$module->setValue(JSON2Value($value));
+						}
+						
+						$value = $module->enucleate(EnucleateValueTypeModule::VIEW_TEXT, ($arr_type_settings['attribute'] ?? null));
+					}
+				} else {
+					
+					if (isset($arr_type_settings['context'])) { // Remove the context
+						
+						if (is_array($value)) {
+					
+							foreach ($value as &$v) {
+								$v = explode(GenerateTypeObjects::SQL_GROUP_SEPERATOR_2, $v);
+								$v = $v[0];
+							}
+						} else {
+							
+							$value = explode(GenerateTypeObjects::SQL_GROUP_SEPERATOR_2, $value);
+							$value = $value[0];
+						}
+					} else {
+						
+						$value = $value;
+					}
+				}
 				break;
 			case 'external_module':
 			case 'reconcile_module':
@@ -716,27 +763,35 @@ abstract class FormatTypeObjectsBase {
 			case 'external':
 				
 				if (is_array($value)) {
+					
+					$reference = new ResourceExternal(StoreResourceExternal::getResources($arr_type_settings['id']));
 						
 					$arr_html = [];
 					
 					foreach ($value as $ref_value) {
-													
-						$reference = new ResourceExternal(StoreResourceExternal::getResources($arr_type_settings['id']), $ref_value);
-						$arr_html[] = '<span>'.$reference->getURL().'</span>';
+						$arr_html[] = '<span>'.$reference->getURL($ref_value).'</span>';
 					}
 					
 					$format = implode('<span class="separator">'.($arr_type_settings['separator'] ?: static::FORMAT_MULTI_SEPERATOR).'</span>', $arr_html);
 				} else {
 					
-					$reference = new ResourceExternal(StoreResourceExternal::getResources($arr_type_settings['id']), $value);
-					$format = $reference->getURL();
+					$reference = new ResourceExternal(StoreResourceExternal::getResources($arr_type_settings['id']));
+					$format = $reference->getURL($value);
 				}
 				break;
 			case 'module':
 				
 				$module = EnucleateValueTypeModule::init($arr_type_settings['type']);
 				$module->setConfiguration($arr_extra);
-				$module->setValue(JSON2Value($value));
+				
+				if (isset($arr_type_settings['context'])) {
+					
+					$value = explode(GenerateTypeObjects::SQL_GROUP_SEPERATOR_2, $value);
+					$module->setValue(JSON2Value($value[0]), $value[1]);
+				} else {
+					
+					$module->setValue(JSON2Value($value));
+				}
 				
 				$format = $module->enucleate();
 
@@ -866,7 +921,15 @@ abstract class FormatTypeObjectsBase {
 						
 					$module = EnucleateValueTypeModule::init($arr_type_settings['type']);
 					$module->setConfiguration(($arr_extra ?: []) + ['size' => ['height' => static::$num_media_preview_height]]);
-					$module->setValue(JSON2Value($value));
+
+					if (isset($arr_type_settings['context'])) {
+					
+						$value = explode(GenerateTypeObjects::SQL_GROUP_SEPERATOR_2, $value);
+						$module->setValue(JSON2Value($value[0]), $value[1]);
+					} else {
+						
+						$module->setValue(JSON2Value($value));
+					}
 					
 					$format = $module->enucleate();
 				}
@@ -1205,7 +1268,15 @@ abstract class FormatTypeObjectsBase {
 				
 				$module = EnucleateValueTypeModule::init($arr_type_settings['type']);
 				$module->setConfiguration($arr_extra);
-				$module->setValue(JSON2Value($value));
+				
+				if (isset($arr_type_settings['context'])) {
+					
+					$value = explode(GenerateTypeObjects::SQL_GROUP_SEPERATOR_2, $value);
+					$module->setValue(JSON2Value($value[0]), $value[1]);
+				} else {
+					
+					$module->setValue(JSON2Value($value));
+				}
 				
 				$format = $module->enucleate();
 
@@ -1754,7 +1825,7 @@ abstract class FormatTypeObjectsBase {
 		static::$arr_secondary_values[$value_use] = $value_secondary;
 	}
 
-	public static function formatToSQLValue($type, $value, &$arr_secondary = null) {
+	public static function formatToSQLValue($type, $value, $arr_type_settings = null, &$arr_secondary = null) {
 		
 		$do_unique = true;
 		$format = null;
@@ -1832,10 +1903,7 @@ abstract class FormatTypeObjectsBase {
 						if ($arr_file['size']) {
 														
 							$str_filename = hash_file('md5', $arr_file['tmp_name']);
-							$str_extension = FileStore::getExtension($arr_file['name']);
-							if ($str_extension == FileStore::EXTENSION_UNKNOWN) {
-								$str_extension = FileStore::getExtension($arr_file['tmp_name']);
-							}
+							$str_extension = FileStore::getStoredExtension($arr_file['tmp_name'], $arr_file['name']);
 							$str_filename = $str_filename.'.'.$str_extension;
 							
 							if (!isPath(DIR_HOME_TYPE_OBJECT_MEDIA.$str_filename)) {
@@ -1852,11 +1920,7 @@ abstract class FormatTypeObjectsBase {
 							
 							$str_path_file = $file->getPath();
 							$str_filename = hash_file('md5', $str_path_file);
-							$str_extension = FileStore::getExtension($file->getSource());
-							if ($str_extension == FileStore::EXTENSION_UNKNOWN) {
-								$str_extension = FileStore::getExtension($str_path_file);
-							}
-							
+							$str_extension = FileStore::getStoredExtension($str_path_file, $file->getSource());
 							$str_filename = $str_filename.'.'.$str_extension;
 							
 							if (!isPath(DIR_HOME_TYPE_OBJECT_MEDIA.$str_filename)) {
@@ -1898,6 +1962,20 @@ abstract class FormatTypeObjectsBase {
 				$format = arrParseRecursive($value, TYPE_STRING);
 				break;
 			case 'module':
+			
+				$do_unique = false;
+				$format = '';
+
+				if (!empty($value)) {
+					
+					$value = EnucleateValueTypeModule::formatToJSON($arr_type_settings['type'], $value);
+
+					if ($value !== null) {
+						$format = $value;
+					}
+				}
+				
+				break;
 			case 'external_module':
 			case 'reconcile_module':
 			case 'reversal_module':
@@ -2037,7 +2115,7 @@ abstract class FormatTypeObjectsBase {
 				$str_sql_field = $name;
 				
 				$arr_secondary = [];
-				self::formatToSQLValue($type, $value_plain, $arr_secondary);
+				self::formatToSQLValue($type, $value_plain, null, $arr_secondary);
 				$str_sql_test = current($arr_secondary);
 				$str_sql_test = self::formatToSQLEscape($type, $str_sql_test, true);
 				
@@ -2084,8 +2162,12 @@ abstract class FormatTypeObjectsBase {
 			case 'external':
 			case 'serial_string':
 			case '':
-			
-				$value = (is_array($value) ? $value : ['equality' => '*', 'value' => $value]);
+				
+				if (is_array($value)) {
+					$value['equality'] = ($value['equality'] ?: '=='); // No equality? Do strict
+				} else {
+					$value = ['equality' => '*', 'value' => $value];
+				}
 				$sql_equality = $value['equality'];
 
 				if ($sql_equality == '(.*)') {
@@ -2119,20 +2201,19 @@ abstract class FormatTypeObjectsBase {
 		if (!$value['value'] || $value['value'] == 'any') {
 			return '';
 		}
-				
+		
 		if (is_array($name) && isset($name['path'])) {
 						
 			$name = 'JSON_VALUE('.$name['name'].', \''.$name['path'].'\' RETURNING '.static::formatToSQLType($type).')';
 		}
 		
-		$format = false;
+		$format = null;
 		
 		if (is_array($name)) { // Check the combined result of multiple columns
 			
 			$arr_format = [];
 			
 			foreach ($name as $cur_name) {
-				
 				$arr_format[] = self::formatToSQLTranscension($type, $value, $cur_name);
 			}
 			
@@ -2194,7 +2275,6 @@ abstract class FormatTypeObjectsBase {
 		$format = null;
 		
 		switch ($str_sql_equality) {
-			case '=':
 			case '>':
 			case '<':
 				$format = $str_sql_name.' '.$str_sql_equality.' '.$num_value;
@@ -2211,6 +2291,10 @@ abstract class FormatTypeObjectsBase {
 			case '≥≤':
 				$format = '('.$str_sql_name.' >= '.$num_value.' AND '.$str_sql_name.' <= '.$num_value_range.')';
 				break;
+			case '=':
+			default:
+				$format = $str_sql_name.' = '.$num_value;
+				break;
 		}
 		
 		return $format;
@@ -2221,9 +2305,6 @@ abstract class FormatTypeObjectsBase {
 		$format = null;
 		
 		switch ($str_sql_equality) {
-			case '==': // Check generic exact match string/numeric
-				$format = DBFunctions::searchMatchSensitivity($str_sql_name, DBFunctions::SQL_IS_LITERAL.DBFunctions::strEscape($str_sql_value), false, true, true);
-				break;
 			case '*':
 				$format = DBFunctions::searchMatchSensitivity($str_sql_name, DBFunctions::SQL_IS_LITERAL.DBFunctions::str2Search($str_sql_value), MATCH_ANY, $is_ḓC, $is_ḓC);
 				break;
@@ -2235,6 +2316,10 @@ abstract class FormatTypeObjectsBase {
 				break;
 			case '=':
 				$format = DBFunctions::searchMatchSensitivity($str_sql_name, DBFunctions::SQL_IS_LITERAL.DBFunctions::str2Search($str_sql_value), MATCH_FULL, $is_ḓC, $is_ḓC);
+				break;
+			case '==': // Check generic exact match string/numeric
+			default:
+				$format = DBFunctions::searchMatchSensitivity($str_sql_name, DBFunctions::SQL_IS_LITERAL.DBFunctions::strEscape($str_sql_value), false, true, true);
 				break;
 		}
 		
@@ -3005,7 +3090,7 @@ abstract class FormatTypeObjectsBase {
 	public static function translateToGeometry($value, $num_srid) {
 			
 		$process = new ProcessProgram('ogr2ogr'
-			.' -t_srs EPSG:'.$num_srid
+			.' -t_srs '.escapeshellarg('EPSG:'.$num_srid)
 			.' -lco RFC7946=YES' // Output lastest GeoJSON standard, also automatically splits at the antimeridian
 			//.' -lco COORDINATE_PRECISION='.static::GEOMETRY_COORDINATE_DECIMALS
 			//.' -makevalid'

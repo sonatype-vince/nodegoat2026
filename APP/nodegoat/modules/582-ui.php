@@ -27,6 +27,9 @@ class ui extends base_module {
 			'review_data' => true
 		],
 		'ui_filter' => [],
+		'ui_view_objects' => [],
+		'ui_view_object' => [],
+		'ui_visualise' => [],
 		'ui_data' => [],
 		'ui_selection' => []
 	];
@@ -49,11 +52,10 @@ class ui extends base_module {
 	}
 	
 	public function contents() {
-		
+
 		$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
-		$project_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_active_custom_project_id');
 		$arr_public_user_interface = cms_nodegoat_public_interfaces::getPublicInterfaces($public_user_interface_id);	
-		$arr_public_user_interface_module_vars = SiteStartEnvironment::getFeedback('arr_public_user_interface_module_vars');	
+		$arr_public_user_interface_module_vars = SiteStartEnvironment::getFeedback('arr_public_user_interface_module_vars');
 		
 		if (!$arr_public_user_interface['interface']['settings']['disable_responsive_layout']) {
 			
@@ -70,6 +72,21 @@ class ui extends base_module {
 			
 			$this->style = 'fullscreen';
 		}
+				
+		if ($arr_public_user_interface['interface']['settings']['beta']) {
+			return $this->contents_beta(); 
+		} else {
+			return $this->contents_legacy(); 
+		}
+	}
+	
+	public function contents_legacy() {
+		
+		
+		
+		$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
+		$project_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_active_custom_project_id');
+		$arr_public_user_interface = cms_nodegoat_public_interfaces::getPublicInterfaces($public_user_interface_id);	
 		
 		if ($arr_public_user_interface['interface']['settings']['return_url']) {
 			
@@ -101,11 +118,11 @@ class ui extends base_module {
 		<input id="nav-toggle" type="checkbox" />
 		<nav class="'.$arr_public_user_interface['interface']['settings']['filter_form_position'].'">
 			<ul>
-				<li class="projects-nav">'.$this->createProjectsNavigation().'</li>
+				<li class="projects-nav">'.$this->createProjectsNavigation('set').'</li>
 				<li class="project-dynamic-nav">'.$this->createProjectNavigation().'</li>
 			</ul>
 		</nav>
-		<div class="project-dynamic-data" '.($arr_public_user_interface['interface']['settings']['show_device_location'] ? 'data-device_location="1"' : '').'>'.$this->getProjectDynamicDataElm().'</div>
+		<div class="project-dynamic-data" '.($arr_public_user_interface['interface']['settings']['show_device_location'] ? 'data-device_location="1"' : '').' '.($notools ? 'data-notools="1"' : '').'>'.$this->getProjectDynamicDataElm().'</div>
 		'.ui_selection::createViewSelectionsContainer();	
 		
 		return $return;
@@ -188,7 +205,287 @@ class ui extends base_module {
 		return $return;
 	}
 	
-	private function createProjectsNavigation() {
+	public function contents_beta() {
+				
+		
+		
+		$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
+		$project_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_active_custom_project_id');
+		$arr_public_user_interface = cms_nodegoat_public_interfaces::getPublicInterfaces($public_user_interface_id);	
+		$arr_public_user_interface_module_vars = SiteStartEnvironment::getFeedback('arr_public_user_interface_module_vars');	
+
+		if ($arr_public_user_interface['interface']['settings']['return_url']) {
+			
+			$return = '<a href="'.$arr_public_user_interface['interface']['settings']['return_url'].'" class="return" target="_parent">
+				<span class="icon" data-category="full">'.getIcon('prev').'</span>
+			</a>';
+		}
+		
+		$elm_info = false;
+		
+		if (!empty($arr_public_user_interface['texts'])) {
+			
+			if ($arr_public_user_interface['interface']['settings']['labels']['info']) {
+			 
+				$elm_info = '<span class="a quick" id="y:ui:view_text-0">'.Labels::parseLanguage($arr_public_user_interface['interface']['settings']['labels']['info']).'</span>';
+				
+			} else {
+				
+				$elm_info = '<span class="icon a quick" data-category="full" id="y:ui:view_text-0">'.getIcon('info-point').'</span>';
+			}
+		}
+			
+		$return .= '<div class="header-info" data-public_user_interface_id="'.$public_user_interface_id.'" '.($arr_public_user_interface['interface']['settings']['show_device_location'] ? 'data-device_location="1"' : '').'>
+			<h1 class="a" id="y:ui:run_project-0">'.Labels::parseTextVariables($arr_public_user_interface['interface']['name']).'</h1>'.
+			$elm_info.
+		'</div>
+		<div class="fixed-view-container"></div>
+		<label for="nav-toggle">☰</label>
+		<input id="nav-toggle" type="checkbox" />
+		<div class="beta projects '.$arr_public_user_interface['interface']['settings']['filter_form_position'].'">
+			<div class="projects-nav">'.$this->createProjectsNavigation('run').'</div>
+			'.$this->createProject().'
+		</div>
+		'.ui_selection::createViewSelectionsContainer();	
+		
+		return $return;
+	}
+	
+	private function createProject() {
+	
+		/* 
+		 * This function only runs when a new project is iniated. Either after a page load, a project click, or when a filter is emtpy.
+		 * This function established the start-state of a project. 
+		 * 
+		 * 
+		 * Modes
+		 * 		Grid
+		 * 		List
+		 * 		Geo
+		 * 		Soc
+		 * 		Time
+		 * Start
+		 * 		None
+		 * 		Scenario
+		 * 		Types (filter or Random Objects)
+		 * Filter
+		 * 		State: new data
+		 * 		Clicked
+		 * 		URL 
+		 * Scenario
+		 * 		State: new data
+		 * 		Clicked
+		 * 		URL
+		 * Object
+		 * Objects
+		 * 		URL?
+		 * 
+		 * 
+		 * 		
+		*/
+		
+		$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');		
+		$arr_public_user_interface = cms_nodegoat_public_interfaces::getPublicInterfaces($public_user_interface_id);	
+		$public_user_interface_active_custom_project_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_active_custom_project_id');
+		$arr_settings =	$arr_public_user_interface['interface']['settings']['projects'][$public_user_interface_active_custom_project_id];
+		
+		if ($arr_public_user_interface['project_types'][$public_user_interface_active_custom_project_id]) {
+			
+			$arr_type = current($arr_public_user_interface['project_types'][$public_user_interface_active_custom_project_id]);
+			$type_id = $arr_type['type_id'];
+		}
+		
+		$arr_data_options = cms_nodegoat_public_interfaces::getPublicInterfaceDataOptions();
+		$active_visualisation = false;
+
+		$arr_public_user_interface_module_vars = SiteStartEnvironment::getFeedback('arr_public_user_interface_module_vars');
+		$data_display_mode = $arr_public_user_interface_module_vars['display_mode'];
+		$arr_start = $arr_settings['start'];
+	
+		$active_data = false;
+				
+		if ($arr_public_user_interface_module_vars['set'] == 'filter') {
+		
+			// is there an active filter?
+			$active_data = true;
+		
+		} else if ($arr_public_user_interface_module_vars['set'] == 'scenario') {
+
+			// is there an active scenario?		
+			
+			$set_scenario_id = (int)SiteStartEnvironment::getFeedback('scenario_id');
+		
+			
+			if ($arr_start['scenario']['id'] == $set_scenario_id) {
+		
+				// active scenario is the same as start screen scenario, allow this to be activated.
+				$set_scenario_id = false;
+				$active_data = false;
+				
+			} else {
+				
+				$active_data = true;
+				$arr_set_scenario = cms_nodegoat_custom_projects::getProjectTypeScenarios($public_user_interface_active_custom_project_id, false, false, $set_scenario_id);
+				$arr_set_scenario_data_options = $arr_public_user_interface['project_scenarios'][$public_user_interface_active_custom_project_id][$set_scenario_id];
+			}
+			
+		} else if ($arr_public_user_interface_module_vars['set'] == 'object') {
+
+			// is there an active object?
+			$active_data = true;
+			$arr_id = explode('-', SiteStartEnvironment::getFeedback('active_type_object_id'));
+			$type_id = (int)$arr_id[0];
+			$object_id = (int)$arr_id[1];
+
+			SiteEndEnvironment::setFeedback('active_type_object_id', false, true);
+			
+			$elm_object = ui_view_object::createViewTypeObject($type_id, $object_id);
+						
+		} else if ($arr_public_user_interface_module_vars['set'] == 'types') {
+
+			$active_data = true;
+		}
+		
+		if (!$active_data) {
+			
+			// show start settings and scenarios
+		
+			foreach ((array)$arr_public_user_interface['project_scenarios'][$public_user_interface_active_custom_project_id] as $scenario_id => $arr_scenario) {			
+						
+				$arr_type_scenario = cms_nodegoat_custom_projects::getProjectTypeScenarios($public_user_interface_active_custom_project_id, false, false, $scenario_id); 
+				
+				if (!count((array)$arr_type_scenario)) {
+					continue;
+				}
+				
+				$arr_scenario_data_options = [];
+				
+				foreach ($arr_scenario as $key => $value) {
+
+					$arr_scenario_option = explode('_', $key); 
+					if ($value && $arr_data_options[$arr_scenario_option[1]]) {
+						$arr_scenario_data_options[$arr_scenario_option[1]] = true;
+					}
+				}
+
+				$elm_scenarios .= '<div class="a scenario" id="y:ui_view_objects:run_scenario-'.$scenario_id.'" data-options="'.strEscapeHTML(value2JSON($arr_scenario_data_options)).'" data-scenario_id="'.$scenario_id.'">'
+										.'<span class="icon">'.getIcon('play').'</span>'.strEscapeHTML(Labels::parseTextVariables($arr_type_scenario['name']))
+									.'</div>';
+		
+			}
+			
+			if ($elm_scenarios && !$active_data) {
+				
+				$elm_scenarios = '<div class="project-scenarios">'.$elm_scenarios.'</div>';
+			}
+		
+			$data_display_mode = 'grid';
+	
+			if ($arr_start['mode'] == 'types') {
+				
+				$data_display_mode = $arr_start['types']['display_mode'];
+				ui::setPublicUserInterfaceModuleVars(['set' => 'types', 'id' => 'all', 'display_mode' => $data_display_mode]);
+			
+			} else if ($arr_start['mode'] == 'scenario' && $arr_start['scenario']['id'] && $arr_start['scenario']['display_mode']) {
+
+				$start_scenario_id = $arr_start['scenario']['id'];
+				$data_display_mode = $arr_start['scenario']['display_mode'];
+						
+				toolbar::setScenario($start_scenario_id);	
+				SiteEndEnvironment::setFeedback('scenario_id', $start_scenario_id, true);
+		
+				ui::setPublicUserInterfaceModuleVars(['set' => 'scenario', 'id' => $start_scenario_id, 'display_mode' => $data_display_mode]);
+							
+			} else if ($arr_start['mode'] == 'random') {
+				
+				$data_display_mode = 'grid';
+				
+			}
+		}
+		
+		$visualisation_list_view = $arr_public_user_interface['interface']['settings']['visualisation_list_view'];	
+		$object_draggable = $arr_public_user_interface['interface']['settings']['objects_draggable'];	
+		$grid_min = 0;		
+		$grid_max = 50;		
+		
+		if ($data_display_mode == 'grid') {
+			$grid_min = 50;		
+			$grid_max = 100;						
+		}			
+						
+		$return = '<div data-method="run_project" data-project_id="'.$public_user_interface_active_custom_project_id.'" class="project">'
+					.'<div class="project-help '.($arr_settings['filter_mode'] == 'none' && $arr_settings['info_title'] ? '' : 'hide').' ">'
+						.'<div id="y:ui:view_text-project_'.$public_user_interface_active_custom_project_id.'" class="a quick">'
+							.($arr_settings['info_title'] ? Labels::parseTextVariables($arr_settings['info_title']) : getLabel('lbl_information'))
+						.'</div>'
+					.'</div>'
+					//.'<form>'
+						.ui_filter::createFilter($public_user_interface_active_custom_project_id, $arr_public_user_interface, 'div')
+					//.'</form>'
+					.'<div class="tools">'
+						.'<div class="result-info '.($set_scenario_id ? '' : 'hide').'">'
+							.'<span class="set a quick" id="y:ui:view_text-scenario_'.$set_scenario_id.'">'
+								.'<span class="icon">'.getIcon('info-point').'</span>'
+								.'<span class="name">'.strEscapeHTML(Labels::parseTextVariables($arr_set_scenario['name'])).'</span>'
+							.'</span>'
+						.'</div>'
+						.'<div class="visualisation-buttons" data-visualisation_list_view="'.$visualisation_list_view.'">';
+			
+						foreach ((array)$arr_data_options as $key => $arr_data_option) {
+							
+							$active = false;
+							
+							if ($set_scenario_id) {
+								
+								if ($arr_set_scenario_data_options['scenario_'.$key]) {
+									$active = true;
+								}
+								
+							} else {
+						
+								if ($arr_type && $arr_type['type_'.$key]) {
+									$active = true;
+								}
+							}
+				
+							$return .= '<span class="a '.($data_display_mode == $key ? 'active' : '').' '.($active ? '' : 'hide').'" data-display_mode="'.$key.'" >
+											<span>'.$arr_data_option['name'].'</span>
+											<span class="icon">'.getIcon($arr_data_option['icon']).'</span>
+										</span>';
+										
+							if ($arr_data_option['visualisation_type'] && $data_display_mode == $key) {
+								$active_visualisation = true;
+							}
+						}
+
+			$return .=	'</div>'
+						.'<div class="controls">'
+							.'<span class="a quick export '.($arr_settings['export'][$type_id] ? '' : 'hide').'" id="y:ui_view_objects:export-'.$type_id.'_'.$public_user_interface_active_custom_project_id.'" >'
+								.'<span>'.getLabel('lbl_download').'</span>'
+								.'<span class="icon">'.getIcon('download').'</span>'
+							.'</span>'
+							.'<span class="a start-over '.($active_data ? '' : 'hide').'" id="y:ui:run_project-'.$public_user_interface_active_custom_project_id.'">'
+								.'<span>'.getLabel('lbl_start_over').'</span>'
+								.'<span class="icon">'.getIcon('reload').'</span>'
+							.'</span>'
+						.'</div>'
+					.'</div>'
+					.$elm_scenarios
+					.'<div class="data '.($arr_settings['show_object_fullscreen'] ? 'fullscreen-object' : '').' ">'
+						.'<div class="objects '.($visualisation_list_view ? 'vis-list' : '').'">'
+							.'<div class="grid '.($data_display_mode == 'grid' ? 'active' : 'hide').'" id="y:ui_view_objects:get_grid_data-0" data-min='.$grid_min.' data-max='.$grid_max.'><div class="data-container">'.($data_display_mode == 'grid' ? ui_view_objects::createViewTypeObjectsGrid(0,50) : '').'</div><button class="'.($data_display_mode == 'grid' ? '' : 'hide').'">'.getLabel('lbl_load_more').'</button></div>'
+							.'<div class="vis '.($active_visualisation == true ? 'active start-visualisation' : 'hide').'" id="y:ui_visualise:get_visulisation_data-0" data-visualisation_type='.$arr_data_options[$data_display_mode]['visualisation_type'].'><div class="data-container" data-host="filter"></div></div>'
+							.'<div class="list '.($data_display_mode == 'list' || ($active_visualisation == true && $visualisation_list_view) ? 'active' : 'hide').'" id="y:ui_view_objects:get_list_data-0"><div class="data-container">'.($data_display_mode == 'list' || ($active_visualisation == true && $visualisation_list_view) ? ui_view_objects::createViewTypeObjectsList() : '').'</div></div>'
+						.'</div>'
+						.'<div class="object '.($arr_settings['show_explore_visualisations'] ? 'show-explore-visualisations' : '').($object_draggable ? 'draggable' : '').'" id="y:ui_view_object:show_project_type_object-0">'.$elm_object.'</div>'
+						.'<div class="object-thumbnail-container" id="y:ui_view_object:show_project_type_object_thumbnail-0"></div>'
+					.'</div>'
+				.'</div>';
+							
+		return $return;
+	}
+	
+	private function createProjectsNavigation($project_command) {
 		
 		$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
 		$public_user_interface_active_custom_project_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_active_custom_project_id');
@@ -211,7 +508,7 @@ class ui extends base_module {
 				
 				$project_name = Labels::parseTextVariables(($arr_public_user_interface['interface']['settings']['projects'][$nav_project_id]['name'] ? $arr_public_user_interface['interface']['settings']['projects'][$nav_project_id]['name'] : $arr_projects[$nav_project_id]['project']['name']));
 
-				$return .= '<li '.($nav_project_id == $public_user_interface_active_custom_project_id ? 'class="active"' : '').' id="y:ui:set_project-'.$nav_project_id.'" >
+				$return .= '<li '.($nav_project_id == $public_user_interface_active_custom_project_id ? 'class="active"' : '').' id="y:ui:'.$project_command.'_project-'.$nav_project_id.'" >
 								<span class="project-name">'.strEscapeHTML($project_name).'</span>
 								'.($arr_project_type_object_amounts[$nav_project_id]['project_total'] ? '<span class="project-amount">'.num2String($arr_project_type_object_amounts[$nav_project_id]['project_total']).'</span>' : '').'
 							</li>';			
@@ -338,6 +635,7 @@ class ui extends base_module {
 	public static function css() {
 		
 		$return = '
+					
 					.ui { display: flex; flex-flow: column nowrap; align-content: flex-start; flex: 1 1 100%; position: relative; min-height: 100vh; background-color: #f3f3f3; }
 					body.framed .ui { min-height: var(--view-height); }
 					.ui menu.buttons { position: relative; width: 100%; margin: 0 0 5px 0; padding: 0; text-align: right; }				
@@ -453,107 +751,107 @@ class ui extends base_module {
 					.ui > nav > ul > li.project-dynamic-nav ul li.project-types > div:hover > span.icon,
 					.ui > nav > ul > li.project-dynamic-nav ul li.project-scenarios > div:hover > span.icon { background-color: #fff; color: #0096e4; }
 
-					.ui > .project-dynamic-data { position: relative; flex: 1; display: flex; flex-wrap: nowrap; flex-direction: column; height: 100%; max-width: 100%; }
+					.ui .project-dynamic-data { position: relative; flex: 1; display: flex; flex-wrap: nowrap; flex-direction: column; height: 100%; max-width: 100%; }
 	
-					.ui > .project-dynamic-data > .tools { width: 100%; margin: 0; background-color: #a3ce6c; box-sizing: border-box;  }	
-					.ui > .project-dynamic-data > .tools.no-filter { display: none; }
-					.ui > .project-dynamic-data > .data { flex: 2; position: relative; display: flex; flex-wrap: nowrap; flex-direction: row; justify-content: center; height: 100%; max-width: 100%; }							
-					.ui > .project-dynamic-data > .data > .objects { position: relative; flex: 3 1 100%; max-width: 100%; }							
-					.ui > .project-dynamic-data > .data > .object { position: relative; flex: 2 1 100%; box-sizing: border-box; max-width: 40vw; }	
+					.ui .project-dynamic-data > .tools { width: 100%; margin: 0; background-color: #a3ce6c; box-sizing: border-box;  }	
+					.ui .project-dynamic-data > .tools.no-filter { display: none; }
+					.ui .project-dynamic-data > .data { flex: 2; position: relative; display: flex; flex-wrap: nowrap; flex-direction: row; justify-content: center; height: 100%; max-width: 100%; }							
+					.ui .project-dynamic-data > .data > .objects { position: relative; flex: 3 1 100%; max-width: 100%; }							
+					.ui .project-dynamic-data > .data > .object { position: relative; flex: 2 1 100%; box-sizing: border-box; max-width: 40vw; }	
 					
-					.ui > .project-dynamic-data > .tools[data-object_active="true"] + .data > .objects[data-display_mode="list"] { max-width: 60vw; }							
+					.ui .project-dynamic-data > .tools[data-object_active="true"] + .data > .objects[data-display_mode="list"] { max-width: 60vw; }							
 					
-					.ui > .project-dynamic-data > .tools[data-object_active="true"] + .data.fullscreen-object > .objects { display: none; }	
+					.ui .project-dynamic-data > .tools[data-object_active="true"] + .data.fullscreen-object > .objects { display: none; }	
 					
-					.ui > .project-dynamic-data > .data.fullscreen-object > .object { position: relative;  min-width: 100%; padding: 30px; background-color: #f3f3f3; }
+					.ui .project-dynamic-data > .data.fullscreen-object > .object { position: relative;  min-width: 100%; padding: 30px; background-color: #f3f3f3; }
 						
-					.ui > .project-dynamic-data > .data > .objects:empty,
-					.ui > .project-dynamic-data > .data > .object:empty { flex: 0; display: none; }	
+					.ui .project-dynamic-data > .data > .objects:empty,
+					.ui .project-dynamic-data > .data > .object:empty { flex: 0; display: none; }	
 					
-					.ui > .project-dynamic-data > .data > .objects:empty + .object { max-width: 90vw; border-top: 4px solid #f3f3f3;}
+					.ui .project-dynamic-data > .data > .objects:empty + .object { max-width: 90vw; border-top: 4px solid #f3f3f3;}
 					
-					.ui > .project-dynamic-data > .data > .object-thumbnail-container { display: none; }
+					.ui .project-dynamic-data > .data > .object-thumbnail-container { display: none; }
 											
-					.ui > .project-dynamic-data > .tools > div { display: flex; justify-content: center; }			
+					.ui .project-dynamic-data > .tools > div { display: flex; justify-content: center; }			
 					
-					.ui > .project-dynamic-data > .tools > div > div { background-color: rgba(255,255,255, 0.8); padding: 0; margin: 10px 5px; white-space: nowrap; }				
-					.ui > .project-dynamic-data > .tools > div > div > span { white-space: nowrap; text-align: center; font-weight: bold; display: inline-block; vertical-align: middle; color: #444; line-height: 36px; margin: 2px; margin-right: 0px; padding: 0 12px; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}				
-					.ui > .project-dynamic-data > .tools > div > div > span:last-child { margin-right: 2px;  }			
-					.ui > .project-dynamic-data > .tools > div > div > span > span:first-child { padding-right: 8px; }
-					.ui > .project-dynamic-data > .tools > div > div > span:hover { text-decoration: none; }
-					.ui > .project-dynamic-data > .tools > div > div.visualisation-buttons > span.active,
-					.ui > .project-dynamic-data > .tools > div > div.visualisation-buttons > span:hover { background-color: #0096e4; color: #fff;  }
+					.ui .project-dynamic-data > .tools > div > div { background-color: rgba(255,255,255, 0.8); padding: 0; margin: 10px 5px; white-space: nowrap; }				
+					.ui .project-dynamic-data > .tools > div > div > span { white-space: nowrap; text-align: center; font-weight: bold; display: inline-block; vertical-align: middle; color: #444; line-height: 36px; margin: 2px; margin-right: 0px; padding: 0 12px; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}				
+					.ui .project-dynamic-data > .tools > div > div > span:last-child { margin-right: 2px;  }			
+					.ui .project-dynamic-data > .tools > div > div > span > span:first-child { padding-right: 8px; }
+					.ui .project-dynamic-data > .tools > div > div > span:hover { text-decoration: none; }
+					.ui .project-dynamic-data > .tools > div > div.visualisation-buttons > span.active,
+					.ui .project-dynamic-data > .tools > div > div.visualisation-buttons > span:hover { background-color: #0096e4; color: #fff;  }
 					
-					.ui > .project-dynamic-data > .tools > div > div.result-info,
-					.ui > .project-dynamic-data > .tools > div > div.controls { background-color: transparent;  }
-					.ui > .project-dynamic-data > .tools > div > div.result-info > span:first-child:not(:last-child) { padding-right: 5px; }
-					.ui > .project-dynamic-data > .tools > div > div.result-info > span.set + span.amount { padding-left: 0; }
-					.ui > .project-dynamic-data > .tools > div > div.result-info > span > span:first-child { padding-right: 3px; }
-					.ui > .project-dynamic-data > .tools > div > div.result-info > span,
-					.ui > .project-dynamic-data > .tools > div > div.controls > span { background-color: rgba(255,255,255, 0.4); margin: 2px 0;}				
-					.ui > .project-dynamic-data > .tools > div > div.controls > span:hover { color: #444; }				
+					.ui .project-dynamic-data > .tools > div > div.result-info,
+					.ui .project-dynamic-data > .tools > div > div.controls { background-color: transparent;  }
+					.ui .project-dynamic-data > .tools > div > div.result-info > span:first-child:not(:last-child) { padding-right: 5px; }
+					.ui .project-dynamic-data > .tools > div > div.result-info > span.set + span.amount { padding-left: 0; }
+					.ui .project-dynamic-data > .tools > div > div.result-info > span > span:first-child { padding-right: 3px; }
+					.ui .project-dynamic-data > .tools > div > div.result-info > span,
+					.ui .project-dynamic-data > .tools > div > div.controls > span { background-color: rgba(255,255,255, 0.4); margin: 2px 0;}				
+					.ui .project-dynamic-data > .tools > div > div.controls > span:hover { color: #444; }				
 					
-					.ui > .project-dynamic-data > .tools .new-data { display: none }
+					.ui .project-dynamic-data > .tools .new-data { display: none }
 					
-					.ui > .project-dynamic-data > .data > .objects > div.no-data ~ * { display: none !important; }
-					.ui > .project-dynamic-data > .data > .objects > input { display: none; }
-					.ui > .project-dynamic-data > .data > .objects > label { position: absolute; z-index: 1; cursor: pointer; }
+					.ui .project-dynamic-data > .data > .objects > div.no-data ~ * { display: none !important; }
+					.ui .project-dynamic-data > .data > .objects > input { display: none; }
+					.ui .project-dynamic-data > .data > .objects > label { position: absolute; z-index: 1; cursor: pointer; }
 					
-					.ui > .project-dynamic-data > .data > .objects { display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start; }
+					.ui .project-dynamic-data > .data > .objects { display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start; }
 					
-					.ui > .project-dynamic-data > .data > .objects > .overlay-grid { position: absolute; z-index: 1; }
+					.ui .project-dynamic-data > .data > .objects > .overlay-grid { position: absolute; z-index: 1; }
 					
-					.ui > .project-dynamic-data > .data > .objects > input:not(:checked) + label { display: block; width: 160px; height: 30px; right: 20px; top: 260px; }
-					.ui > .project-dynamic-data > .data > .objects > input:not(:checked) + label > span:first-child { display: block; width: 100%; line-height: 30px; text-align: center; background-color: #0096e4; color: #fff; letter-spacing: 2px; text-transform: uppercase; }
-					.ui > .project-dynamic-data > .data > .objects > input:not(:checked) + label > span:last-child { display: none; }
-					.ui > .project-dynamic-data > .data > .objects > input:not(:checked) + label + div.overlay-grid-next-prev { position: absolute; display: block; height: 30px; right: 20px; top: 20px; z-index: 1; }
-					.ui > .project-dynamic-data > .data > .objects > input:not(:checked) + label + div.overlay-grid-next-prev > span { cursor: pointer; display: inline-block; text-align: center; height: 25px; width: 25px; color: #fff; background-color: #0096e4; }
-					.ui > .project-dynamic-data > .data > .objects > input:not(:checked) + label + div.overlay-grid-next-prev > span:first-child { margin-right: 5px; }
-					.ui > .project-dynamic-data > .data > .objects > input:not(:checked) + label + div + div.overlay-grid { width: 160px; height: 200px; top: 50px; right: 20px; }
-					.ui > .project-dynamic-data > .data > .objects > input:not(:checked) + label + div + div.overlay-grid > .object-thumbnail { position: absolute; top: 20px; left: 10px; z-index: 1;}
-					.ui > .project-dynamic-data > .data > .objects > input:not(:checked) + label + div + div.overlay-grid > .object-thumbnail:nth-of-type(2) { width: 150px; top: 10px; left: 5px; z-index: 2; }
-					.ui > .project-dynamic-data > .data > .objects > input:not(:checked) + label + div + div.overlay-grid > .object-thumbnail:nth-of-type(1) { width: 160px; top: 0px; left: 0px; z-index: 3; }
+					.ui .project-dynamic-data > .data > .objects > input:not(:checked) + label { display: block; width: 160px; height: 30px; right: 20px; top: 260px; }
+					.ui .project-dynamic-data > .data > .objects > input:not(:checked) + label > span:first-child { display: block; width: 100%; line-height: 30px; text-align: center; background-color: #0096e4; color: #fff; letter-spacing: 2px; text-transform: uppercase; }
+					.ui .project-dynamic-data > .data > .objects > input:not(:checked) + label > span:last-child { display: none; }
+					.ui .project-dynamic-data > .data > .objects > input:not(:checked) + label + div.overlay-grid-next-prev { position: absolute; display: block; height: 30px; right: 20px; top: 20px; z-index: 1; }
+					.ui .project-dynamic-data > .data > .objects > input:not(:checked) + label + div.overlay-grid-next-prev > span { cursor: pointer; display: inline-block; text-align: center; height: 25px; width: 25px; color: #fff; background-color: #0096e4; }
+					.ui .project-dynamic-data > .data > .objects > input:not(:checked) + label + div.overlay-grid-next-prev > span:first-child { margin-right: 5px; }
+					.ui .project-dynamic-data > .data > .objects > input:not(:checked) + label + div + div.overlay-grid { width: 160px; height: 200px; top: 50px; right: 20px; }
+					.ui .project-dynamic-data > .data > .objects > input:not(:checked) + label + div + div.overlay-grid > .object-thumbnail { position: absolute; top: 20px; left: 10px; z-index: 1;}
+					.ui .project-dynamic-data > .data > .objects > input:not(:checked) + label + div + div.overlay-grid > .object-thumbnail:nth-of-type(2) { width: 150px; top: 10px; left: 5px; z-index: 2; }
+					.ui .project-dynamic-data > .data > .objects > input:not(:checked) + label + div + div.overlay-grid > .object-thumbnail:nth-of-type(1) { width: 160px; top: 0px; left: 0px; z-index: 3; }
 					
-					.ui > .project-dynamic-data > .data > .objects > input:checked + label { width: 60px; height: 60px; right: 20px; top: 20px; background-color: #fff; }
-					.ui > .project-dynamic-data > .data > .objects > input:checked + label > span:first-child { display: none; }
-					.ui > .project-dynamic-data > .data > .objects > input:checked + label > span:last-child {display: block; width: 100%; height: 100%; text-align: center; background-color: #0096e4; color: #fff;  }
-					.ui > .project-dynamic-data > .data > .objects > input:checked + label + div { display: none; }
-					.ui > .project-dynamic-data > .data > .objects > input:checked + label + div + div.overlay-grid { left: 20px; top: 20px; right: 60px; display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start; }
+					.ui .project-dynamic-data > .data > .objects > input:checked + label { width: 60px; height: 60px; right: 20px; top: 20px; background-color: #fff; }
+					.ui .project-dynamic-data > .data > .objects > input:checked + label > span:first-child { display: none; }
+					.ui .project-dynamic-data > .data > .objects > input:checked + label > span:last-child {display: block; width: 100%; height: 100%; text-align: center; background-color: #0096e4; color: #fff;  }
+					.ui .project-dynamic-data > .data > .objects > input:checked + label + div { display: none; }
+					.ui .project-dynamic-data > .data > .objects > input:checked + label + div + div.overlay-grid { left: 20px; top: 20px; right: 60px; display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start; }
 
-					.ui > .project-dynamic-data > .data > .objects[data-display_mode="grid"] { padding: 50px; }							
-					.ui > .project-dynamic-data > .data > .objects .object-thumbnail { position: relative; display: inline-block; width: 140px; height: 170px; background-color: #ededed; margin: 0px 55px 55px 0px; border: 1px solid #d0d0d0; }
-					.ui > .project-dynamic-data > .data > .objects .object-thumbnail:last-child { margin-right: 0px; }
-					.ui > .project-dynamic-data > .data > .objects .object-thumbnail .image { margin: 4px 4px 0 4px; width: calc(100% - 8px); height: 131px; background-repeat: no-repeat; background-position: center 10%; background-size: cover; }
-					.ui > .project-dynamic-data > .data > .objects .object-thumbnail .image span { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3em; font-family: serif; }
-					.ui > .project-dynamic-data > .data > .objects .object-thumbnail .name { position: absolute; bottom: 0px; width: 100%; min-height: 35px; max-height: 100%; display: flex; overflow: hidden; justify-content: center; align-items: center; box-sizing: border-box; background-color: #ededed; padding: 5px; text-align: center; vertical-align: middle; color: #000; }
-					.ui > .project-dynamic-data > .data > .objects .object-thumbnail:hover { text-decoration: none; background-color: #0096e4; border-color: #0096e4; }
-					.ui > .project-dynamic-data > .data > .objects .object-thumbnail:hover .image span,
-					.ui > .project-dynamic-data > .data > .objects > .object-thumbnail:hover .name { color: #fff; background-color: #0096e4; }
-					.ui > .project-dynamic-data > .data > .objects > button { display: block; width: 20%; margin: 20px 40% 20px 40%; text-align: center; background-color: rgba(255,255,255, 0.3); padding: 20px; box-sizing: border-box; border: 0; font-weight: bold; color: #444; }
-					.ui > .project-dynamic-data > .data > .objects > button:hover { text-decoration: none; background-color: #0096e4; color: #fff; }
+					.ui .project-dynamic-data > .data > .objects[data-display_mode="grid"] { padding: 50px; }							
+					.ui .project-dynamic-data > .data > .objects .object-thumbnail { position: relative; display: inline-block; width: 140px; height: 170px; background-color: #ededed; margin: 0px 55px 55px 0px; border: 1px solid #d0d0d0; }
+					.ui .project-dynamic-data > .data > .objects .object-thumbnail:last-child { margin-right: 0px; }
+					.ui .project-dynamic-data > .data > .objects .object-thumbnail .image { margin: 4px 4px 0 4px; width: calc(100% - 8px); height: 131px; background-repeat: no-repeat; background-position: center 10%; background-size: cover; }
+					.ui .project-dynamic-data > .data > .objects .object-thumbnail .image span { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3em; font-family: serif; }
+					.ui .project-dynamic-data > .data > .objects .object-thumbnail .name { position: absolute; bottom: 0px; width: 100%; min-height: 35px; max-height: 100%; display: flex; overflow: hidden; justify-content: center; align-items: center; box-sizing: border-box; background-color: #ededed; padding: 5px; text-align: center; vertical-align: middle; color: #000; }
+					.ui .project-dynamic-data > .data > .objects .object-thumbnail:hover { text-decoration: none; background-color: #0096e4; border-color: #0096e4; }
+					.ui .project-dynamic-data > .data > .objects .object-thumbnail:hover .image span,
+					.ui .project-dynamic-data > .data > .objects > .object-thumbnail:hover .name { color: #fff; background-color: #0096e4; }
+					.ui .project-dynamic-data > .data > .objects > button { display: block; width: 20%; margin: 20px 40% 20px 40%; text-align: center; background-color: rgba(255,255,255, 0.3); padding: 20px; box-sizing: border-box; border: 0; font-weight: bold; color: #444; }
+					.ui .project-dynamic-data > .data > .objects > button:hover { text-decoration: none; background-color: #0096e4; color: #fff; }
 
-					.ui > .project-dynamic-data > .data > .objects > [data-visualisation_type] { position: absolute; top: 0; right: 0; bottom: 0; left: 0; width: 100%; flex: 2; height: 100%; }
+					.ui .project-dynamic-data > .data > .objects > [data-visualisation_type] { position: absolute; top: 0; right: 0; bottom: 0; left: 0; width: 100%; flex: 2; height: 100%; }
 					
-					.ui > .project-dynamic-data > .data > .objects > .tabs.list-view { position: relative; margin: 5px; width: 100%; max-width: 98vw; }		
+					.ui .project-dynamic-data > .data > .objects > .tabs.list-view { position: relative; margin: 5px; width: 100%; max-width: 98vw; }		
 					
-					.ui > .project-dynamic-data .tabs.list-view > ul > li { background-color: #f5f5f5; border: 0; border-radius: 0; padding: 5px 10px; background-image: none; clip-path: none; -webkit-clip-path: none;  }
-					.ui > .project-dynamic-data .tabs.list-view > ul > li.selected { background-color: #ddd; }
-					.ui > .project-dynamic-data .tabs.list-view > ul > li a { color: #444; }
-					.ui > .project-dynamic-data .tabs.list-view > div { position: relative; padding: 0; border: 0; }	
-					.ui > .project-dynamic-data .tabs.list-view > div > div { position: relative; width: 100%; }	
-					.ui > .project-dynamic-data .tabs.list-view > div > div div.options { background-color: #ddd; }	
+					.ui .project-dynamic-data .tabs.list-view > ul > li { background-color: #f5f5f5; border: 0; border-radius: 0; padding: 5px 10px; background-image: none; clip-path: none; -webkit-clip-path: none;  }
+					.ui .project-dynamic-data .tabs.list-view > ul > li.selected { background-color: #ddd; }
+					.ui .project-dynamic-data .tabs.list-view > ul > li a { color: #444; }
+					.ui .project-dynamic-data .tabs.list-view > div { position: relative; padding: 0; border: 0; }	
+					.ui .project-dynamic-data .tabs.list-view > div > div { position: relative; width: 100%; }	
+					.ui .project-dynamic-data .tabs.list-view > div > div div.options { background-color: #ddd; }	
 					
-					.ui > .project-dynamic-data > .data > .object { background-color: #eee; }
-					.ui > .project-dynamic-data > .data > .object > div { position: relative; background-color: #eee; padding-bottom: 20px; height: auto; }
+					.ui .project-dynamic-data > .data > .object { background-color: #eee; }
+					.ui .project-dynamic-data > .data > .object > div { position: relative; background-color: #eee; padding-bottom: 20px; height: auto; }
 					
-					.ui > .project-dynamic-data > .data.fullscreen-object > .object.show-explore-visualisations { padding: 0px; }
-					.ui > .project-dynamic-data > .data > .object.show-explore-visualisations > div.has-explore-visualisations { display: flex; }
-					.ui > .project-dynamic-data > .data > .object.show-explore-visualisations > div.has-explore-visualisations > div { position: relative; flex: 2 1 100%; box-sizing: border-box;  }
-					.ui > .project-dynamic-data > .data > .object.show-explore-visualisations > div.has-explore-visualisations > div:first-child { margin: 0px; }
-					.ui > .project-dynamic-data > .data > .objects:empty + .object.show-explore-visualisations { border: 0px; }
+					.ui .project-dynamic-data > .data.fullscreen-object > .object.show-explore-visualisations { padding: 0px; }
+					.ui .project-dynamic-data > .data > .object.show-explore-visualisations > div.has-explore-visualisations { display: flex; }
+					.ui .project-dynamic-data > .data > .object.show-explore-visualisations > div.has-explore-visualisations > div { position: relative; flex: 2 1 100%; box-sizing: border-box;  }
+					.ui .project-dynamic-data > .data > .object.show-explore-visualisations > div.has-explore-visualisations > div:first-child { margin: 0px; }
+					.ui .project-dynamic-data > .data > .objects:empty + .object.show-explore-visualisations { border: 0px; }
 					
-					.ui > .project-dynamic-data > .data > .object > div .tabs { margin: 15px; }
-					.ui > .project-dynamic-data > .data > .object > div > div:not(.tabs) > ul { padding: 12px;  }
+					.ui .project-dynamic-data > .data > .object > div .tabs { margin: 15px; }
+					.ui .project-dynamic-data > .data > .object > div > div:not(.tabs) > ul { padding: 12px;  }
 					
 					.ui .head { margin: 0px; position: relative; background-color: #777; display: flex; justify-content: space-between; width: 100%; }	
 					.ui .head > .object-thumbnail-image { display: block; margin: 0; padding: 0; height: 60px; width: 60px; min-width: 60px; background-repeat: no-repeat; background-position: center 10%; background-size: cover;  }	
@@ -562,129 +860,129 @@ class ui extends base_module {
 					.ui .head > .navigation-buttons > button { border: 0; width: 60px; height: 60px; border-radius: 0; margin: 0; padding: 0; background-color: #555; display: inline-block;}
 					.ui .head > .navigation-buttons > button > span { color: #fff; }	
 	
-					.ui > .project-dynamic-data > .data > .object > div menu.buttons { width: auto; display: block; position: absolute; right: 20px; z-index: 1; }	
-					.ui > .project-dynamic-data > .data > .object > div > div > menu.buttons { top: 80px; }	
+					.ui .project-dynamic-data > .data > .object > div menu.buttons { width: auto; display: block; position: absolute; right: 20px; z-index: 1; }	
+					.ui .project-dynamic-data > .data > .object > div > div > menu.buttons { top: 80px; }	
 					
-					.ui > .project-dynamic-data > .data > .object .combined-filters { position: relative; display: flex; flex-wrap: wrap; align-content: flex-start; }	
-					.ui > .project-dynamic-data > .data > .object .combined-filters > div { position: relative;  display: flex; flex-wrap: nowrap; padding: 5px; margin: 0 15px 10px 0; background-color: #fff; }	
-					.ui > .project-dynamic-data > .data > .object .combined-filters > div > input { margin-right: 5px; }	
-					.ui > .project-dynamic-data > .data > .object .combined-filters > div > * { padding: 5px; }	
+					.ui .project-dynamic-data > .data > .object .combined-filters { position: relative; display: flex; flex-wrap: wrap; align-content: flex-start; }	
+					.ui .project-dynamic-data > .data > .object .combined-filters > div { position: relative;  display: flex; flex-wrap: nowrap; padding: 5px; margin: 0 15px 10px 0; background-color: #fff; }	
+					.ui .project-dynamic-data > .data > .object .combined-filters > div > input { margin-right: 5px; }	
+					.ui .project-dynamic-data > .data > .object .combined-filters > div > * { padding: 5px; }	
 
-					.ui > .project-dynamic-data > .data > .object .tabs.object-view > ul > li { background-color: transparent; border: 0; background-image: none; border-radius: 0; padding: 0; clip-path: none; -webkit-clip-path: none; }
-					.ui > .project-dynamic-data > .data > .object .tabs.object-view > ul > li.selected { border: 0; }
-					.ui > .project-dynamic-data > .data > .object .tabs.object-view > ul > li.selected a { background-color: rgba(255,255,255,0.7);}
-					.ui > .project-dynamic-data > .data > .object .tabs.object-view > ul > li.no-data a { background-color: rgba(255,255,255,0.35); pointer-events: none; }
-					.ui > .project-dynamic-data > .data > .object .tabs.object-view > ul > li > a { position: relative; font-size: 14px; padding: 10px; background-color: #aaa; margin-right: 10px; }
-					.ui > .project-dynamic-data > .data > .object .tabs.object-view > ul.big > li > a { margin-bottom: 8px; }
-					.ui > .project-dynamic-data > .data > .object .tabs.object-view > ul > li > a > span { line-height: 14px; }
-					.ui > .project-dynamic-data > .data > .object .tabs.object-view > ul > li > a > span.amount {  position: absolute; top: -10px; right: -15px; display: block; padding: 0 5px; height: 15px; min-width: 20px; border-radius: 8px; background-color: #0096e4; text-align: center; font-size: 10px; line-height: 15px; color: #fff; }
-					.ui > .project-dynamic-data > .data > .object .tabs.object-view > div { margin-top: 1px; background-color: rgba(255,255,255,0.7); border: 0; }
+					.ui .project-dynamic-data > .data > .object .tabs.object-view > ul > li { background-color: transparent; border: 0; background-image: none; border-radius: 0; padding: 0; clip-path: none; -webkit-clip-path: none; }
+					.ui .project-dynamic-data > .data > .object .tabs.object-view > ul > li.selected { border: 0; }
+					.ui .project-dynamic-data > .data > .object .tabs.object-view > ul > li.selected a { background-color: rgba(255,255,255,0.7);}
+					.ui .project-dynamic-data > .data > .object .tabs.object-view > ul > li.no-data a { background-color: rgba(255,255,255,0.35); pointer-events: none; }
+					.ui .project-dynamic-data > .data > .object .tabs.object-view > ul > li > a { position: relative; font-size: 14px; padding: 10px; background-color: #aaa; margin-right: 10px; }
+					.ui .project-dynamic-data > .data > .object .tabs.object-view > ul.big > li > a { margin-bottom: 8px; }
+					.ui .project-dynamic-data > .data > .object .tabs.object-view > ul > li > a > span { line-height: 14px; }
+					.ui .project-dynamic-data > .data > .object .tabs.object-view > ul > li > a > span.amount {  position: absolute; top: -10px; right: -15px; display: block; padding: 0 5px; height: 15px; min-width: 20px; border-radius: 8px; background-color: #0096e4; text-align: center; font-size: 10px; line-height: 15px; color: #fff; }
+					.ui .project-dynamic-data > .data > .object .tabs.object-view > div { margin-top: 1px; background-color: rgba(255,255,255,0.7); border: 0; }
 
-					.ui > .project-dynamic-data > .data > .object .tabs.object-view > div > ul::after,
-					.ui > .project-dynamic-data > .data > .object > div > div > ul::after { content: " "; display: block; height: 0; clear: both; }
+					.ui .project-dynamic-data > .data > .object .tabs.object-view > div > ul::after,
+					.ui .project-dynamic-data > .data > .object > div > div > ul::after { content: " "; display: block; height: 0; clear: both; }
 					
-					.ui > .project-dynamic-data > .data > .object ul > li.object-descriptions { position: relative; }
+					.ui .project-dynamic-data > .data > .object ul > li.object-descriptions { position: relative; }
 					
-					.ui > .project-dynamic-data > .data > .object ul > li.media > span { margin: 0 10px 10px 0; box-sizing: border-box; display: inline-block; }
-					.ui > .project-dynamic-data > .data > .object ul > li.media > span object,
-					.ui > .project-dynamic-data > .data > .object ul > li.media > span iframe { width: 600px; height: 600px; }
-					.ui > .project-dynamic-data > .data > .object ul > li.media > span img,
-					.ui > .project-dynamic-data > .data > .object ul > li.media > span video,
-					.ui > .project-dynamic-data > .data > .object ul > li.media > span object,
-					.ui > .project-dynamic-data > .data > .object ul > li.media > span iframe { max-height: 40vh; max-width: 100%; }
-					.ui > .project-dynamic-data > .data > .object ul > li.related-media { display: flex; flex-wrap: wrap; }
-					.ui > .project-dynamic-data > .data.fullscreen-object > .object ul > li.related-media { float: right; clear: left; margin-top: 50px; width: 340px; padding: 10px 0 0 10px; justify-content: flex-end;}
-					.ui > .project-dynamic-data > .data.fullscreen-object > .object ul > li.related-media ~ li { max-width: calc(100% - 350px); }
-					.ui > .project-dynamic-data > .data > .object ul > li.related-media > div { width: 150px; height: 150px; display: inline-block; margin: 0 10px 10px 0; background-repeat: no-repeat; background-position: center 10%; background-size: cover; background-color: #bbb; }
-					.ui > .project-dynamic-data > .data > .object ul > li.related-media > div > span { width: 100%; text-align: center; color: #fff; }
-					.ui > .project-dynamic-data > .data > .object ul > li.related-media > div > span > svg { height: 25%; }
-					.ui > .project-dynamic-data > .data > .object ul > li.keywords span { display: inline-block; padding: 10px; margin: 0 10px 10px 0;}
-					.ui > .project-dynamic-data > .data > .object ul > li.keywords span:hover { color: #fff; background-color: #0096e4; text-decoration: none; }
+					.ui .project-dynamic-data > .data > .object ul > li.media > span { margin: 0 10px 10px 0; box-sizing: border-box; display: inline-block; }
+					.ui .project-dynamic-data > .data > .object ul > li.media > span object,
+					.ui .project-dynamic-data > .data > .object ul > li.media > span iframe { width: 600px; height: 600px; }
+					.ui .project-dynamic-data > .data > .object ul > li.media > span img,
+					.ui .project-dynamic-data > .data > .object ul > li.media > span video,
+					.ui .project-dynamic-data > .data > .object ul > li.media > span object,
+					.ui .project-dynamic-data > .data > .object ul > li.media > span iframe { max-height: 40vh; max-width: 100%; }
+					.ui .project-dynamic-data > .data > .object ul > li.related-media { display: flex; flex-wrap: wrap; }
+					.ui .project-dynamic-data > .data.fullscreen-object > .object ul > li.related-media { float: right; clear: left; margin-top: 50px; width: 340px; padding: 10px 0 0 10px; justify-content: flex-end;}
+					.ui .project-dynamic-data > .data.fullscreen-object > .object ul > li.related-media ~ li { max-width: calc(100% - 350px); }
+					.ui .project-dynamic-data > .data > .object ul > li.related-media > div { width: 150px; height: 150px; display: inline-block; margin: 0 10px 10px 0; background-repeat: no-repeat; background-position: center 10%; background-size: cover; background-color: #bbb; }
+					.ui .project-dynamic-data > .data > .object ul > li.related-media > div > span { width: 100%; text-align: center; color: #fff; }
+					.ui .project-dynamic-data > .data > .object ul > li.related-media > div > span > svg { height: 25%; }
+					.ui .project-dynamic-data > .data > .object ul > li.keywords span { display: inline-block; padding: 10px; margin: 0 10px 10px 0;}
+					.ui .project-dynamic-data > .data > .object ul > li.keywords span:hover { color: #fff; background-color: #0096e4; text-decoration: none; }
 
-					.ui > .project-dynamic-data > .data > .object ul li.object-descriptions dl { display: table; border-spacing: 0px 8px; }
-					.ui > .project-dynamic-data > .data > .object ul li.object-descriptions dl > div,
-					.ui > .project-dynamic-data > .data > .object ul li.object-description { display: table-row; }
-					.ui > .project-dynamic-data > .data > .object ul li.object-descriptions dt,
-					.ui > .project-dynamic-data > .data > .object ul li.object-description > label { display: table-cell; padding-right: 10px; font-family: var(--font-mono); vertical-align: middle; }
-					.ui > .project-dynamic-data > .data > .object ul li.object-description > label { padding: 4px 10px 4px 0px; }
-					.ui > .project-dynamic-data > .data > .object ul li.object-description > div { padding: 4px 0px 4px 0px; }
-					.ui > .project-dynamic-data > .data > .object ul li:not(.object-description) + li.object-description > label,
-					.ui > .project-dynamic-data > .data > .object ul li:not(.object-description) + li.object-description > div { padding-top: 8px; }
-					.ui > .project-dynamic-data > .data > .object ul li.object-description:has(+ li:not(.object-description)) > label,
-					.ui > .project-dynamic-data > .data > .object ul li.object-description:has(+ li:not(.object-description)) > div { padding-bottom: 8px; }
-					.ui > .project-dynamic-data > .data > .object ul li.object-descriptions dt > span,
-					.ui > .project-dynamic-data > .data > .object ul li.object-description > label > span { margin-left: 5px; }
-					.ui > .project-dynamic-data > .data > .object ul li.object-descriptions dd,
-					.ui > .project-dynamic-data > .data > .object ul li.object-description > div { display: table-cell; }
-					.ui > .project-dynamic-data > .data > .object ul li.object-descriptions dd > span.a,
-					.ui > .project-dynamic-data > .data > .object ul li.object-description > div > span.a { display: inline-block; border-bottom: 1px #444 dashed; padding: 2px 3px; margin-bottom: 3px; } 
-					.ui > .project-dynamic-data > .data > .object ul li.object-descriptions dd > span.a + span.a,
-					.ui > .project-dynamic-data > .data > .object ul li.object-description > div > span.a + span.a { margin-left: 10px;} 
-					.ui > .project-dynamic-data > .data > .object ul li.object-descriptions dd > span.a:hover,
-					.ui > .project-dynamic-data > .data > .object ul li.object-description > div > span.a:hover { text-decoration: none; background-color: #0096e4; color: #fff; }
+					.ui .project-dynamic-data > .data > .object ul li.object-descriptions dl { display: table; border-spacing: 0px 8px; }
+					.ui .project-dynamic-data > .data > .object ul li.object-descriptions dl > div,
+					.ui .project-dynamic-data > .data > .object ul li.object-description { display: table-row; }
+					.ui .project-dynamic-data > .data > .object ul li.object-descriptions dt,
+					.ui .project-dynamic-data > .data > .object ul li.object-description > label { display: table-cell; padding-right: 10px; font-family: var(--font-mono); vertical-align: middle; }
+					.ui .project-dynamic-data > .data > .object ul li.object-description > label { padding: 4px 10px 4px 0px; }
+					.ui .project-dynamic-data > .data > .object ul li.object-description > div { padding: 4px 0px 4px 0px; }
+					.ui .project-dynamic-data > .data > .object ul li:not(.object-description) + li.object-description > label,
+					.ui .project-dynamic-data > .data > .object ul li:not(.object-description) + li.object-description > div { padding-top: 8px; }
+					.ui .project-dynamic-data > .data > .object ul li.object-description:has(+ li:not(.object-description)) > label,
+					.ui .project-dynamic-data > .data > .object ul li.object-description:has(+ li:not(.object-description)) > div { padding-bottom: 8px; }
+					.ui .project-dynamic-data > .data > .object ul li.object-descriptions dt > span,
+					.ui .project-dynamic-data > .data > .object ul li.object-description > label > span { margin-left: 5px; }
+					.ui .project-dynamic-data > .data > .object ul li.object-descriptions dd,
+					.ui .project-dynamic-data > .data > .object ul li.object-description > div { display: table-cell; }
+					.ui .project-dynamic-data > .data > .object ul li.object-descriptions dd > span.a,
+					.ui .project-dynamic-data > .data > .object ul li.object-description > div > span.a { display: inline-block; border-bottom: 1px #444 dashed; padding: 2px 3px; margin-bottom: 3px; } 
+					.ui .project-dynamic-data > .data > .object ul li.object-descriptions dd > span.a + span.a,
+					.ui .project-dynamic-data > .data > .object ul li.object-description > div > span.a + span.a { margin-left: 10px;} 
+					.ui .project-dynamic-data > .data > .object ul li.object-descriptions dd > span.a:hover,
+					.ui .project-dynamic-data > .data > .object ul li.object-description > div > span.a:hover { text-decoration: none; background-color: #0096e4; color: #fff; }
 
-					.ui > .project-dynamic-data > .data > .object ul li.text_tags dd div + p,
-					.ui > .project-dynamic-data > .data > .object ul li.text_tags > div div + p { display: none;}
-					.ui > .project-dynamic-data > .data > .object ul li.text_tags dd > div,
-					.ui > .project-dynamic-data > .data > .object ul li.text_tags > div > div { background-color: #fff; padding: 10px; }
-					.ui > .project-dynamic-data > .data > .object ul li.text_tags dd > div > ul,
-					.ui > .project-dynamic-data > .data > .object ul li.text_tags > div > div > ul { display: none;}
-					.ui > .project-dynamic-data > .data > .object ul li.text_tags dd > div.tabs > div,
-					.ui > .project-dynamic-data > .data > .object ul li.text_tags > div > div.tabs > div { padding: 0px; background-color: #fff; border: 0px;}
-					.ui > .project-dynamic-data > .data > .object ul li.text_tags dd span.tag,
-					.ui > .project-dynamic-data > .data > .object ul li.text_tags > div span.tag { white-space: nowrap; }
-					.ui > .project-dynamic-data > .data > .object ul li.external dd,
-					.ui > .project-dynamic-data > .data > .object ul li.external > div { max-width: 80%; }
-					.ui > .project-dynamic-data > .data > .object ul li.external dd > a,
-					.ui > .project-dynamic-data > .data > .object ul li.external > div > a { display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; padding: 4px 40px 4px 10px; margin: 0 3px 3px 0; font-size: 1.4rem; color: #444444; background: url("/CMS/css/images/icons/linked.svg") no-repeat scroll right 15px center / 10px 10px #efefef;}
-					.ui > .project-dynamic-data > .data > .object ul li.external dd > a:hover,
-					.ui > .project-dynamic-data > .data > .object ul li.external > div > a:hover { color: #fff; text-decoration: none; background-color: #0096e4; }
-					.ui > .project-dynamic-data > .data > .object ul li.reversed_collection_resource_path dd > span.a,
-					.ui > .project-dynamic-data > .data > .object ul li.reversed_collection_resource_path dd > span.a + span.a,
-					.ui > .project-dynamic-data > .data > .object ul li.reversed_collection_resource_path > div > span.a,
-					.ui > .project-dynamic-data > .data > .object ul li.reversed_collection_resource_path > div > span.a + span.a { margin: 0; }
+					.ui .project-dynamic-data > .data > .object ul li.text_tags dd div + p,
+					.ui .project-dynamic-data > .data > .object ul li.text_tags > div div + p { display: none;}
+					.ui .project-dynamic-data > .data > .object ul li.text_tags dd > div,
+					.ui .project-dynamic-data > .data > .object ul li.text_tags > div > div { background-color: #fff; padding: 10px; }
+					.ui .project-dynamic-data > .data > .object ul li.text_tags dd > div > ul,
+					.ui .project-dynamic-data > .data > .object ul li.text_tags > div > div > ul { display: none;}
+					.ui .project-dynamic-data > .data > .object ul li.text_tags dd > div.tabs > div,
+					.ui .project-dynamic-data > .data > .object ul li.text_tags > div > div.tabs > div { padding: 0px; background-color: #fff; border: 0px;}
+					.ui .project-dynamic-data > .data > .object ul li.text_tags dd span.tag,
+					.ui .project-dynamic-data > .data > .object ul li.text_tags > div span.tag { white-space: nowrap; }
+					.ui .project-dynamic-data > .data > .object ul li.external dd,
+					.ui .project-dynamic-data > .data > .object ul li.external > div { max-width: 80%; }
+					.ui .project-dynamic-data > .data > .object ul li.external dd > a,
+					.ui .project-dynamic-data > .data > .object ul li.external > div > a { display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; padding: 4px 40px 4px 10px; margin: 0 3px 3px 0; font-size: 1.4rem; color: #444444; background: url("/CMS/css/images/icons/linked.svg") no-repeat scroll right 15px center / 10px 10px #efefef;}
+					.ui .project-dynamic-data > .data > .object ul li.external dd > a:hover,
+					.ui .project-dynamic-data > .data > .object ul li.external > div > a:hover { color: #fff; text-decoration: none; background-color: #0096e4; }
+					.ui .project-dynamic-data > .data > .object ul li.reversed_collection_resource_path dd > span.a,
+					.ui .project-dynamic-data > .data > .object ul li.reversed_collection_resource_path dd > span.a + span.a,
+					.ui .project-dynamic-data > .data > .object ul li.reversed_collection_resource_path > div > span.a,
+					.ui .project-dynamic-data > .data > .object ul li.reversed_collection_resource_path > div > span.a + span.a { margin: 0; }
 					
-					.ui > .project-dynamic-data > .data > .object ul li dd .album,
-					.ui > .project-dynamic-data > .data > .object ul li > div .album { }
-					.ui > .project-dynamic-data > .data > .object ul li dd .album > figure,
-					.ui > .project-dynamic-data > .data > .object ul li > div .album > figure { display: inline-block; margin: 16px 24px 0 0; padding: 0; width: 235px; height: 147px; }
-					.ui > .project-dynamic-data > .data > .object ul li dd .album > figure div > img,
-					.ui > .project-dynamic-data > .data > .object ul li > div .album > figure div > img { width: 235px; height: 147px; object-fit: cover; }
-					.ui > .project-dynamic-data > .data > .object ul li dd .album > figure > figurecaption,
-					.ui > .project-dynamic-data > .data > .object ul li > div .album > figure > figurecaption { display: none; }
+					.ui .project-dynamic-data > .data > .object ul li dd .album,
+					.ui .project-dynamic-data > .data > .object ul li > div .album { }
+					.ui .project-dynamic-data > .data > .object ul li dd .album > figure,
+					.ui .project-dynamic-data > .data > .object ul li > div .album > figure { display: inline-block; margin: 16px 24px 0 0; padding: 0; width: 235px; height: 147px; }
+					.ui .project-dynamic-data > .data > .object ul li dd .album > figure div > img,
+					.ui .project-dynamic-data > .data > .object ul li > div .album > figure div > img { width: 235px; height: 147px; object-fit: cover; }
+					.ui .project-dynamic-data > .data > .object ul li dd .album > figure > figurecaption,
+					.ui .project-dynamic-data > .data > .object ul li > div .album > figure > figurecaption { display: none; }
 					
-					.ui > .project-dynamic-data > .data > .object ul > li.object-subs .tabs { max-width: 35vw; }
+					.ui .project-dynamic-data > .data > .object ul > li.object-subs .tabs { max-width: 35vw; }
 					
-					.ui > .project-dynamic-data > .data.fullscreen-object > .object ul > li.object-subs .tabs,
-					.ui > .project-dynamic-data > .data > .objects:empty + .object ul > li.object-subs .tabs { max-width: 80vw; }
+					.ui .project-dynamic-data > .data.fullscreen-object > .object ul > li.object-subs .tabs,
+					.ui .project-dynamic-data > .data > .objects:empty + .object ul > li.object-subs .tabs { max-width: 80vw; }
 					
-					.ui > .project-dynamic-data > .data > .object ul > li.object-subs > .tabs { max-width: 35vw; margin: 10px 0;}
-					.ui > .project-dynamic-data > .data > .object ul > li.object-subs > .tabs > ul > li,
-					.ui > .project-dynamic-data > .data > .object ul > li.object-subs > .tabs > ul > li.selected { clip-path: none; -webkit-clip-path: none; background-image: none; border: 0; }
-					.ui > .project-dynamic-data > .data > .object ul > li.object-subs > .tabs > ul > li { background-color: #aaa; }
-					.ui > .project-dynamic-data > .data > .object ul > li.object-subs > .tabs > ul > li.selected { background-color: #fff; }
-					.ui > .project-dynamic-data > .data > .object ul > li.object-subs > .tabs > div { border: 0; }
-					.ui > .project-dynamic-data > .data > .object ul > li.object-subs > .tabs table.display td { /* white-space: normal; overflow: auto; text-overflow: unset; max-width: 35vw; */ }
+					.ui .project-dynamic-data > .data > .object ul > li.object-subs > .tabs { max-width: 35vw; margin: 10px 0;}
+					.ui .project-dynamic-data > .data > .object ul > li.object-subs > .tabs > ul > li,
+					.ui .project-dynamic-data > .data > .object ul > li.object-subs > .tabs > ul > li.selected { clip-path: none; -webkit-clip-path: none; background-image: none; border: 0; }
+					.ui .project-dynamic-data > .data > .object ul > li.object-subs > .tabs > ul > li { background-color: #aaa; }
+					.ui .project-dynamic-data > .data > .object ul > li.object-subs > .tabs > ul > li.selected { background-color: #fff; }
+					.ui .project-dynamic-data > .data > .object ul > li.object-subs > .tabs > div { border: 0; }
+					.ui .project-dynamic-data > .data > .object ul > li.object-subs > .tabs table.display td { /* white-space: normal; overflow: auto; text-overflow: unset; max-width: 35vw; */ }
 
-					.ui > .project-dynamic-data > .data .object .object-thumbnail { width: calc(100% - 30px); height: 50px; background-color: #fff; margin: 15px; box-sizing: border-box; }
-					.ui > .project-dynamic-data > .data .object-thumbnail-container .object-thumbnail > div,
-					.ui > .project-dynamic-data > .data .object .object-thumbnail > div { display: flex; height: 100%; overflow: hidden; }
-					.ui > .project-dynamic-data > .data .object-thumbnail-container .image,
-					.ui > .project-dynamic-data > .data .object .object-thumbnail .image { display: inline-block; width: 50px; height: 100%; background-repeat: no-repeat; background-position: center 10%; background-size: cover; background-color: #bbb; }
-					.ui > .project-dynamic-data > .data .object-thumbnail-container .image span,
-					.ui > .project-dynamic-data > .data .object .object-thumbnail .image  span { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3em; font-family: serif; }
-					.ui > .project-dynamic-data > .data .object-thumbnail-container .name,
-					.ui > .project-dynamic-data > .data .object .object-thumbnail .name { width: calc(100% - 50px); max-width: 500px; height: 100%; color: #000; display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 16px; vertical-align: middle; margin: 0; padding: 0; padding-left: 20px; box-sizing: border-box;}
-					.ui > .project-dynamic-data > .data .object-thumbnail-container .name span,					
-					.ui > .project-dynamic-data > .data .object .object-thumbnail .name span { line-height: 50px; }
-					.ui > .project-dynamic-data > .data .object-thumbnail:hover,
-					.ui > .project-dynamic-data > .data .object .object-thumbnail:hover { text-decoration: none; color: #fff; }
-					.ui > .project-dynamic-data > .data .object-thumbnail .object-definitions,
-					.ui > .project-dynamic-data > .data .object .object-thumbnail .object-definitions { display: none; }
+					.ui .project-dynamic-data > .data .object .object-thumbnail { width: calc(100% - 30px); height: 50px; background-color: #fff; margin: 15px; box-sizing: border-box; }
+					.ui .project-dynamic-data > .data .object-thumbnail-container .object-thumbnail > div,
+					.ui .project-dynamic-data > .data .object .object-thumbnail > div { display: flex; height: 100%; overflow: hidden; }
+					.ui .project-dynamic-data > .data .object-thumbnail-container .image,
+					.ui .project-dynamic-data > .data .object .object-thumbnail .image { display: inline-block; width: 50px; height: 100%; background-repeat: no-repeat; background-position: center 10%; background-size: cover; background-color: #bbb; }
+					.ui .project-dynamic-data > .data .object-thumbnail-container .image span,
+					.ui .project-dynamic-data > .data .object .object-thumbnail .image  span { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3em; font-family: serif; }
+					.ui .project-dynamic-data > .data .object-thumbnail-container .name,
+					.ui .project-dynamic-data > .data .object .object-thumbnail .name { width: calc(100% - 50px); max-width: 500px; height: 100%; color: #000; display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 16px; vertical-align: middle; margin: 0; padding: 0; padding-left: 20px; box-sizing: border-box;}
+					.ui .project-dynamic-data > .data .object-thumbnail-container .name span,					
+					.ui .project-dynamic-data > .data .object .object-thumbnail .name span { line-height: 50px; }
+					.ui .project-dynamic-data > .data .object-thumbnail:hover,
+					.ui .project-dynamic-data > .data .object .object-thumbnail:hover { text-decoration: none; color: #fff; }
+					.ui .project-dynamic-data > .data .object-thumbnail .object-definitions,
+					.ui .project-dynamic-data > .data .object .object-thumbnail .object-definitions { display: none; }
 					
-					.ui > .project-dynamic-data > .data > .object .explore-object { background-color: #efefef; padding: 20px; } 
-					.ui > .project-dynamic-data > .data > .object .explore-object > div { height: calc(var(--view-height) - 300px);  } 
-					.ui > .project-dynamic-data > .data > .object .explore-object > div .labmap > .controls .timeline .buttons { display: none; } 
+					.ui .project-dynamic-data > .data > .object .explore-object { background-color: #efefef; padding: 20px; } 
+					.ui .project-dynamic-data > .data > .object .explore-object > div { height: calc(var(--view-height) - 300px);  } 
+					.ui .project-dynamic-data > .data > .object .explore-object > div .labmap > .controls .timeline .buttons { display: none; } 
 					
 					.ui > .selections-container.view,
 					.ui > .selections-container.list > div { background-color: #0096e4; }
@@ -855,7 +1153,101 @@ class ui extends base_module {
 						.ui.responsive-layout-enabled > .selections-container.list { bottom: 5px; left: 0px; width: auto; min-width: auto; }
 						.ui.responsive-layout-enabled > .selections-container.list > div > span { width: auto; }
 						.ui.responsive-layout-enabled > .selections-container.list > div > span:first-child { display: none; }
-					}';
+					}
+					
+					/* NEW BETA VERSION */
+					
+					
+					.ui.fullscreen > * { display: none; }	
+					.ui.fullscreen > .toolbox,
+					.ui.fullscreen > .overlay { display: block; }
+					.ui.fullscreen > div.beta.projects,
+					.ui.fullscreen > div.beta.projects > .project  { display: block; }	
+					.ui.fullscreen > div.beta.projects > .projects-nav,
+					.ui.fullscreen > div.beta.projects > .project > .project-help,
+					.ui.fullscreen > div.beta.projects > .project > .project-filters,
+					.ui.fullscreen > div.beta.projects > .project > .tools { display: none; }	
+					.ui.fullscreen > div.beta.projects > .project > div.data { display: flex; }	
+										
+					.ui > div.beta.projects { position: relative; height: calc(100vh - 60px); }
+					.ui > div.beta.projects > div.project,
+					.ui > div.beta.projects > div.project > .data,
+					.ui > div.beta.projects > div.project > .data > .objects { position: relative; height: 100%; }
+					
+					.ui > div.beta.projects > .projects-nav { background-color: #a3ce6c; }
+					.ui > div.beta.projects > .projects-nav > span { display: none; }
+					.ui > div.beta.projects > .projects-nav ul { width: 100%; height: 50px; background-color: #f3f3f3; color: #555; padding-left: 50px; box-sizing: border-box; white-space: nowrap; }
+					.ui > div.beta.projects > .projects-nav ul li { position: relative; display: inline-block; height: 50px; cursor: pointer; box-sizing: border-box; }
+					.ui > div.beta.projects > .projects-nav ul li span.project-name { display: table-cell; height: 50px; padding: 8px 20px; vertical-align: bottom; text-align: center; font-weight: bold; font-size: 14px; box-sizing: border-box; }
+					.ui > div.beta.projects > .projects-nav ul li span.project-amount { position: absolute; top: 10px; right: -5px; display: block; padding: 0 5px; height: 15px; min-width: 20px; border-radius: 8px; background-color: #eaeaea; text-align: center; font-size: 10px; line-height: 15px; color: #aaa; }
+					.ui > div.beta.projects > .projects-nav ul li:hover,
+					.ui > div.beta.projects > .projects-nav ul li.active { border-bottom: solid #0096e4 4px; }
+					.ui > div.beta.projects > .projects-nav ul li:hover span.project-amount,
+					.ui > div.beta.projects > .projects-nav ul li.active span.project-amount { background-color: #ddd; color: #444; }
+					
+					.ui > div.beta.projects > .project[data-object_active="true"] ul li.project-help,
+					.ui > div.beta.projects > .project[data-object_active="true"] ul li.project-scenarios { display: none; }
+										
+					.ui > div.beta.projects > .project div.project-help { position: relative; background-color: transparent; width: 100%; }					
+					.ui > div.beta.projects > .project div.project-help { display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start; }
+					.ui > div.beta.projects > .project div.project-help > div { background-color: #0096e4; padding: 10px 20px; margin: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; line-height: 20px; font-weight: bold; color: #fff; }
+					.ui > div.beta.projects > .project div.project-help > div:hover { background-color: #0096e4; color: #fff; text-decoration: none; }
+
+					.ui > div.beta.projects > .project div.project-scenarios { display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start; margin-bottom: 15px;  }
+					.ui > div.beta.projects > .project div.project-scenarios > div { position: relative; display: flex; align-items: center; justify-content: center; margin: 15px 15px 0px 0px; line-height: 45px; padding: 0 30px 0 20px; background-color: #ddd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: bold; }
+					.ui > div.beta.projects > .project div.project-scenarios > div:last-child { margin-right: 0px; }
+					.ui > div.beta.projects > .project div.project-scenarios > div > span.icon { background-color: #0096e4; color: #fff; width: 25px; height: 25px; padding-left: 1px; border-radius: 25px; text-align: center; margin-right: 15px; line-height: 22px; }
+					.ui > div.beta.projects > .project div.project-scenarios > div > span.icon svg { height: 10px; }
+					.ui > div.beta.projects > .project div.project-scenarios > div:hover { background-color: #0096e4; color: #fff; text-decoration: none;}
+					.ui > div.beta.projects > .project div.project-scenarios > div:hover > span.icon { background-color: #fff; color: #0096e4; }
+					
+					.ui > div.beta.projects > div.project > div.data {  position: relative; display: flex; flex-wrap: nowrap; flex-direction: row; justify-content: center; height: 100%; max-width: 100%; }
+												
+					.ui > div.beta.projects > div.project > div.data > .objects { position: relative; flex: 3 1 100%; max-width: 100%; }	
+											
+					.ui > div.beta.projects > div.project > div.data > .object { position: relative; flex: 2 1 100%; box-sizing: border-box; max-width: 40vw; }			
+					.ui > div.beta.projects > div.project > div.data > .object.draggable { position: fixed; display: block; box-sizing: border-box; max-width: 40vw; z-index: 2; }			
+					.ui > div.beta.projects > div.project > div.data > .object.draggable > div { position: fixed;  }			
+							
+					.ui > div.beta.projects > div.project > div.data > .object .datatable {  }					
+
+
+					.ui > div.beta.projects > .project > .data.fullscreen-object > .object { position: relative;  min-width: 100%; padding: 30px; background-color: #f3f3f3; }
+
+					.ui > div.beta.projects > .project > .data > .objects:empty,
+					.ui > div.beta.projects > .project > .data > .object:empty { flex: 0; display: none; }	
+
+					.ui > div.beta.projects > .project > .data > .objects:empty + .object { max-width: 90vw; border-top: 4px solid #f3f3f3;}
+					.ui > div.beta.projects > .project > .data > .object-thumbnail-container { display: none; }
+					
+					.ui > div.beta.projects > .project > .tools { display: inline-block; margin: 0; background-color: transparent; box-sizing: border-box;  }	
+					.ui > div.beta.projects > .project > .tools > div { display: inline-block; background-color: rgba(255,255,255, 0.8); margin: 0 10px; white-space: nowrap; }				
+					.ui > div.beta.projects > .project > .tools > div > span { white-space: nowrap; text-align: center; font-weight: bold; display: inline-block; vertical-align: middle; color: #444; line-height: 36px; padding: 0 12px; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;  font-weight: bold; letter-spacing: 1.5px; color: #333; text-transform: uppercase; }						
+					.ui > div.beta.projects > .project > .tools > div > span > span:first-child { padding-right: 8px; }
+					.ui > div.beta.projects > .project > .tools > div > span:hover { text-decoration: none; }
+					.ui > div.beta.projects > .project > .tools > div.visualisation-buttons > span.active,
+					.ui > div.beta.projects > .project > .tools > div.visualisation-buttons > span:hover { background-color: #0096e4; color: #fff;  }
+
+					.ui > div.beta.projects > .project > .tools > div.result-info,
+					.ui > div.beta.projects > .project > .tools > div.controls { background-color: transparent;  }
+					.ui > div.beta.projects > .project > .tools > div.result-info > span:first-child:not(:last-child) { padding-right: 5px; }
+					.ui > div.beta.projects > .project > .tools > div.result-info > span.set + span.amount { padding-left: 0; }
+					.ui > div.beta.projects > .project > .tools > div.result-info > span > span:first-child { padding-right: 3px; }
+					.ui > div.beta.projects > .project > .tools > div.result-info > span,
+					.ui > div.beta.projects > .project > .tools > div.controls > span { background-color: rgba(255,255,255, 0.4); margin: 2px 0;}				
+					.ui > div.beta.projects > .project > .tools > div.controls > span:hover { color: #444; }		
+
+					.ui > div.beta.projects > .project > .data > .objects { display: flex; flex-wrap: wrap; justify-content: center; align-content: flex-start; }
+					.ui > div.beta.projects > .project > .data > .objects > div, 
+					.ui > div.beta.projects > .project > .data > .objects > div > div { width: 100%; height: 100%; }
+					
+					.ui > div.beta.projects > .project[data-object_active="true"] > .data > .objects > div.list { max-width: 60vw; }							
+					.ui > div.beta.projects > .project[data-object_active="true"] > .data.fullscreen-object > .objects { display: none; }	
+					
+					.ui > div.beta.projects > .project > .data > .objects.vis-list > div.vis.active { width: 50%; }
+					.ui > div.beta.projects > .project > .data > .objects.vis-list > div.vis.active + div.list.active { width: 50%; }
+					
+					';
 	
 		return $return;
 	}
@@ -869,7 +1261,7 @@ class ui extends base_module {
 
 					window.UISELECTION = new UISelection();
 					UISELECTION.init(public_user_interface_id, elm_selections_container);
-												
+					
 					elm_scripter.on('click', '[id^=y\\\:ui\\\:set_project-]', function() {
 
 						elm_scripter.find('.project-dynamic-nav').attr('data-object_active', false);
@@ -889,10 +1281,10 @@ class ui extends base_module {
 						cur.siblings().removeClass('active');
 						
 						cur.addClass('active').quickCommand(function(arr_data) {
-						
+					
 							var elm_project_dynamic_nav = $(arr_data[0]);
 							var elm_project_dynamic_data = $(arr_data[1]);
-	
+
 							elm_scripter.find('.project-dynamic-nav').html(elm_project_dynamic_nav);
 							elm_scripter.find('.project-dynamic-data').html(elm_project_dynamic_data);
 
@@ -920,7 +1312,53 @@ class ui extends base_module {
 						COMMANDS.setTarget($(this), elm_scripter.find('div.fixed-view-container'));
 					});
 					
-					SCRIPTER.runDynamic($('[data-method=set_project]'));
+					if (elm_scripter.find('[id^=y\\\:ui\\\:set_project-]').length) {
+
+						SCRIPTER.runDynamic($('[data-method=set_project]'));
+					}								
+					
+					elm_scripter.on('click', '[id^=y\\\:ui\\\:run_project-]', function() {
+
+						elm_project = elm_scripter.find('div.projects > div.project');
+						elm_project.attr('data-object_active', false);
+					
+						var cur = $(this);
+						
+						if (cur.is('h1')) {
+						
+							elm_first_project = elm_scripter.find('.projects-nav > ul > li').first();
+							
+							if (elm_first_project.length) {
+							
+								cur = elm_first_project;
+							}
+						}					
+						
+						cur.siblings().removeClass('active');
+						
+						cur.addClass('active').quickCommand(elm_project, {html: 'replace'});
+						
+						var str_title = document.title;
+						var arr_title = str_title.split(' | ');
+						
+						if (arr_title.length > 2 || arr_title.length == 1) {
+							str_title = arr_title[0];
+						} else if (arr_title.length == 2) {
+							str_title = arr_title[1];
+						} 
+						
+						document.title = str_title;
+						elm_scripter.closest('html').find('meta[property=og\\\:title]').attr('content', str_title);
+
+						setTimeout(function(){
+							elm_scripter.find('#nav-toggle').prop('checked', false);
+						},1000); 
+					});
+										
+					if (elm_scripter.find('[id^=y\\\:ui\\\:run_project-]').length) {
+
+						SCRIPTER.runDynamic($('[data-method=run_project]'));
+					}
 					
 					var check_device_location = elm_scripter.children('.project-dynamic-data').attr('data-device_location');
 					
@@ -991,7 +1429,17 @@ class ui extends base_module {
 						elm_scripter.remove();
 					});
 				});
-
+				
+				SCRIPTER.dynamic('[data-method=run_project]', function(elm_scripter) {
+				
+					var elm_ui = elm_scripter.closest('.ui');
+					
+					elm_scripter.find('[id^=y\\\:ui\\\:view_text-]').each(function() {
+						COMMANDS.setTarget($(this), elm_ui.find('div.fixed-view-container'));
+					});
+					
+				});
+				
 				SCRIPTER.dynamic('[data-method=set_project]', function(elm_scripter) {
 				
 					var elm_ui = elm_scripter.closest('.ui');
@@ -1009,13 +1457,37 @@ class ui extends base_module {
 	
 		// INTERACT 
 		
-		if ($method == "set_project") {
+		if ($method == "run_project") {
 
 			$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
 
 			toolbar::setScenario();
 			toolbar::setFilter([]);
 			
+			SiteEndEnvironment::setFeedback('selected_type_ids', false, true);
+			SiteEndEnvironment::setFeedback('type_id', false, true);
+			SiteEndEnvironment::setFeedback('scenario_id', false, true);
+			SiteEndEnvironment::setFeedback('active_type_object_id', false, true);
+			SiteEndEnvironment::setFeedback('arr_public_user_interface_module_vars', false, true);
+			
+			if ($id == 0) {
+
+				$id = cms_nodegoat_public_interfaces::getPublicInterfaceProjectIDs($public_user_interface_id, 1);
+			}
+			
+			self::setPublicUserInterfaceActiveCustomProjectId($id);
+			self::setPublicUserInterfaceModuleVars(false);
+			
+			$this->html = self::createProject();
+		}
+		
+		if ($method == "set_project") {
+
+			$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
+
+			toolbar::setScenario();
+			toolbar::setFilter([]);
+		
 			SiteEndEnvironment::setFeedback('selected_type_ids', false, true);
 			SiteEndEnvironment::setFeedback('type_id', false, true);
 			SiteEndEnvironment::setFeedback('scenario_id', false, true);
@@ -1047,7 +1519,7 @@ class ui extends base_module {
 		}
 
 		if ($method == "set_type" || $method == "set_scenario") {
-
+	
 			$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
 			$public_user_interface_active_custom_project_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_active_custom_project_id');
 			
@@ -1116,7 +1588,7 @@ class ui extends base_module {
 
 		$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
 		$public_user_interface_active_custom_project_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_active_custom_project_id');	
-		
+	
 		if ($arr) {
 			
 			$arr_request_vars = SiteStartEnvironment::getModuleVariables(0);
@@ -1188,7 +1660,7 @@ class ui extends base_module {
 		}
 
 		if ($arr_vars['set'] == 'filter' && $arr_vars['id']) {
-			
+		
 			$arr_url_filter = ui_filter::parseFilterString($arr_vars['id']);
 			toolbar::setFilter(ui_filter::createFilterArray($arr_url_filter));
 		}
@@ -1263,5 +1735,35 @@ class ui extends base_module {
 
 		SiteEndEnvironment::setFeedback('public_user_interface_active_custom_project_id', $public_user_interface_active_custom_project_id, true);
 		
+	}
+	
+	public static function checkPrimaryProjectProjectID($type_id) {
+		
+		$public_user_interface_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_id');
+		$public_user_interface_active_custom_project_id = (int)SiteStartEnvironment::getFeedback('public_user_interface_active_custom_project_id');
+		$arr_public_interface_project_types = cms_nodegoat_public_interfaces::getPublicInterfaceTypeIDs($public_user_interface_id, $public_user_interface_active_custom_project_id, false);
+		$arr_public_interface_settings = cms_nodegoat_public_interfaces::getPublicInterfaceSettings($public_user_interface_id);
+		
+		$use_custom_project_id = false;
+		
+		if (!$arr_public_interface_project_types[$type_id]) {
+			
+			$arr_public_user_interface = cms_nodegoat_public_interfaces::getPublicInterfaces($public_user_interface_id);	
+			
+			foreach ((array)$arr_public_user_interface['project_types'] as $custom_project_id => $arr_project_types) {
+				
+				if ($arr_project_types[$type_id]) {
+					
+					if ($arr_public_interface_settings['projects'][$custom_project_id]['primary_project'][$type_id]) {
+					
+						$use_custom_project_id = $custom_project_id;
+						
+						break;
+					}
+				}				
+			}
+		}
+		
+		return $use_custom_project_id;
 	}
 }

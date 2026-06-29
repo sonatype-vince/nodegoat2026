@@ -221,7 +221,7 @@ class data_visualise extends base_module {
 	private function createVisualSettings($arr_settings) {
 		
 		$arr_yes_no = [['id' => 1, 'name' => getLabel('lbl_yes')], ['id' => 0, 'name' => getLabel('lbl_no')]];
-		$arr_yes_no_auto = [['id' => 1, 'name' => getLabel('lbl_yes')], ['id' => 0, 'name' => getLabel('lbl_no')], ['id' => 2, 'name' => getLabel('lbl_automatic')]];
+		$arr_yes_no_auto = [['id' => 1, 'name' => getLabel('lbl_yes')], ['id' => 0, 'name' => getLabel('lbl_no')], ['id' => null, 'name' => getLabel('lbl_automatic_abbr')]];
 		$arr_mode = [['id' => 1, 'name' => getLabel('lbl_mode_connect')], ['id' => 2, 'name' => getLabel('lbl_mode_move')]];
 		$arr_display = [['id' => 1, 'name' => getLabel('lbl_display_vector')], ['id' => 2, 'name' => getLabel('lbl_display_pixel')]];
 		$arr_location_position = [['id' => 0, 'name' => getLabel('lbl_static')], ['id' => 1, 'name' => getLabel('lbl_algorithmic')]];
@@ -392,13 +392,12 @@ class data_visualise extends base_module {
 					<fieldset><legend>'.getLabel('lbl_algorithm').' - ForceAtlas2</legend><ul>
 						<li><label>'.getLabel('lbl_algorithm_forceatlas2_adjust_sizes').'</label><div>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[social][forceatlas2][adjust_sizes]', $arr_settings['social']['forceatlas2']['adjust_sizes']).'</div></li>
 						<li><label>'.getLabel('lbl_algorithm_forceatlas2_edge_weight_influence').'</label><div><input type="range" min="0" max="1" step="0.01" /><input type="number" name="visual_settings[social][forceatlas2][edge_weight_influence]" value="'.$arr_settings['social']['forceatlas2']['edge_weight_influence'].'" /></div></li>
-						<li><label>'.getLabel('lbl_algorithm_forceatlas2_gravity').'</label><div><input type="range" min="-1" max="5" step="0.1" /><input type="number" name="visual_settings[social][forceatlas2][gravity]" value="'.$arr_settings['social']['forceatlas2']['gravity'].'" /></div></li>
 						<li><label>'.getLabel('lbl_algorithm_forceatlas2_strong_gravity_mode').'</label><div>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[social][forceatlas2][strong_gravity_mode]', $arr_settings['social']['forceatlas2']['strong_gravity_mode']).'</div></li>
-						<li><label>'.getLabel('lbl_algorithm_forceatlas2_scaling_ratio').'</label><div><input type="range" min="0.1" max="10" step="0.1" /><input type="number" name="visual_settings[social][forceatlas2][scaling_ratio]" value="'.$arr_settings['social']['forceatlas2']['scaling_ratio'].'" /></div></li>
-						<li><label>'.getLabel('lbl_algorithm_forceatlas2_outbound_attraction_distribution').'</label><div>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[social][forceatlas2][outbound_attraction_distribution]', $arr_settings['social']['forceatlas2']['outbound_attraction_distribution']).'</div></li>
-						<li><label>'.getLabel('lbl_algorithm_forceatlas2_slow_down').'</label><div><input type="range" min="0" max="10" step="0.1" /><input type="number" name="visual_settings[social][forceatlas2][slow_down]" value="'.$arr_settings['social']['forceatlas2']['slow_down'].'" /></div></li>
 						<li><label>'.getLabel('lbl_algorithm_forceatlas2_lin_log_mode').'</label><div>'.cms_general::createSelectorRadio($arr_yes_no, 'visual_settings[social][forceatlas2][lin_log_mode]', $arr_settings['social']['forceatlas2']['lin_log_mode']).'</div></li>
-						<li><label>'.getLabel('lbl_algorithm_forceatlas2_optimize_theta').'</label><div><input type="range" min="0" max="5" step="0.01" /><input type="number" name="visual_settings[social][forceatlas2][optimize_theta]" value="'.$arr_settings['social']['forceatlas2']['optimize_theta'].'" /></div></li>
+						<li><label>'.getLabel('lbl_algorithm_forceatlas2_gravity').'</label><div><input type="range" min="-1" max="5" step="0.1" /><input type="number" name="visual_settings[social][forceatlas2][gravity]" value="'.$arr_settings['social']['forceatlas2']['gravity'].'" placeholder="'.getLabel('lbl_automatic_abbr').'" /></div></li>
+						<li><label>'.getLabel('lbl_algorithm_forceatlas2_scaling_ratio').'</label><div><input type="range" min="0.1" max="10" step="0.1" /><input type="number" name="visual_settings[social][forceatlas2][scaling_ratio]" value="'.$arr_settings['social']['forceatlas2']['scaling_ratio'].'" placeholder="'.getLabel('lbl_automatic_abbr').'" /></div></li>
+						<li><label>'.getLabel('lbl_algorithm_forceatlas2_outbound_attraction_distribution').'</label><div>'.cms_general::createSelectorRadio($arr_yes_no_auto, 'visual_settings[social][forceatlas2][outbound_attraction_distribution]', (isset($arr_settings['social']['forceatlas2']['outbound_attraction_distribution']) ? (int)$arr_settings['social']['forceatlas2']['outbound_attraction_distribution'] : null), null, null, ['strict' => true]).'</div></li>
+						<li><label>'.getLabel('lbl_algorithm_forceatlas2_optimize_theta').'</label><div><input type="range" min="0" max="5" step="0.01" /><input type="number" name="visual_settings[social][forceatlas2][optimize_theta]" value="'.$arr_settings['social']['forceatlas2']['optimize_theta'].'" placeholder="'.getLabel('lbl_automatic_abbr').'" /></div></li>
 					</ul></fieldset>
 					
 					<fieldset><legend>'.getLabel('lbl_settings').'</legend><ul>
@@ -474,7 +473,7 @@ class data_visualise extends base_module {
 		$str_html_advanded = '<fieldset>
 			<ul>
 				<li><label>'.getLabel('lbl_form').'</label><div>'
-					.'<textarea name="plain" placeholder="'.getLabel('lbl_scope_advanced_input').'">'.($arr_scope ? value2JSON($arr_scope, JSON_PRETTY_PRINT) : '').'</textarea>'
+					.'<textarea name="plain" placeholder="'.getLabel('lbl_scope_advanced_input').'">'.($arr_scope ? value2JSON($arr_scope, JSON_DEFAULT_ENCODE | JSON_PRETTY_PRINT) : '').'</textarea>'
 				.'</div></li>
 			</ul>
 		</fieldset>';
@@ -738,12 +737,16 @@ class data_visualise extends base_module {
 						}
 						
 						if (!obj_data || (obj_data.identifier.data != data.identifier.data || obj_data.identifier.date != data.identifier.date)) {
+							
 							obj_data = data;
 							elm_visualisation[0].obj_data = obj_data;
 							has_new_data = true;
 						} else {
-							for (var key in data) {
-								$.extend(obj_data[key], data[key]);
+						
+							for (const key in data) { // Use (new) data when defined, otherwise keep current
+							
+								obj_data[key] = (obj_data[key] || {});
+								Object.assign(obj_data[key], data[key]);
 							}
 						}
 						
@@ -1452,10 +1455,10 @@ class data_visualise extends base_module {
 				
 				$arr_visual_settings['settings']['geo_advanced'] = ParseTypeFeatures::parseSettingAdvancedInput($arr_visual_settings['settings']['geo_advanced']);		
 				$arr_visual_settings['social']['settings']['social_advanced'] = ParseTypeFeatures::parseSettingAdvancedInput($arr_visual_settings['social']['settings']['social_advanced']);
-				
 				$arr_visual_settings = ParseTypeFeatures::parseVisualSettings($arr_visual_settings);
+				$arr_visual_settings_user = self::getVisualSettings(false);
 
-				if (self::getVisualSettings(false) == $arr_visual_settings) {
+				if (ParseTypeFeatures::compareVisualSettings($arr_visual_settings, $arr_visual_settings_user)) {
 					$arr_visual_settings = [];
 				}
 				
@@ -1510,7 +1513,6 @@ class data_visualise extends base_module {
 						$arr_objects = $filter->init();
 						
 						if ($arr_objects) {
-							
 							$arr_type_objects[$cur_type_id] = $arr_objects;
 						}
 					}
@@ -1555,7 +1557,6 @@ class data_visualise extends base_module {
 					$arr_objects = $filter->init();
 					
 					if ($arr_objects) {
-						
 						$arr_type_objects[$cur_type_id] = $arr_objects;
 					}
 				}
@@ -1586,10 +1587,8 @@ class data_visualise extends base_module {
 					$str_html_tab = '<div id="tab-review-'.$cur_type_id.'">';
 					
 					if (count($arr_objects) == 1) {
-						
 						$str_html_tab .= data_view::createViewTypeObject($cur_type_id, key($arr_objects));
 					} else {
-						
 						$str_html_tab .= data_view::createViewTypeObjects($cur_type_id, [], true);
 					}
 					
@@ -2124,7 +2123,7 @@ class data_visualise extends base_module {
 					$arr_visual_settings = ParseTypeFeatures::parseVisualSettings($arr_visual_settings);
 					$arr_visual_settings_default = ParseTypeFeatures::parseVisualSettings();
 					
-					if ($arr_visual_settings == $arr_visual_settings_default) {
+					if (ParseTypeFeatures::compareVisualSettings($arr_visual_settings, $arr_visual_settings_default)) {
 						$arr_visual_settings = [];
 					}
 				}

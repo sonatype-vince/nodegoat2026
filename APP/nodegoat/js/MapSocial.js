@@ -57,7 +57,7 @@ function MapSocial(elm_draw, PARENT, options) {
     arr_active_nodes = [],
     arr_active_links = [],
 	key_move = false,
-	simulation = false,
+	simulation = null,
 	use_simulation_native = false,
 	is_dragging_node = false,
 	is_dragging = false,
@@ -236,7 +236,6 @@ function MapSocial(elm_draw, PARENT, options) {
 			scaling_ratio: options.arr_visual.social.forceatlas2.scaling_ratio,
 			strong_gravity_mode: options.arr_visual.social.forceatlas2.strong_gravity_mode,
 			gravity: options.arr_visual.social.forceatlas2.gravity,
-			slow_down: options.arr_visual.social.forceatlas2.slow_down,
 			optimize_theta: options.arr_visual.social.forceatlas2.optimize_theta
 		};
 
@@ -353,20 +352,16 @@ function MapSocial(elm_draw, PARENT, options) {
 			
 			if (arr_data.legend.conditions) {
 				
-				var arr_media = [];
-				
-				for (const key in arr_data.legend.conditions) {
+				for (const str_identifier_condition in arr_data.legend.conditions) {
 					
-					const arr_condition = arr_data.legend.conditions[key];
-					
-					if (arr_condition.icon) {			
-						arr_media.push(arr_condition.icon);
-					}
-					
+					const arr_condition = arr_data.legend.conditions[str_identifier_condition];
+
 					if (arr_condition.weight && arr_condition.weight > 0) {
 						is_weighted = true;
 					}
-				}	
+				}
+				
+				const arr_media = PARENT.obj_data.getDataMedia();
 
 				if (arr_media.length) {
 					
@@ -723,7 +718,9 @@ function MapSocial(elm_draw, PARENT, options) {
 		in_first_run = false; // Abort doTick();
 		ANIMATOR.animate(null, key_animate);
 		PARENT.obj_map.move(null, key_move);
-		simulation.close();
+		if (simulation) {
+			simulation.close();
+		}
 		
 		if (display == DISPLAY_PIXEL) { // Destroy WEBGL memory
 			
@@ -826,9 +823,11 @@ function MapSocial(elm_draw, PARENT, options) {
 		
 		elm_layout_statistics[0].innerHTML = '<p>'+arr_labels.lbl_nodes+': '+arr_active_nodes.length+' '+arr_labels.lbl_links+': '+arr_active_links.length+'</p>';
 		
+		count_loop++; // New static data ready, increment loop to indicate new state for asynchronous processes
+		
 		simulation.start();
 		
-		if (count_loop == 0) {
+		if (count_loop == 1) {
 			
 			doTick();
 		} else {
@@ -840,8 +839,6 @@ function MapSocial(elm_draw, PARENT, options) {
 			}
 		}
 		
-		count_loop++;
-			
 		if (!key_animate) {
 			
 			key_animate = ANIMATOR.animate(function() {
@@ -1061,8 +1058,6 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 			} else {
 
-				identifier_running = false;
-				
 				PARENT.setRunningStatistics('<p>'+arr_labels.lbl_visualise_layout_complete+': 100%</p>');
 			}
 		};
@@ -1106,12 +1101,13 @@ function MapSocial(elm_draw, PARENT, options) {
 		const PARENT = obj;
 		const SELF = this;
 		
-		var worker = false;
-		var is_running = false;
-		var identifier_running = false;
+		let worker = null;
+		let is_running = false;
+		let is_running_waiting = false;
+		let identifier_running = null;
 		
-		var arr_matrix_nodes = null;
-		var arr_matrix_edges = null;
+		let arr_matrix_nodes = null;
+		let arr_matrix_edges = null;
 		const num_properties_nodes = 5;
 		const num_properties_edges = 3;
 				
@@ -1125,19 +1121,19 @@ function MapSocial(elm_draw, PARENT, options) {
 
 			worker.addEventListener('message', function(event) {
 				
-				const has_identifier = (event.data.identifier !== false);
-				const do_continue = (is_running && has_identifier && event.data.identifier == identifier_running); // Is the running iteration still relevant?
+				const has_identifier = (event.data.identifier !== null);
+				const is_actual = (is_running && has_identifier && event.data.identifier == identifier_running); // Is the running iteration still relevant?
 				
 				arr_matrix_nodes = new Float32Array(event.data.nodes);
 				
-				var arr_nodes_matrix_index = [];
+				const arr_nodes_matrix_index = [];
 				
 				for (let i = 0, len = arr_matrix_nodes.length; i < len; i += num_properties_nodes) {
 					
 					const num_index = arr_matrix_nodes[i + 4];
 					const arr_node = arr_loop_nodes[num_index];
 										
-					if (do_continue && (arr_node.fixed || arr_node.fixed != arr_matrix_nodes[i + 3])) {
+					if (is_actual && (arr_node.fixed || arr_node.fixed != arr_matrix_nodes[i + 3])) {
 						
 						if (arr_node.fixed) {
 						
@@ -1154,8 +1150,12 @@ function MapSocial(elm_draw, PARENT, options) {
 						arr_node.y = arr_matrix_nodes[i + 1];
 					}
 				}
+				
+				if (!is_running || !has_identifier) {
+					return;
+				}
 
-				if (do_continue) {
+				if (is_actual) { // Continue loop
 					
 					PARENT.setSpeed(event.data.alpha);
 					const has_stopped = (PARENT.getSpeed() < PARENT.getSpeedThreshold());
@@ -1175,13 +1175,16 @@ function MapSocial(elm_draw, PARENT, options) {
 						const num_perc = 100*((1 - PARENT.getSpeed()) / (1 - PARENT.getSpeedThreshold()));
 						
 						PARENT.setRunningStatistics('<p>'+arr_labels.lbl_visualise_layout_complete+': '+num_perc.toFixed(2)+'%</p>');
-						
 					} else {
 
-						identifier_running = false;
+						identifier_running = null; // Loop has finished
 						
 						PARENT.setRunningStatistics('<p>'+arr_labels.lbl_visualise_layout_complete+': 100%</p>');
 					}
+				} else { // Loop end, check for new data
+
+					is_running_waiting = true;
+					PARENT.start();
 				}
 			});
 			
@@ -1203,6 +1206,23 @@ function MapSocial(elm_draw, PARENT, options) {
 			);
 		};
 		PARENT.start = function() {
+			
+			if (identifier_running !== null) { // Loop is running
+				
+				if (!is_running_waiting) { // Invalidate data and rerun start() from inside loop
+					
+					identifier_running = count_loop;
+					return;
+				}
+				
+				is_running_waiting = false;
+			} else if (is_running_waiting) {
+				
+				is_running_waiting = false;
+				return;
+			}
+			
+			// (Re)start: new data
 			
 			PARENT.layout.stop();
 			
@@ -1235,7 +1255,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			PARENT.setRunning();
 			const has_changed = PARENT.setRunningLayout();
 
-			if (!is_running || identifier_running === false) {
+			if (!is_running || identifier_running === null) { // Hard resume: continue, no new data
 				
 				is_running = true;
 				identifier_running = count_loop;
@@ -1255,7 +1275,7 @@ function MapSocial(elm_draw, PARENT, options) {
 					},
 					[arr_matrix_nodes.buffer]
 				);
-			} else {
+			} else { // Soft resume: interact (i.e. drag) with data still at the worker
 				
 				is_running = true;
 				PARENT.setSpeed(0.1);
@@ -1268,7 +1288,7 @@ function MapSocial(elm_draw, PARENT, options) {
 					}
 				);
 			}
-		};		
+		};
 		PARENT.stop = function() {
 			
 			PARENT.layout.stop();
@@ -1276,7 +1296,8 @@ function MapSocial(elm_draw, PARENT, options) {
 			PARENT.setRunning(false);
 			PARENT.setSpeed(0);
 			is_running = false;
-			identifier_running = false;
+			is_running_waiting = false;
+			identifier_running = null;
 			
 			worker.postMessage({
 					action: 'stop'
@@ -1292,7 +1313,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			}
 			
 			worker.terminate();
-			worker = false;
+			worker = null;
 		};
 		PARENT.resize = function() {
 		
@@ -1360,15 +1381,15 @@ function MapSocial(elm_draw, PARENT, options) {
 			
 			var func_worker = function() {
 				
-				var simulate = false;
-				var simulate_force_links = false;
+				let simulate = false;
+				let simulate_force_links = false;
 				
-				var arr_nodes = [];
-				var arr_active_edges = [];
-				var arr_active_nodes = [];
+				let arr_nodes = [];
+				let arr_active_edges = [];
+				let arr_active_nodes = [];
 				
-				var arr_matrix_nodes = false;
-				var arr_matrix_edges = false;
+				let arr_matrix_nodes = false;
+				let arr_matrix_edges = false;
 				
 				const num_properties_nodes = 5;
 				const num_properties_edges = 3;
@@ -1538,13 +1559,13 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				function ready() {
 					
-					var arr_matrix_nodes_buffer = getNodes();
+					const arr_matrix_nodes_buffer = getNodes();
 					
 					self.postMessage(
 						{
 							nodes: arr_matrix_nodes_buffer.buffer,
 							alpha: simulate.alpha(),
-							identifier: false
+							identifier: null
 						},
 						[arr_matrix_nodes_buffer.buffer]
 					);
@@ -1552,11 +1573,11 @@ function MapSocial(elm_draw, PARENT, options) {
 						
 				function run(n, identifier) {
 					
-					for (var i = 0; i < n; i++) {
+					for (let i = 0; i < n; i++) {
 						simulate.tick();
 					}
 					
-					var arr_matrix_nodes_buffer = getNodes();
+					const arr_matrix_nodes_buffer = getNodes();
 					
 					self.postMessage(
 						{
@@ -1619,7 +1640,7 @@ function MapSocial(elm_draw, PARENT, options) {
 							if (e.data.nodes_state) {
 								updateNodesByMatrixIndex(e.data.nodes_state);
 							}
-											
+							
 							run(e.data.iterations, e.data.identifier);
 							break;
 								
@@ -1635,9 +1656,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				self.addEventListener('message', func_listener);
 			};
 
-			var worker = ASSETS.createWorker(func_worker, ['/js/support/d3-force.pack.js']);
-
-			return worker;
+			return ASSETS.createWorker(func_worker, ['/js/support/d3-force.pack.js']);
 		};
 	};
 	
@@ -1646,8 +1665,8 @@ function MapSocial(elm_draw, PARENT, options) {
 		const PARENT = obj;
 		const SELF = this;
 		
-		var worker = null;
-		
+		let worker = null;
+
 		this.startLayoutForceAtlas2 = function() {
 			
 			PARENT.stop();
@@ -1658,7 +1677,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			
 			PARENT.setSpeed(1); // Continuous
 			
-			const num_properties_nodes = 10;
+			const num_properties_nodes = 9;
 			const num_properties_edges = 3;
 			
 			// Allocating Byte arrays
@@ -1667,7 +1686,9 @@ function MapSocial(elm_draw, PARENT, options) {
 			len_matrix = arr_active_links.length * num_properties_edges;
 			arr_matrix_edges = new Float32Array(len_matrix);
 			
-			var count_iteration = 0;
+			let count_iteration = 0;
+			let num_graph_x = (size_renderer.width / 2); // Adjust algorithm center (0,0) to our center
+			let num_graph_y = (size_renderer.height / 2);
 			
 			// Iterate through nodes
 			for (let i = 0, j = 0, len = arr_active_nodes.length; i < len; i++) {
@@ -1675,16 +1696,15 @@ function MapSocial(elm_draw, PARENT, options) {
 				const arr_node = arr_active_nodes[i];
 
 				// Populating byte array
-				arr_matrix_nodes[j] = arr_node.x;
-				arr_matrix_nodes[j + 1] = arr_node.y;
+				arr_matrix_nodes[j] = arr_node.x - num_graph_x;
+				arr_matrix_nodes[j + 1] = arr_node.y - num_graph_y;
 				arr_matrix_nodes[j + 2] = 0;
 				arr_matrix_nodes[j + 3] = 0;
 				arr_matrix_nodes[j + 4] = 0;
 				arr_matrix_nodes[j + 5] = 0;
-				arr_matrix_nodes[j + 6] = arr_node.weight;
-				arr_matrix_nodes[j + 7] = 1;
-				arr_matrix_nodes[j + 8] = arr_node.radius; // Providing radius as 'size' yields best results
-				arr_matrix_nodes[j + 9] = arr_node.fixed;
+				arr_matrix_nodes[j + 6] = 1 + arr_node.weight; // Base needs 1, never 0
+				arr_matrix_nodes[j + 7] = arr_node.radius; // Providing radius as 'size' yields best results
+				arr_matrix_nodes[j + 8] = arr_node.fixed;
 				
 				j += num_properties_nodes;
 			}
@@ -1708,23 +1728,31 @@ function MapSocial(elm_draw, PARENT, options) {
 					nodes: arr_matrix_nodes.buffer,
 					edges: arr_matrix_edges.buffer,
 					iterations: 1,
+					auto: true, // Do auto-configure
+					metrics: false,
 					settings: {
 						linLogMode: forceatlas2_options.lin_log_mode,
-						outboundAttractionDistribution: forceatlas2_options.outbound_attraction_distribution,
 						adjustSizes: forceatlas2_options.adjust_sizes,
 						edgeWeightInfluence: forceatlas2_options.edge_weight_influence,
-						scalingRatio: forceatlas2_options.scaling_ratio,
 						strongGravityMode: forceatlas2_options.strong_gravity_mode,
-						gravity: forceatlas2_options.gravity,
-						slowDown: forceatlas2_options.slow_down,
-						barnesHutOptimize: (forceatlas2_options.optimize_theta > 0 ? true : false),
-						barnesHutTheta: forceatlas2_options.optimize_theta
+						gravity: forceatlas2_options.gravity, // Auto
+						scalingRatio: forceatlas2_options.scaling_ratio, // Auto
+						outboundAttractionDistribution: forceatlas2_options.outbound_attraction_distribution, // Auto
+						barnesHutOptimize: (forceatlas2_options.optimize_theta !== null ? (forceatlas2_options.optimize_theta > 0) : null), // Auto
+						barnesHutTheta: forceatlas2_options.optimize_theta, // Auto
+						jitterTolerance: null // Auto
 					}
 				},
 				[arr_matrix_nodes.buffer, arr_matrix_edges.buffer]
 			);
-			
+
 			worker.addEventListener('message', function(event) {
+				
+				if (event.data.action === 'configured') { // Optional, use reported auto configuration
+					
+					//console.log(event.data.settings);
+					return;
+				}
 				
 				arr_matrix_nodes = new Float32Array(event.data.nodes);
 				
@@ -1732,10 +1760,14 @@ function MapSocial(elm_draw, PARENT, options) {
 					
 					const arr_node = arr_active_nodes[j];
 					
-					arr_node.x = arr_matrix_nodes[i];
-					arr_node.y = arr_matrix_nodes[i + 1];
+					arr_node.x = arr_matrix_nodes[i] + num_graph_x;
+					arr_node.y = arr_matrix_nodes[i + 1] + num_graph_y;
 					
 					j++;
+				}
+				
+				if (event.data.metrics !== null) { // Optional, live metrics
+				
 				}
 				
 				if (worker) {
@@ -1746,7 +1778,8 @@ function MapSocial(elm_draw, PARENT, options) {
 					worker.postMessage({
 							action: 'loop',
 							nodes: arr_matrix_nodes.buffer,
-							iterations: 1
+							iterations: 1,
+							metrics: false
 						},
 						[arr_matrix_nodes.buffer]
 					);
@@ -1760,18 +1793,23 @@ function MapSocial(elm_draw, PARENT, options) {
 		
 				var forceatlas2 = new LayoutForceAtlas2();
 				
-				function run(n) {
-					
-					for (var i = 0; i < n; i++) {
+				const arr_payload = {nodes: null, metrics: null};
+				
+				function run(n, do_metrics) {
+
+					for (let i = 0; i < n; i++) {
 						forceatlas2.pass();
 					}
 					
+					arr_payload.metrics = null;
+					if (do_metrics === true) {
+						arr_payload.metrics = forceatlas2.getMetrics();
+					}
+
 					arr_matrix_nodes = forceatlas2.getNodes();
-					
-					self.postMessage(
-						{nodes: arr_matrix_nodes.buffer},
-						[arr_matrix_nodes.buffer]
-					);
+					arr_payload.nodes = arr_matrix_nodes.buffer;
+
+					self.postMessage(arr_payload, [arr_matrix_nodes.buffer]);
 				}
 
 				var func_listener = function(e) {
@@ -1785,14 +1823,22 @@ function MapSocial(elm_draw, PARENT, options) {
 								e.data.settings
 							);
 
-							run(e.data.iterations);
+							if (e.data.auto) { // Optional, auto-configure.
+								
+								self.postMessage({
+									action: 'configured',
+									settings: forceatlas2.autoConfigure(e.data.settings)
+								});
+							}
+
+							run(e.data.iterations, e.data.metrics);
 							break;
 
 						case 'loop':
 						
 							forceatlas2.setNodes(new Float32Array(e.data.nodes));
 							
-							run(e.data.iterations);
+							run(e.data.iterations, e.data.metrics);
 							break;
 
 						case 'settings':
@@ -1807,9 +1853,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				self.addEventListener('message', func_listener);
 			};
 
-			var worker = ASSETS.createWorker(func_worker, ['/js/LayoutForceAtlas2.js']);
-
-			return worker;
+			return ASSETS.createWorker(func_worker, ['/js/LayoutForceAtlas2.js']);
 		};
 		
 		this.stop = function() {
@@ -1962,8 +2006,10 @@ function MapSocial(elm_draw, PARENT, options) {
 				geometry_shader_uniforms.uniforms.u_bounds[0] = num_width;
 				geometry_shader_uniforms.uniforms.u_bounds[1] = num_height;
 				
-				simulation.resize();
-				simulation.resume();
+				if (simulation) {
+					simulation.resize();
+					simulation.resume();
+				}
 			}
 			
 			if (move === true) { // Move Starts
@@ -2199,9 +2245,12 @@ function MapSocial(elm_draw, PARENT, options) {
 
 			if (display == DISPLAY_PIXEL) {
 				
-				elm.visible = true;
-				if (arr_node.show_text && num_size_radius) {
-					arr_node.elm_text.visible = true;
+				if (elm !== null) { // arr_node.elm could be missing for DISPLAY_PIXEL when num_size is 0. arr_node.elm always exists for DISPLAY_VECTOR as it's used for grouping
+					
+					elm.visible = true;
+					if (arr_node.show_text) {
+						arr_node.elm_text.visible = true;
+					}
 				}
 			} else {
 				
@@ -2986,24 +3035,27 @@ function MapSocial(elm_draw, PARENT, options) {
 		for (let i = 0, len = arr_active_nodes.length; i < len; i++) {
 			
 			const arr_node = arr_active_nodes[i];			
-			const num_size_radius = arr_node.radius;
-			const pos_x = arr_node.x;
-			const pos_y = arr_node.y;
-			
+
 			if (arr_node.redraw_node === true || do_redraw) {
 				drawNodeElement(arr_node);
 			}
-						
+			
 			if (display == DISPLAY_PIXEL) {
-
-				arr_node.elm.position.set((pos_x + pos_translation.x) * num_scale, (pos_y + pos_translation.y) * num_scale);
 				
-				if (arr_node.elm_text !== null) {
-					arr_node.elm_text.position.set(arr_node.elm.position.x + ((num_size_radius + num_offset_dot_text) * num_scale), arr_node.elm.position.y);
+				if (arr_node.elm !== null) {
+					
+					const num_x_calc = (arr_node.x + pos_translation.x) * num_scale;
+					const num_y_calc = (arr_node.y + pos_translation.y) * num_scale;
+
+					arr_node.elm.position.set(num_x_calc, num_y_calc);
+					
+					if (arr_node.elm_text !== null) {
+						arr_node.elm_text.position.set(num_x_calc + ((arr_node.radius + num_offset_dot_text) * num_scale), num_y_calc);
+					}
 				}
 			} else {
 				
-				arr_node.elm.setAttribute('transform', 'translate(' + pos_x + ',' + pos_y + ')');
+				arr_node.elm.setAttribute('transform', 'translate('+arr_node.x+','+arr_node.y+')');
 			}
 		}
 		
@@ -3317,8 +3369,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			elm_host.arr_link = false;
 			elm_host.arr_info_box = false;
 		} else {
-				
-			const arr_connections = {};
+			
 			let arr_connection_object_parents = [];
 			let arr_connection_object_sub_parents = [];
 
@@ -3360,7 +3411,7 @@ function MapSocial(elm_draw, PARENT, options) {
 							
 							const arr_condition = arr_data.legend.conditions[arr_sort[i][0]];
 							
-							if (!arr_condition.label) {
+							if (arr_condition === undefined || !arr_condition.label) {
 								continue;
 							}
 							
@@ -3437,25 +3488,6 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				const arr_object_parents = [arr_link.source_object_id, arr_link.target_object_id];
 				
-				if (arr_connections[connected_object_id] === undefined) {
-					
-					arr_connections[connected_object_id] = {
-						id: connected_object_id, 
-						name: arr_node_connected.name, 
-						count: arr_link.count_object_parent + arr_link.count_object_sub_parents, 
-						parents: {
-							object_parents: arr_object_parents, 
-							object_sub_parents: Object.keys(arr_link.object_sub_parents)
-						}, 
-						total: (arr_node_connected.count_in + arr_node_connected.count_out)
-					};					
-				} else {
-					
-					arr_connections[connected_object_id].parents.object_parents = arr_connections[connected_object_id].parents.object_parents.concat(arr_object_parents);
-					arr_connections[connected_object_id].parents.object_sub_parents = arr_connections[connected_object_id].parents.object_sub_parents.concat(Object.keys(arr_link.object_sub_parents));
-					arr_connections[connected_object_id].count = (arr_connections[connected_object_id].count + arr_link.count_object_parent + arr_link.count_object_sub_parents);
-				}
-				
 				if (do_highlight !== false) {
 					
 					if (show_arrowhead && display == DISPLAY_VECTOR) {
@@ -3473,7 +3505,15 @@ function MapSocial(elm_draw, PARENT, options) {
 				}
 				
 				arr_connection_object_parents = arr_connection_object_parents.concat(arr_object_parents);
-				arr_connection_object_sub_parents = arr_connection_object_sub_parents.concat(Object.keys(arr_link.object_sub_parents));
+				
+				for (const object_sub_id in arr_link.object_sub_parents) {
+					
+					if (arr_link.object_sub_parents[object_sub_id] !== true) { // Not active
+						continue;
+					}
+					
+					arr_connection_object_sub_parents.push(object_sub_id);
+				}
 			}
 			
 			elm_host.arr_link = {object_id: parseInt(arr_node.id), type_id: parseInt(arr_node.type_id), object_sub_ids: arr_node.object_sub_parents, connect_object_ids: arr_connect_objects};
@@ -3527,22 +3567,22 @@ function MapSocial(elm_draw, PARENT, options) {
 				let num_references = 0;
 				let num_statements = 0;
 
-				for (const object_definition_id in arr_data_details.source.object_definitions) {
+				for (const object_description_id in arr_data_details.source.object_definitions) {
 					
-					const arr_object_ids = arr_data_details.source.object_definitions[object_definition_id];
+					const arr_object_ids = arr_data_details.source.object_definitions[object_description_id];
 					num_references += Object.keys(arr_object_ids).length;
 					
 					const arr_list = func_object_group(arr_object_ids);
 					num_statements += arr_list.length;
 					
-					arr_collect_statements.out.push({label: arr_data.info.object_descriptions[object_definition_id].object_description_name, list: arr_list});
+					arr_collect_statements.out.push({label: arr_data.info.object_descriptions[object_description_id].object_description_name, list: arr_list});
 				}
 							
 				for (const type_id in arr_data_details.source.object_subs) {
 								
 					for (const object_sub_details_id in arr_data_details.source.object_subs[type_id]) {	
 								
-						for (const object_sub_definition_id in arr_data_details.source.object_subs[type_id][object_sub_details_id]) {
+						for (const object_sub_description_id in arr_data_details.source.object_subs[type_id][object_sub_details_id]) {
 							
 							let str_object_sub_description = '';
 							
@@ -3552,9 +3592,9 @@ function MapSocial(elm_draw, PARENT, options) {
 								str_object_sub_description = '['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+']';
 							}
 							
-							str_object_sub_description += ' '+arr_data.info.object_sub_descriptions[object_sub_definition_id].object_sub_description_name;
+							str_object_sub_description += ' '+arr_data.info.object_sub_descriptions[object_sub_description_id].object_sub_description_name;
 							
-							const arr_object_ids = arr_data_details.source.object_subs[type_id][object_sub_details_id][object_sub_definition_id];
+							const arr_object_ids = arr_data_details.source.object_subs[type_id][object_sub_details_id][object_sub_description_id];
 							num_references += Object.keys(arr_object_ids).length;
 							
 							const arr_list = func_object_group(arr_object_ids);
@@ -3574,15 +3614,15 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				for (const type_id in arr_data_details.target.object_definitions) {
 					
-					for (const object_definition_id in arr_data_details.target.object_definitions[type_id]) {
+					for (const object_description_id in arr_data_details.target.object_definitions[type_id]) {
 						
-						const arr_object_ids = arr_data_details.target.object_definitions[type_id][object_definition_id];
+						const arr_object_ids = arr_data_details.target.object_definitions[type_id][object_description_id];
 						num_references += Object.keys(arr_object_ids).length;
 						
 						const arr_list = func_object_group(arr_object_ids);
 						num_statements += arr_list.length;
 					
-						arr_collect_statements.in.push({label: arr_data.info.object_descriptions[object_definition_id].object_description_name, list: arr_list});
+						arr_collect_statements.in.push({label: arr_data.info.object_descriptions[object_description_id].object_description_name, list: arr_list});
 					}
 				}	
 				
@@ -3590,7 +3630,7 @@ function MapSocial(elm_draw, PARENT, options) {
 							
 					for (const object_sub_details_id in arr_data_details.target.object_subs[type_id]) {
 								
-						for (const object_sub_definition_id in arr_data_details.target.object_subs[type_id][object_sub_details_id]) {
+						for (const object_sub_description_id in arr_data_details.target.object_subs[type_id][object_sub_details_id]) {
 							
 							let str_object_sub_description = '';
 							
@@ -3600,9 +3640,9 @@ function MapSocial(elm_draw, PARENT, options) {
 								str_object_sub_description = '['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+']';
 							}
 							
-							str_object_sub_description += ' '+arr_data.info.object_sub_descriptions[object_sub_definition_id].object_sub_description_name;
+							str_object_sub_description += ' '+arr_data.info.object_sub_descriptions[object_sub_description_id].object_sub_description_name;
 							
-							const arr_object_ids = arr_data_details.target.object_subs[type_id][object_sub_details_id][object_sub_definition_id];
+							const arr_object_ids = arr_data_details.target.object_subs[type_id][object_sub_details_id][object_sub_description_id];
 							num_references += Object.keys(arr_object_ids).length;
 							
 							const arr_list = func_object_group(arr_object_ids);
@@ -3775,23 +3815,25 @@ function MapSocial(elm_draw, PARENT, options) {
 		
 			for (let j = 0; j < arr_object_subs.length; j++) {
 				
+				const object_sub_id = String(arr_object_subs[j]);
 				let in_range = in_range_date;
 				
 				if (in_range) {
 					
-					const arr_object_sub = arr_data.object_subs[arr_object_subs[j]];
+					const arr_object_sub = arr_data.object_subs[object_sub_id];
 					
 					in_range = checkObjectSubInRange(arr_object_sub);
 				}
 				
-				checkObjectSub(arr_object_subs[j], !in_range);
+				checkObjectSub(object_sub_id, !in_range);
 			}
 		}
 		
 		// Sub objects with a date range
 		for (let i = 0, len = arr_data.range.length; i < len; i++) {
 			
-			const arr_object_sub = arr_data.object_subs[arr_data.range[i]];
+			const object_sub_id = String(arr_data.range[i]);
+			const arr_object_sub = arr_data.object_subs[object_sub_id];
 			
 			const dateinta_start = DATEPARSER.dateInt2Absolute(arr_object_sub.date_start);
 			const dateinta_end = DATEPARSER.dateInt2Absolute(arr_object_sub.date_end);
@@ -3802,7 +3844,7 @@ function MapSocial(elm_draw, PARENT, options) {
 				in_range = checkObjectSubInRange(arr_object_sub);
 			}
 			
-			checkObjectSub(arr_data.range[i], !in_range);
+			checkObjectSub(object_sub_id, !in_range);
 		}
 	};
 	
@@ -3850,16 +3892,22 @@ function MapSocial(elm_draw, PARENT, options) {
 			const has_parent_id = (arr_link.object_sub_parents[object_sub_id] === true);
 
 			if (do_remove) {
+				
 				if (has_parent_id) {
 					
 					arr_link.object_sub_parents[object_sub_id] = false;
 					arr_link.count_object_sub_parents--;
+					
+					arr_link.weight -= arr_link.weight_object_sub_parents[object_sub_id];
 				} 
-			} else {					
+			} else {
+				
 				if (!has_parent_id) {
 					
 					arr_link.object_sub_parents[object_sub_id] = true;
 					arr_link.count_object_sub_parents++;
+					
+					arr_link.weight += arr_link.weight_object_sub_parents[object_sub_id];
 				}
 			}
 		}
@@ -3921,8 +3969,6 @@ function MapSocial(elm_draw, PARENT, options) {
 			} else {
 				addLink(arr_link);
 			}
-			
-			arr_link.weight = (arr_link.count_object_parent + arr_link.count_object_sub_parents);
 		}
 		
 		for (let i = 0; i < arr_remove_nodes.length; i++) {
@@ -4284,6 +4330,7 @@ function MapSocial(elm_draw, PARENT, options) {
 		for (const object_definition_id in arr_object.object_definitions) {
 			
 			const arr_object_definition = arr_object.object_definitions[object_definition_id];
+			const object_description_id = arr_object_definition.description_id;
 			
 			if (!arr_object_definition || !arr_object_definition.ref_object_id.length) {
 				continue;
@@ -4301,11 +4348,11 @@ function MapSocial(elm_draw, PARENT, options) {
 					continue;
 				}
 				
-				if (arr_details.source.object_definitions[object_definition_id] === undefined) {
-					arr_details.source.object_definitions[object_definition_id] = [];
+				if (arr_details.source.object_definitions[object_description_id] === undefined) {
+					arr_details.source.object_definitions[object_description_id] = [];
 				}
 				
-				arr_details.source.object_definitions[object_definition_id].push(referencing_object_id);
+				arr_details.source.object_definitions[object_description_id].push(referencing_object_id);
 			}
 		}
 		
@@ -4326,6 +4373,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			for (const object_sub_definition_id in arr_object_sub.object_sub_definitions) {
 				
 				const arr_object_sub_definition = arr_object_sub.object_sub_definitions[object_sub_definition_id];
+				const object_sub_description_id = arr_object_sub_definition.description_id;
 				
 				if (!arr_object_sub_definition || !arr_object_sub_definition.ref_object_id.length) {
 					continue;
@@ -4351,11 +4399,11 @@ function MapSocial(elm_draw, PARENT, options) {
 						arr_details.source.object_subs[type_id][object_sub_details_id] = {};
 					}
 					
-					if (arr_details.source.object_subs[type_id][object_sub_details_id][object_sub_definition_id] === undefined) {
-						arr_details.source.object_subs[type_id][object_sub_details_id][object_sub_definition_id] = [];
+					if (arr_details.source.object_subs[type_id][object_sub_details_id][object_sub_description_id] === undefined) {
+						arr_details.source.object_subs[type_id][object_sub_details_id][object_sub_description_id] = [];
 					}
 					
-					arr_details.source.object_subs[type_id][object_sub_details_id][object_sub_definition_id].push(referencing_object_id);
+					arr_details.source.object_subs[type_id][object_sub_details_id][object_sub_description_id].push(referencing_object_id);
 				}
 			}
 		}
@@ -4381,6 +4429,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			for (const object_definition_id in arr_referenced_object.object_definitions) {
 				
 				const arr_object_definition = arr_referenced_object.object_definitions[object_definition_id];
+				const object_description_id = arr_object_definition.description_id;
 				
 				if (!arr_object_definition || !arr_object_definition.ref_object_id.length) {
 					continue;
@@ -4396,11 +4445,11 @@ function MapSocial(elm_draw, PARENT, options) {
 						arr_details.target.object_definitions[arr_referenced_object.type_id] = {};
 					}
 					
-					if (arr_details.target.object_definitions[arr_referenced_object.type_id][object_definition_id] === undefined) {
-						arr_details.target.object_definitions[arr_referenced_object.type_id][object_definition_id] = [];
+					if (arr_details.target.object_definitions[arr_referenced_object.type_id][object_description_id] === undefined) {
+						arr_details.target.object_definitions[arr_referenced_object.type_id][object_description_id] = [];
 					}
 					
-					arr_details.target.object_definitions[arr_referenced_object.type_id][object_definition_id].push(referenced_object_id);
+					arr_details.target.object_definitions[arr_referenced_object.type_id][object_description_id].push(referenced_object_id);
 				}
 			}
 		}
@@ -4424,6 +4473,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			for (const object_sub_definition_id in arr_object_sub.object_sub_definitions) {
 				
 				const arr_object_sub_definition = arr_object_sub.object_sub_definitions[object_sub_definition_id];
+				const object_sub_description_id = arr_object_sub_definition.description_id;
 				
 				if (!arr_object_sub_definition || !arr_object_sub_definition.ref_object_id.length) {
 					continue;
@@ -4447,11 +4497,11 @@ function MapSocial(elm_draw, PARENT, options) {
 						arr_details.target.object_subs[type_id][object_sub_details_id] = {};
 					}
 					
-					if (arr_details.target.object_subs[type_id][object_sub_details_id][object_sub_definition_id] === undefined) {
-						arr_details.target.object_subs[type_id][object_sub_details_id][object_sub_definition_id] = [];
+					if (arr_details.target.object_subs[type_id][object_sub_details_id][object_sub_description_id] === undefined) {
+						arr_details.target.object_subs[type_id][object_sub_details_id][object_sub_description_id] = [];
 					}
 					
-					arr_details.target.object_subs[type_id][object_sub_details_id][object_sub_definition_id].push(referenced_object_id);
+					arr_details.target.object_subs[type_id][object_sub_details_id][object_sub_description_id].push(referenced_object_id);
 				}
 			}
 		}
@@ -4475,9 +4525,10 @@ function MapSocial(elm_draw, PARENT, options) {
 			
 			if (arr_links[link_id] === undefined) {
 				
-				const arr_link = {id: link_id, count: count_links, source: false, target: false, source_object_id: source_object_id, target_object_id: target_object_id, count_object_parent: 0, has_object_parent: false,
+				const arr_link = {id: link_id, count: count_links, source: false, target: false, source_object_id: source_object_id, target_object_id: target_object_id,
+					count_object_parent: 0, has_object_parent: false,
 					object_sub_parents: {}, count_object_sub_parents: 0, has_object_sub_parents: false,
-					weight: 0, has_reverse: false, elm: false,
+					weight: 0, weight_object_parent: 0, weight_object_sub_parents: {}, has_reverse: false, elm: false,
 					is_active: false
 				};
 				
@@ -4509,6 +4560,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			for (const object_definition_id in arr_object.object_definitions) {
 				
 				const arr_object_definition = arr_object.object_definitions[object_definition_id];
+				const object_description_id = arr_object_definition.description_id;
 				
 				if (!arr_object_definition || !arr_object_definition.ref_object_id.length) {
 					continue;
@@ -4516,11 +4568,12 @@ function MapSocial(elm_draw, PARENT, options) {
 
 				let has_conditions = false;
 				
-				const has_weight_zero = (arr_object_definition.style.weight === 0);
+				const num_weight = arr_object_definition.style.weight;
+				const has_weight_zero = (num_weight === 0);
 				
 				for (let i = 0, len = arr_object_definition.ref_object_id.length; i < len; i++) {
 					
-					const target_object_id = setNodeProperties(arr_data.info.object_descriptions[object_definition_id].object_description_ref_type_id, arr_object_definition.ref_object_id[i], arr_object_definition.value[i]);
+					const target_object_id = setNodeProperties(arr_data.info.object_descriptions[object_description_id].object_description_ref_type_id, arr_object_definition.ref_object_id[i], arr_object_definition.value[i]);
 					
 					if (object_id == target_object_id) {
 						continue;
@@ -4537,16 +4590,22 @@ function MapSocial(elm_draw, PARENT, options) {
 						
 						arr_link.has_object_parent = true;
 						arr_link.count_object_parent++;
-							
+						
+						let num_link_weight = (num_weight !== null ? num_weight : 0) + (arr_object_definition.style.link != null ? arr_object_definition.style.link.weight : 0);
+						num_link_weight = (num_link_weight !== 0 ? num_link_weight : 1); // A weighted connection (collected in a link) always has a minimum of 1, as with nodes
+						
+						arr_link.weight_object_parent += num_link_weight;
+						arr_link.weight += num_link_weight;
+						
 						arr_node.child_links.push(link_id);	
 					}
 					
 					// Weight and other conditions of object applied to target node
 					
-					if (arr_object_definition.style.weight !== null) {
+					if (num_weight !== null) {
 
-						arr_target_node.weight_conditions += arr_object_definition.style.weight;
-						arr_target_node.weight_total += arr_object_definition.style.weight;
+						arr_target_node.weight_conditions += num_weight;
+						arr_target_node.weight_total += num_weight;
 					}
 					
 					const arr_conditions = setCondition(arr_object_definition.style, object_id, object_definition_id);
@@ -4563,7 +4622,6 @@ function MapSocial(elm_draw, PARENT, options) {
 				if (has_conditions) {
 					
 					for (const str_identifier_condition in arr_object.style.conditions) {
-						
 						arr_node.conditions.object_definition.push({identifier: str_identifier_condition, source_id: object_id});
 					}
 				}
@@ -4611,8 +4669,11 @@ function MapSocial(elm_draw, PARENT, options) {
 					if (!has_sub_weight_zero) {
 						
 						const link_id = makeLink(object_id, target_object_id);
+						const arr_link = arr_links[link_id];
 						
-						arr_links[link_id].has_object_sub_parents = true;
+						arr_link.has_object_sub_parents = true;
+						
+						arr_link.weight_object_sub_parents[object_sub_id] = 1;
 						
 						arr_object_sub_children.child_links.push(link_id);
 						
@@ -4627,6 +4688,7 @@ function MapSocial(elm_draw, PARENT, options) {
 			for (const object_sub_definition_id in arr_object_sub.object_sub_definitions) {
 				
 				const arr_object_sub_definition = arr_object_sub.object_sub_definitions[object_sub_definition_id];
+				const object_sub_description_id = arr_object_sub_definition.description_id;
 				
 				if (!arr_object_sub_definition || !arr_object_sub_definition.ref_object_id.length) {
 					continue;
@@ -4634,11 +4696,12 @@ function MapSocial(elm_draw, PARENT, options) {
 				
 				let has_conditions = false;
 				
-				const has_weight_zero = (arr_object_sub_definition.style.weight === 0);
+				const num_weight = arr_object_sub_definition.style.weight;
+				const has_weight_zero = (num_weight === 0);
 				
 				for (let i = 0, len = arr_object_sub_definition.ref_object_id.length; i < len; i++) {
 					
-					const target_object_id = setNodeProperties(arr_data.info.object_sub_descriptions[object_sub_definition_id].object_sub_description_ref_type_id, arr_object_sub_definition.ref_object_id[i], arr_object_sub_definition.value[i]);	
+					const target_object_id = setNodeProperties(arr_data.info.object_sub_descriptions[object_sub_description_id].object_sub_description_ref_type_id, arr_object_sub_definition.ref_object_id[i], arr_object_sub_definition.value[i]);	
 					
 					if (object_id == target_object_id) {
 						continue;
@@ -4649,21 +4712,25 @@ function MapSocial(elm_draw, PARENT, options) {
 					arr_object_sub_children.child_nodes.push(target_object_id);
 					
 					if (!has_sub_weight_zero && !has_weight_zero) {
-												
+						
 						const link_id = makeLink(object_id, target_object_id);
+						const arr_link = arr_links[link_id];
 						
-						arr_links[link_id].has_object_sub_parents = true;
+						arr_link.has_object_sub_parents = true;
 						
+						const num_link_weight = (num_weight !== null ? num_weight : 0) + (arr_object_sub_definition.style.link != null ? arr_object_sub_definition.style.link.weight : 0);
+						arr_link.weight_object_sub_parents[object_sub_id] = (num_link_weight !== 0 ? num_link_weight : 1); // A weighted connection (collected in a link) always has a minimum of 1, as with nodes
+
 						arr_object_sub_children.child_links.push(link_id);
 					}
 
 					// Cross Referencing weight and other conditions added to target node
 					
-					if (arr_object_sub_definition.style.weight !== null) {
+					if (num_weight !== null) {
 
-						arr_target_node.weight_conditions += arr_object_sub_definition.style.weight;
-						arr_target_node.weight_total += arr_object_sub_definition.style.weight;
-					}	
+						arr_target_node.weight_conditions += num_weight;
+						arr_target_node.weight_total += num_weight;
+					}
 					
 					const arr_conditions = setCondition(arr_object_sub_definition.style, object_sub_id, object_sub_definition_id);
 					
@@ -4679,7 +4746,6 @@ function MapSocial(elm_draw, PARENT, options) {
 				if (has_conditions) {
 					
 					for (const str_identifier_condition in arr_object_sub.style.conditions) {
-						
 						arr_node.conditions.object_sub_definition.push({identifier: str_identifier_condition, source_id: object_sub_id});
 					}
 				}
@@ -4761,8 +4827,9 @@ function MapSocial(elm_draw, PARENT, options) {
 			}
 			
 			const str_color = (str_color_style !== null && arr_condition_value.color != null ? arr_condition_value.color : str_color_style); // Calculated color only when style color is applied
+			const str_icon = (str_icon_style !== null && arr_condition_value.icon != null ? arr_condition_value.icon : str_icon_style); // Calculated icon (via condition function) only when icon source is applied
 			
-			arr_conditions.push({identifier: str_identifier_condition, source_id: source_id, source_definition_id: source_definition_id, weight: num_weight, color: str_color, icon: str_icon_style});
+			arr_conditions.push({identifier: str_identifier_condition, source_id: source_id, source_definition_id: source_definition_id, weight: num_weight, color: str_color, icon: str_icon});
 		}
 		
 		// Adjust the individual condition weights to scale within the overall calculated weight
@@ -5009,6 +5076,9 @@ function MapSocial(elm_draw, PARENT, options) {
 	var getGraphicsElementNode = function(elm, num_radius, color, num_stroke, color_stroke) {
 		
 		var num_radius = (num_radius < 0.5 ? 0.5 : Math.round(num_radius * 2) / 2); // 0.5 rounding
+		if (color_stroke !== null) {
+			var num_stroke = (num_stroke < 0.5 ? 0 : Math.round(num_stroke * 2) / 2); // 0.5 rounding
+		}
 		const str_identifier = num_radius+'|'+num_stroke+'|'+color_stroke+'|'+color;
 		
 		let texture = arr_cache_graphics_nodes.get(str_identifier);
@@ -5044,6 +5114,9 @@ function MapSocial(elm_draw, PARENT, options) {
 	var getGraphicsElementNodePie = function(elm, num_radius, arr_colors, num_opacity, num_stroke, color_stroke) {
 		
 		var num_radius = (num_radius < 0.5 ? 0.5 : Math.round(num_radius * 2) / 2);  // 0.5 rounding
+		if (color_stroke !== null) {
+			var num_stroke = (num_stroke < 0.5 ? 0 : Math.round(num_stroke * 2) / 2); // 0.5 rounding
+		}
 		let str_identifier = num_radius+'|'+num_stroke+'|'+color_stroke+'|'+num_opacity+'|';
 		
 		for (let i = 0; i < arr_colors.length; i++) {

@@ -106,27 +106,7 @@ class data_linked_data extends base_module {
 		}
 
 		$id = (int)$id;
-		
-		Labels::setVariable('example', 'SELECT ?subject ?label ?abstract<br/>'
-			.'WHERE {<br/>'
-			.'<span class="tab"></span>?subject rdfs:label ?label .<br/>'
-	
-			.'<span class="tab"></span>OPTIONAL {<br/>'
-			.'<span class="tab"></span><span class="tab"></span>?subject dbo:abstract ?abstract .<br/>'
-			.'<span class="tab"></span>}<br/>'
-			
-			.'<span class="tab"></span><strong>[query=name]</strong><br/>'
-			.'<span class="tab"></span><span class="tab"></span>FILTER regex(?label, "<strong>[variable]</strong>Hans Filbinger<strong>[/variable]</strong>", "i") .<br/>'
-			.'<span class="tab"></span><strong>[/query]</strong><br/>'
-			
-			.'<span class="tab"></span><strong>[query=exact]</strong><br/>'
-			.'<span class="tab"></span><span class="tab"></span>?subject rdfs:label "<strong>[variable=subject]</strong>Hans Filbinger<strong>[/variable]</strong>"@en .<br/>'
-			.'<span class="tab"></span><strong>[/query]</strong><br/>'
-			
-			.'}<br/>'
-			.'OFFSET <strong>[[offset]]</strong> LIMIT <strong>[[limit]]</strong>'
-		);
-		
+
 		$arr_sorter_headers = [];
 		
 		foreach (($arr_resource['url_headers'] ?: ['']) as $key => $value) {
@@ -173,7 +153,7 @@ class data_linked_data extends base_module {
 					</li>
 					<li>
 						<label>'.getLabel('lbl_description').'</label>
-						<div><textarea name="description" >'.$arr_resource['description'].'</textarea></div>
+						<div><textarea name="description" >'.strEscapeHTML($arr_resource['description']).'</textarea></div>
 					</li>
 					<li>
 						<label>'.getLabel('lbl_protocol').'</label>
@@ -201,7 +181,7 @@ class data_linked_data extends base_module {
 					</li>
 					<li>
 						<label></label>
-						<section class="info attention body">'.parseBody(getLabel('inf_external_resource_query', 'L', true)).'</section>
+						<section class="info attention body">'.parseBody(getLabel('inf_external_resource_query')).'</section>
 					</li>
 					<li>
 						<label>'.getLabel('lbl_query').'</label>
@@ -321,7 +301,7 @@ class data_linked_data extends base_module {
 					<li>
 						<label>OUTPUT =</label>
 						<div>'
-							.'<textarea name="output_placeholder">'.($id ? strEscapeHTML(value2JSON($arr_conversion['output_placeholder'], JSON_PRETTY_PRINT)) : '').'</textarea>'
+							.'<textarea name="output_placeholder">'.($id ? strEscapeHTML(value2JSON($arr_conversion['output_placeholder'], JSON_DEFAULT_ENCODE | JSON_PRETTY_PRINT)) : '').'</textarea>'
 						.'</div>
 					</li>
 				</ul>
@@ -606,8 +586,20 @@ class data_linked_data extends base_module {
 			
 			$external = new ResourceExternal($arr_resource);
 			$external->setLimit(1);
+			$external->setTimeout(null, null, false); // No retry
 			
-			$external->request();
+			try {
+				
+				$external->request();
+			} catch (RealTroubleThrown $e) {
+				
+				if ($e->getTroubleSuppress() == LOG_SYSTEM) {
+					throw($e);
+				}
+				
+				message($e->getTroubleMessage(), 'ATTENTION', LOG_CLIENT, null, null, 10000, $e);
+			}
+
 			$str_result = $external->getResultRaw();
 			
 			$this->html = $str_result;
@@ -655,7 +647,7 @@ class data_linked_data extends base_module {
 			
 			foreach ($arr_flat as $key => $value) {
 				
-				$value = value2JSON($value, JSON_FORCE_OBJECT);
+				$value = value2JSON($value, JSON_DEFAULT_ENCODE | JSON_FORCE_OBJECT);
 				$arr_keys[] = ['id' => $value, 'name' => $value];
 			}
 			

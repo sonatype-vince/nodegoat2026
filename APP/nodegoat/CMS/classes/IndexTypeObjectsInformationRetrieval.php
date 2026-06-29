@@ -52,7 +52,7 @@ class IndexTypeObjectsInformationRetrieval {
 			$str_options .= '/'.$key.'/'.$value;
 		}
 		
-		$command = 'curl --no-buffer --silent --show-error -X POST "'.$this->str_host.'index/'.$do.($str_options ?: '/').'/overwrite/'.($this->mode == static::MODE_OVERWRITE ? '1' : '0').'" -H  "accept: application/json" -H  "Content-Type: application/json" -H  "Authorization: bearer '.Settings::get('graph_database', 'token').'" --data-binary @-';
+		$command = 'curl --no-buffer --silent --show-error -X POST '.escapeshellarg($this->str_host.'index/'.$do.($str_options ?: '/').'/overwrite/'.($this->mode == static::MODE_OVERWRITE ? '1' : '0')).' -H  "accept: application/json" -H  "Content-Type: application/json" -H  "Authorization: bearer '.Settings::get('graph_database', 'token').'" --data-binary @-';
 
 		$process = new ProcessProgram($command);
 		

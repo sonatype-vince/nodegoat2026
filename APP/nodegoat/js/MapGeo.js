@@ -478,7 +478,7 @@ function MapGeo(elm_draw, PARENT, options) {
 		
 		let arr_scripts = ['/CMS/js/support/Bezier.js'];
 		if (display == DISPLAY_PIXEL) {
-			arr_scripts.push('/CMS/js/support/pixi8.min.js', '/CMS/js/support/pixi.ExtraFilters.js');
+			arr_scripts.push('/CMS/js/support/pixi8.min.js');
 		}
 		if (show_location) {
 			arr_scripts.push('/js/support/d3-force.pack.js');
@@ -512,21 +512,17 @@ function MapGeo(elm_draw, PARENT, options) {
 			arr_data = PARENT.getData();
 			
 			if (arr_data.legend.conditions) {
-						
-				var arr_media = [];
 				
-				for (const key in arr_data.legend.conditions) {
+				for (const str_identifier_condition in arr_data.legend.conditions) {
 					
-					const arr_condition = arr_data.legend.conditions[key];
-					
-					if (arr_condition.icon) {			
-						arr_media.push(arr_condition.icon);
-					}
-					
+					const arr_condition = arr_data.legend.conditions[str_identifier_condition];
+
 					if (arr_condition.weight && arr_condition.weight > 0) {
 						is_weighted = true;
 					}
 				}
+				
+				const arr_media = PARENT.obj_data.getDataMedia();
 				
 				if (arr_media.length) {
 					
@@ -1167,9 +1163,9 @@ function MapGeo(elm_draw, PARENT, options) {
 	
 				let has_identifier_definition = false;
 				
-				for (const key in arr_object_sub.object_sub_definitions) {
+				for (const object_sub_definition_id in arr_object_sub.object_sub_definitions) {
 					
-					const arr_object_sub_definition = arr_object_sub.object_sub_definitions[key];
+					const arr_object_sub_definition = arr_object_sub.object_sub_definitions[object_sub_definition_id];
 					
 					let arr_view_type_object_sub_definitions = arr_view_type_object_sub.object_sub_definitions;
 					if (arr_view_type_object_sub_definitions === undefined) {
@@ -2556,12 +2552,12 @@ function MapGeo(elm_draw, PARENT, options) {
 						
 						if (num_percentage < 0 || num_percentage > 1) {
 							
-							if (arr_move.status === false) {
+							if (arr_move.status === null) {
 								continue;
 							}
 						} else {
 							
-							if (arr_move.status === false) {
+							if (arr_move.status === null) {
 								
 								if (move_hint_dot) {
 									setObjectSubDotHint(false, arr_object_sub_lines_locate.connect_location_geometry);
@@ -2570,7 +2566,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							
 							arr_move.status = 1;
 						}
-					} else {
+					} else { // Mode continuous or once
 						
 						if (arr_move.cur_delay > 0) {
 							
@@ -2610,12 +2606,12 @@ function MapGeo(elm_draw, PARENT, options) {
 								
 								do_moved = true;
 							}
-						} else {
+						} else { // Mode chronological or once
 							
 							is_finished = true;
 							arr_move.percentage = num_percentage;
 							
-							if (is_active && is_self && arr_move.status) {
+							if (is_active && is_self && arr_move.status !== null) {
 
 								if (!move_chronological) {
 									
@@ -2628,7 +2624,7 @@ function MapGeo(elm_draw, PARENT, options) {
 									}
 								}
 								
-								arr_move.status = 0;
+								arr_move.status = 0; // End state
 								
 								do_moved = true;
 							}
@@ -2673,7 +2669,7 @@ function MapGeo(elm_draw, PARENT, options) {
 								arr_animate[1] = 0;
 							}
 						}
-					} else if (num_percentage < 0) { // Only applicable for move_chronological
+					} else if (num_percentage < 0) { // Only applicable for mode chronological
 						is_finished = true;
 					} else {
 						arr_move.percentage = num_percentage;
@@ -2697,7 +2693,7 @@ function MapGeo(elm_draw, PARENT, options) {
 					}
 					
 					if (arr_object_sub_lines_locate.arr_move_path.distance > 1) { // Only show warp when the path actually has length
-							
+						
 						const num_percentage_one = (1/arr_object_sub_lines_locate.arr_move_path.distance);
 						
 						for (let j = 0; j < length_move_warp; j++) {
@@ -2748,7 +2744,7 @@ function MapGeo(elm_draw, PARENT, options) {
 						}
 					}
 								
-					if (do_show_info_line && is_self && is_active && arr_move.status) {
+					if (do_show_info_line && is_self && is_active) {
 
 						const arr_info = arr_object_sub_line.arr_info;
 						
@@ -2793,7 +2789,7 @@ function MapGeo(elm_draw, PARENT, options) {
 						len--;
 					}
 					
-					arr_move.status = false;
+					arr_move.status = null;
 				}
 			}
 		}
@@ -3738,8 +3734,9 @@ function MapGeo(elm_draw, PARENT, options) {
 			}
 			
 			const str_color = (str_color_style !== null && arr_condition_value.color != null ? arr_condition_value.color : str_color_style); // Calculated color only when style color is applied
+			const str_icon = (str_icon_style !== null && arr_condition_value.icon != null ? arr_condition_value.icon : str_icon_style); // Calculated icon (via condition function) only when icon source is applied
 			
-			arr_conditions.push({identifier: str_identifier_condition, weight: num_weight, color: str_color, icon: str_icon_style});
+			arr_conditions.push({identifier: str_identifier_condition, weight: num_weight, color: str_color, icon: str_icon});
 		}
 		
 		// Adjust the individual condition weights to scale within the overall calculated weight
@@ -5047,6 +5044,8 @@ function MapGeo(elm_draw, PARENT, options) {
 					}
 					
 					let num_angle = null;
+					let str_mode_align = '';
+					let str_mode_valign = '';
 					
 					arr_object_sub_lines_locate.arr_infos = false;
 					arr_infos = [];
@@ -5077,25 +5076,23 @@ function MapGeo(elm_draw, PARENT, options) {
 						}
 
 						let num_identifier = arr_object_sub_line.count;
-						let align = '';
-						let valign = '';
-						
+
 						if (num_angle === null) {
 						
 							num_angle = arr_object_sub_lines_locate.arr_move_path.angle;
 								
 							if (num_angle > 270) {
-								align = 'left';
-								valign = 'bottom';
+								str_mode_align = 'left';
+								str_mode_valign = 'bottom';
 							} else if (num_angle > 180) {
-								align = 'right';
-								valign = 'bottom';
+								str_mode_align = 'right';
+								str_mode_valign = 'bottom';
 							} else if (num_angle > 90) {
-								align = 'right';
-								valign = 'top';
+								str_mode_align = 'right';
+								str_mode_valign = 'top';
 							} else {
-								align = 'left';
-								valign = 'top';
+								str_mode_align = 'left';
+								str_mode_valign = 'top';
 							}
 							
 							let num_correction = ((4/90) * (90 * ((num_angle/90) - Math.floor(num_angle/90)))); // Perform small corrections to make the pointing corner align nicely
@@ -5137,12 +5134,12 @@ function MapGeo(elm_draw, PARENT, options) {
 								str_date_end = DATEPARSER.date2StrDate(date_range_sub_max, settings_timeline.dating.show_ce);
 							}
 							
-							let spacing_prefix = '';
-							let spacing_affix = '';
-							if (align == 'left') {
-								spacing_prefix = '    ';
+							let str_spacing_prefix = '';
+							let str_spacing_affix = '';
+							if (str_mode_align == 'left') {
+								str_spacing_prefix = '    ';
 							} else {
-								spacing_affix = '    ';
+								str_spacing_affix = '    ';
 							}
 							
 							let str_object = '';
@@ -5167,7 +5164,7 @@ function MapGeo(elm_draw, PARENT, options) {
 								const type_id = arr_data.objects[object_id].type_id;
 								const first_object_type_id = (arr_first_connect_object_sub && arr_first_object_sub ? arr_data.objects[arr_first_object_sub.object_id].type_id : type_id);
 								
-								if (align == 'left') {
+								if (str_mode_align == 'left') {
 									str_object_name = arr_data.info.types[type_id].name+(first_object_type_id != type_id ? ' - '+arr_data.info.types[first_object_type_id].name : '')+' '+arr_object_sub_line.count+'x';
 								} else {
 									str_object_name = arr_object_sub_line.count+'x '+arr_data.info.types[type_id].name+(first_object_type_id != type_id ? ' - '+arr_data.info.types[first_object_type_id].name : '');
@@ -5177,10 +5174,10 @@ function MapGeo(elm_draw, PARENT, options) {
 								str_object_name = parseObjectName(arr_data.objects[object_id].name);
 							}
 							
-							if (align == 'left') {
-								str_add = spacing_prefix+'['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+'] '+str_date_start;
+							if (str_mode_align == 'left') {
+								str_add = str_spacing_prefix+'['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+'] '+str_date_start;
 							} else {
-								str_add = str_date_start+' ['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+']'+spacing_affix;
+								str_add = str_date_start+' ['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+']'+str_spacing_affix;
 							}
 							
 							for (const key in arr_object_sub_definitions) {
@@ -5193,10 +5190,10 @@ function MapGeo(elm_draw, PARENT, options) {
 								
 								const object_sub_description_name = arr_data.info.object_sub_descriptions[object_sub_definition.description_id].object_sub_description_name; // Could be collapsed
 								
-								str_add = str_add+'\n'+spacing_prefix+''+parseObjectName(object_sub_definition.value)+spacing_affix;
+								str_add = str_add+'\n'+str_spacing_prefix+''+parseObjectName(object_sub_definition.value)+str_spacing_affix;
 							}
 							
-							if (valign == 'top') {
+							if (str_mode_valign == 'top') {
 								str_object = str_object_name+'\n'+str_add;
 							} else {
 								str_object = str_add+'\n'+str_object_name;
@@ -5214,10 +5211,10 @@ function MapGeo(elm_draw, PARENT, options) {
 									str_object_name = '';
 								}
 								
-								if (align == 'left') {
-									str_add = spacing_prefix+'['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+'] '+str_date_end;
+								if (str_mode_align == 'left') {
+									str_add = str_spacing_prefix+'['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+'] '+str_date_end;
 								} else {
-									str_add = str_date_end+' ['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+']'+spacing_affix;
+									str_add = str_date_end+' ['+arr_data.info.object_sub_details[object_sub_details_id].object_sub_details_name+']'+str_spacing_affix;
 								}
 								
 								for (const key in arr_object_sub_definitions) {
@@ -5230,10 +5227,10 @@ function MapGeo(elm_draw, PARENT, options) {
 									
 									const object_sub_description_name = arr_data.info.object_sub_descriptions[object_sub_definition.description_id].object_sub_description_name; // Could be collapsed
 									
-									str_add = str_add+'\n'+spacing_prefix+''+parseObjectName(object_sub_definition.value)+spacing_affix;
+									str_add = str_add+'\n'+str_spacing_prefix+''+parseObjectName(object_sub_definition.value)+str_spacing_affix;
 								}
 								
-								if (valign == 'top') {
+								if (str_mode_valign == 'top') {
 									str_object = str_object+'\n'+(str_object_name ? str_object_name+'\n' : '')+str_add;
 								} else {
 									str_object = str_add+'\n'+(str_object_name ? str_object_name+'\n' : '')+str_object;
@@ -5247,7 +5244,7 @@ function MapGeo(elm_draw, PARENT, options) {
 							
 								elm_info = new PIXI.Container();
 
-								const elm_text = new PIXI.Text(str_object, {fontSize: size_info, fontFamily: font_family, fill: color_info, align: align});
+								const elm_text = new PIXI.Text(str_object, {fontSize: size_info, fontFamily: font_family, fill: color_info, align: str_mode_align});
 								elm_info.addChild(elm_text);
 								
 								elm_pointer = new PIXI.Sprite(arr_assets_texture_info.pointer);
@@ -7082,7 +7079,7 @@ function MapGeo(elm_draw, PARENT, options) {
 		
 		let str_identifier = (mode != MODE_MOVE ? cur_zoom+''+offset : '')+''+num_size+''+str_color+''+(is_alternate ? '1' : '0');
 		
-		if (mode == MODE_MOVE && move_retain === 'all' && arr_object_sub_line.identifier === str_identifier && arr_object_sub_line.arr_move.status !== false && !redraw) { // Main instance is already running in move_retain mode, force an additional new instance
+		if (mode == MODE_MOVE && move_retain === 'all' && arr_object_sub_line.identifier === str_identifier && arr_object_sub_line.arr_move.status !== null && !redraw) { // Main instance is already running in move_retain mode, force an additional new instance
 			str_identifier = false;
 		}
 		

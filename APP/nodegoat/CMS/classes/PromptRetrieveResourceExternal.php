@@ -62,7 +62,18 @@ class PromptRetrieveResourceExternal {
 		}
 		
 		$this->external_source->setFilter($this->arr_source_filter, true); // Holds reference s_str_prompt
-		$this->external_source->request();
+		
+		try {
+			
+			$this->external_source->request();
+		} catch (RealTroubleThrown $e) {
+		
+			if ($e->getTroubleSuppress() == LOG_SYSTEM) {
+				throw($e);
+			}
+			
+			message($e->getTroubleMessage(), 'ATTENTION', LOG_CLIENT, null, null, 10000, $e);
+		}
 		
 		if (!$this->external_source->hasResult()) {
 			
@@ -175,7 +186,18 @@ class PromptRetrieveResourceExternal {
 
 		$this->external_retrieve->setFilter($this->arr_retrieve_filter, true); // Holds reference s_str_data
 		$this->external_retrieve->setTimeout($this->num_retrieve_timeout, null, false);
-		$this->external_retrieve->request();
+		
+		try {
+			
+			$this->external_retrieve->request();
+		} catch (RealTroubleThrown $e) {
+		
+			if ($e->getTroubleSuppress() == LOG_SYSTEM) {
+				throw($e);
+			}
+			
+			message($e->getTroubleMessage(), 'ATTENTION', LOG_CLIENT, null, null, 10000, $e);
+		}
 		
 		if (!$this->external_retrieve->hasResult()) {
 			
@@ -222,7 +244,7 @@ class PromptRetrieveResourceExternal {
 					$str_sql_field = 'nodegoat_to_vector.'.StoreType::getValueTypeValue($str_value_type, 'search');
 					
 					$arr_secondary = [];
-					FormatTypeObjects::formatToSQLValue($str_value_type, $arr_filter_vector['value'], $arr_secondary);
+					FormatTypeObjects::formatToSQLValue($str_value_type, $arr_filter_vector['value'], null, $arr_secondary);
 					$str_sql_test = current($arr_secondary);
 					$str_sql_test = FormatTypeObjects::formatToSQLEscape($str_value_type, $str_sql_test, true);
 
@@ -261,7 +283,7 @@ class PromptRetrieveResourceExternal {
 						$str_sql_field = 'nodegoat_tos_vector.'.StoreType::getValueTypeValue($str_value_type, 'search');
 						
 						$arr_secondary = [];
-						FormatTypeObjects::formatToSQLValue($str_value_type, $arr_filter_vector['value'], $arr_secondary);
+						FormatTypeObjects::formatToSQLValue($str_value_type, $arr_filter_vector['value'], null, $arr_secondary);
 						$str_sql_test = current($arr_secondary);
 						$str_sql_test = FormatTypeObjects::formatToSQLEscape($str_value_type, $str_sql_test, true);
 
@@ -380,8 +402,7 @@ class PromptRetrieveResourceExternal {
 		/*if (arrHasKeysRecursive('conversion_id', $arr_response_values, true)) {
 			$socket = $this->getConversionSocket();
 		}
-		$this->external_retrieve->setResultConversionSocket($socket);
-		*/
+		$this->external_retrieve->setResultConversionSocket($socket);*/
 		
 		if (!$arr_response_values[$str_response_heading]) {
 			error(getLabel('msg_missing_information'), TROUBLE_ERROR, LOG_CLIENT);
