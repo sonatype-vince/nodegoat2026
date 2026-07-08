@@ -1,33 +1,31 @@
-name: Build
+name: Build (self-hosted, through Nexus cache)
+
 on:
   push:
-    branches: [ master, main ]
-  pull_request:
   workflow_dispatch:
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-      - name: Check out the code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      - name: Use public npm registry (ignore any committed .npmrc)
+      - name: Point npm at my Nexus cache
         run: |
-          rm -f .npmrc
-          npm config set registry https://registry.npmjs.org/
+          cat > .npmrc <<'EOF'
+          registry=http://localhost:8081/repository/demo-npm-proxy/
+          //localhost:8081/repository/demo-npm-proxy/:_auth=YWRtaW46YWRtaW4xMjM=
+          email=demo@sonatype.com
+          EOF
 
-      - name: Install dependencies
+      - name: Install dependencies (through Nexus)
         run: npm install --omit=dev --ignore-scripts
 
-      - name: Compile check — every JS file must parse with zero errors
+      - name: Compile check — every JS file, zero errors
         run: |
-          echo "Syntax-checking all source files (excluding node_modules)..."
-          count=$(find . -path ./node_modules -prune -o -name '*.js' -print | wc -l | tr -d ' ')
-          echo "Found $count JavaScript files to check."
           find . -path ./node_modules -prune -o -name '*.js' -print0 | xargs -0 -r -n1 node --check
           echo "All files compiled with zero errors."
