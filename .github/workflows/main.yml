@@ -1,11 +1,9 @@
 name: Build
-
 on:
   push:
     branches: [ master, main ]
   pull_request:
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,7 +16,7 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Use public npm registry (ignore local Nexus .npmrc)
+      - name: Use public npm registry (ignore any committed .npmrc)
         run: |
           rm -f .npmrc
           npm config set registry https://registry.npmjs.org/
@@ -28,7 +26,8 @@ jobs:
 
       - name: Compile check — every JS file must parse with zero errors
         run: |
-          echo "Syntax-checking all source files..."
-          node --check server.js
-          find app config -name "*.js" -print0 | xargs -0 -n1 node --check
+          echo "Syntax-checking all source files (excluding node_modules)..."
+          count=$(find . -path ./node_modules -prune -o -name '*.js' -print | wc -l | tr -d ' ')
+          echo "Found $count JavaScript files to check."
+          find . -path ./node_modules -prune -o -name '*.js' -print0 | xargs -0 -r -n1 node --check
           echo "All files compiled with zero errors."
