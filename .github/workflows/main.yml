@@ -1,4 +1,4 @@
-name: Build (self-hosted, through Nexus cache)
+name: Build (self-hosted, through Nexus)
 
 on:
   push:
@@ -14,7 +14,7 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Point npm at my Nexus cache
+      - name: Point npm at my Nexus proxy
         run: |
           cat > .npmrc <<'EOF'
           registry=http://localhost:8081/repository/demo-npm-proxy/
@@ -22,8 +22,11 @@ jobs:
           email=demo@sonatype.com
           EOF
 
-      - name: Install dependencies (through Nexus)
-        run: npm install --omit=dev --ignore-scripts
+      - name: Force a fresh pull so everything flows through Nexus
+        run: rm -rf node_modules package-lock.json
+
+      - name: Install dependencies (watch them come through Nexus)
+        run: npm install --omit=dev --ignore-scripts --loglevel=http
 
       - name: Compile check — every JS file, zero errors
         run: |
