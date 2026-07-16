@@ -1,19 +1,15 @@
 name: Build (self-hosted, through Nexus)
-
 on:
   push:
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-
       - name: Point npm at my Nexus proxy
         run: |
           cat > .npmrc <<'EOF'
@@ -21,14 +17,50 @@ jobs:
           //localhost:8081/repository/demo-npm-proxy/:_auth=YWRtaW46YWRtaW4xMjM=
           email=demo@sonatype.com
           EOF
-
       - name: Force a fresh pull so everything flows through Nexus
         run: rm -rf node_modules package-lock.json
-
       - name: Install dependencies (watch them come through Nexus)
         run: npm install --omit=dev --ignore-scripts --loglevel=http
-
       - name: Compile check — every JS file, zero errors
         run: |
           find . -path ./node_modules -prune -o -name '*.js' -print0 | xargs -0 -r -n1 node --check
           echo "All files compiled with zero errors."
+
+      # ───────────── POST-BUILD: Sonatype Lifecycle SCA scan ─────────────
+      # The Sonatype CLI is a Java app, so make sure a JRE is on the runner.
+      - name: Set up Java for the Sonatype CLI
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Sonatype Lifecycle scan (post-build)
+        id: sca
+        uses: sonatype/actions/evaluate@v1
+        with:
+          iq-server-url: ${{ vars.SONATYPE_IQ_URL }}       # e.g. http://localhost:8070
+          username: ${{ secrets.SONATYPE_IQ_USERNAME }}     # e.g. admin
+          password: ${{ secrets.SONATYPE_IQ_PASSWORD }}     # store as an encrypted secret
+          application-id: nodegoat                          # your IQ (Lifecycle) application ID
+          stage: build                                      # post-build CI stage
+          scan-targets: "package.json package-lock.json"    # npm manifests → full dependency tree
+          # upload-sarif-file: true                         # uncomment for GitHub Advanced Security (Security tab)
+        # Audit-mode rollout tip: while you're in your first ~30 days, either set the
+        # BUILD stage policy action to "Warn" in IQ, or uncomment the next line so a
+        # policy violation reports without breaking the build:
+        # continue-on-error: true
+
+      # Optional — pull the CycloneDX SBOM the scan produced ("the label on the box")
+      - name: Fetch SBOM (CycloneDX)
+        if: ( success() || failure() ) && steps.sca.outputs.scan-id
+        uses: sonatype/actions/fetch-sbom@v1
+        with:
+          iq-server-url: ${{ vars.SONATYPE_IQ_URL }}
+          username: ${{ secrets.SONATYPE_IQ_USERNAME }}
+          password: ${{ secrets.SONATYPE_IQ_PASSWORD }}
+          application-id: nodegoat
+          scan-id: ${{ steps.sca.outputs.scan-id }}
+          sbom-standard: cyclonedx
+          sbom-version: '1.5'
+          sbom-format: json
+          artifact-name: nodegoat-sbom.json
